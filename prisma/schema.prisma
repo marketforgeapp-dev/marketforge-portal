@@ -11,3 +11,447 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id          String   @id @default(cuid())
+  clerkUserId String   @unique
+  email       String?
+  firstName   String?
+  lastName    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaces WorkspaceMember[]
+  exports    ExportLog[]
+}
+
+model Workspace {
+  id                    String        @id @default(cuid())
+  name                  String
+  slug                  String        @unique
+  industry              IndustryType?
+  onboardingCompletedAt DateTime?
+  demoInitializedAt     DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  members              WorkspaceMember[]
+  businessProfile      BusinessProfile?
+  competitors          Competitor[]
+  revenueOpportunities RevenueOpportunity[]
+  recommendations      Recommendation[]
+  intelligenceAlerts   IntelligenceAlert[]
+  campaigns            Campaign[]
+  attributions         AttributionEntry[]
+  exports              ExportLog[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(OWNER)
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model BusinessProfile {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  businessName           String
+  website                String?
+  phone                  String?
+  city                   String
+  state                  String?
+  serviceArea            String
+  serviceAreaRadiusMiles Int?
+  industryLabel          String?
+  brandTone              BrandTone?
+
+  averageJobValue       Decimal? @db.Decimal(10, 2)
+  highestMarginService  String?
+  lowestPriorityService String?
+
+  technicians             Int?
+  jobsPerTechnicianPerDay Int?
+  weeklyCapacity          Int?
+  targetBookedJobsPerWeek Int?
+  targetWeeklyRevenue     Decimal? @db.Decimal(10, 2)
+
+  preferredServices     String[]
+  deprioritizedServices String[]
+
+  busyMonths       String[]
+  slowMonths       String[]
+  seasonalityNotes String?
+
+  googleBusinessProfileUrl String?
+  servicePageUrls          String[]
+  hasServicePages          Boolean  @default(false)
+  hasFaqContent            Boolean  @default(false)
+  hasBlog                  Boolean  @default(false)
+  hasGoogleBusinessPage    Boolean  @default(false)
+
+  aeoReadinessScore Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Competitor {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  name                String
+  websiteUrl          String?
+  googleBusinessUrl   String?
+  notes               String?
+  serviceFocus        String[]
+  rating              Float?
+  reviewCount         Int?
+  isPrimaryCompetitor Boolean  @default(false)
+
+  isRunningAds      Boolean?
+  isPostingActively Boolean?
+  hasActivePromo    Boolean?
+  reviewVelocity    String?
+  signalSummary     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model RevenueOpportunity {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title           String
+  description     String?
+  opportunityType OpportunityType
+  whyNow          String[]
+  priorityScore   Float?
+
+  estimatedRevenueMin    Decimal?         @db.Decimal(10, 2)
+  estimatedRevenueMax    Decimal?         @db.Decimal(10, 2)
+  estimatedBookedJobsMin Int?
+  estimatedBookedJobsMax Int?
+  confidence             ConfidenceLevel?
+  capacityFit            CapacityFit?
+
+  recommendedCampaignType CampaignType?
+  isActive                Boolean       @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns    Campaign[]
+  explanations InsightExplanation[]
+
+  @@index([workspaceId])
+}
+
+model InsightExplanation {
+  id                   String   @id @default(cuid())
+  revenueOpportunityId String
+  explanationText      String
+  createdAt            DateTime @default(now())
+
+  revenueOpportunity RevenueOpportunity @relation(fields: [revenueOpportunityId], references: [id], onDelete: Cascade)
+
+  @@index([revenueOpportunityId])
+}
+
+model Recommendation {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title        String
+  description  String?
+  campaignType CampaignType
+  score        Float
+  whyNow       String[]
+
+  estimatedLeadsMin      Int?
+  estimatedLeadsMax      Int?
+  estimatedBookedJobsMin Int?
+  estimatedBookedJobsMax Int?
+  estimatedRevenueMin    Decimal? @db.Decimal(10, 2)
+  estimatedRevenueMax    Decimal? @db.Decimal(10, 2)
+
+  capacityFit       CapacityFit?
+  campaignObjective CampaignObjective?
+  isLaunched        Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@index([workspaceId])
+}
+
+model IntelligenceAlert {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title             String
+  description       String
+  alertType         AlertType
+  source            AlertSource?
+  severity          AlertSeverity?
+  recommendedAction String?
+  isRead            Boolean        @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Campaign {
+  id                   String  @id @default(cuid())
+  campaignCode         String  @unique @default(cuid())
+  workspaceId          String
+  recommendationId     String?
+  revenueOpportunityId String?
+
+  name         String
+  campaignType CampaignType
+  objective    CampaignObjective?
+
+  targetService String?
+  offer         String?
+  audience      String?
+  serviceArea   String?
+
+  estimatedLeads      Int?
+  estimatedBookedJobs Int?
+  estimatedRevenue    Decimal? @db.Decimal(10, 2)
+
+  status              CampaignStatus @default(DRAFT)
+  qualityReviewStatus ReviewStatus   @default(PENDING)
+
+  briefJson Json?
+
+  campaignStartDate DateTime?
+  campaignEndDate   DateTime?
+
+  startedAt   DateTime?
+  launchedAt  DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recommendation     Recommendation?     @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+  revenueOpportunity RevenueOpportunity? @relation(fields: [revenueOpportunityId], references: [id], onDelete: SetNull)
+  assets             CampaignAsset[]
+  attributions       AttributionEntry[]
+  exports            ExportLog[]
+
+  @@index([workspaceId])
+  @@index([recommendationId])
+  @@index([revenueOpportunityId])
+  @@index([campaignStartDate])
+  @@index([campaignEndDate])
+  @@index([workspaceId, campaignStartDate, campaignEndDate])
+}
+
+model CampaignAsset {
+  id         String @id @default(cuid())
+  campaignId String
+
+  assetType    AssetType
+  title        String?
+  content      String
+  metadataJson Json?
+
+  version    Int       @default(1)
+  isApproved Boolean   @default(false)
+  approvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+}
+
+model AttributionEntry {
+  id          String  @id @default(cuid())
+  workspaceId String
+  campaignId  String?
+
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  leadsGenerated Int?
+  bookedJobs     Int?
+  revenue        Decimal?         @db.Decimal(10, 2)
+  roi            Float?
+  confidence     ConfidenceLevel?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign  Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([campaignId])
+  @@index([periodStart, periodEnd])
+  @@index([workspaceId, periodStart, periodEnd])
+}
+
+model ExportLog {
+  id          String  @id @default(cuid())
+  workspaceId String
+  campaignId  String?
+  userId      String?
+
+  exportType ExportType
+  fileName   String?
+  fileCount  Int?
+  createdAt  DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign  Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([campaignId])
+  @@index([userId])
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum IndustryType {
+  PLUMBING
+  HVAC
+  SEPTIC
+  TREE_SERVICE
+}
+
+enum BrandTone {
+  PROFESSIONAL
+  FRIENDLY
+  URGENT
+  LOCAL
+}
+
+enum OpportunityType {
+  SEASONAL_DEMAND
+  COMPETITOR_INACTIVE
+  CAPACITY_GAP
+  HIGH_VALUE_SERVICE
+  AI_SEARCH_VISIBILITY
+  REVIEW_SENTIMENT_SHIFT
+  LOCAL_SEARCH_SPIKE
+}
+
+enum CampaignType {
+  DRAIN_SPECIAL
+  WATER_HEATER
+  MAINTENANCE_PUSH
+  REVIEW_GENERATION
+  EMERGENCY_SERVICE
+  SEO_CONTENT
+  AEO_FAQ
+  CUSTOM
+}
+
+enum CampaignObjective {
+  FILL_OPEN_SCHEDULE
+  PUSH_HIGHER_TICKET_JOBS
+  DEFEND_AGAINST_COMPETITOR
+  IMPROVE_AI_SEARCH_VISIBILITY
+  INCREASE_REVIEWS
+  CAPTURE_SEASONAL_DEMAND
+}
+
+enum CapacityFit {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ConfidenceLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AlertType {
+  COMPETITOR_PROMO
+  COMPETITOR_INACTIVE
+  SEARCH_DEMAND_SPIKE
+  REVIEW_CHANGE
+  AEO_OPPORTUNITY
+  UNDERUTILIZED_SCHEDULE
+  SEASONAL_SHIFT
+}
+
+enum AlertSource {
+  COMPETITOR
+  DEMAND_MODEL
+  AEO_MODEL
+  CAPACITY_MODEL
+  MANUAL
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CampaignStatus {
+  DRAFT
+  READY
+  APPROVED
+  SCHEDULED
+  LAUNCHED
+  COMPLETED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  NEEDS_REVISION
+}
+
+enum AssetType {
+  GOOGLE_BUSINESS
+  META
+  GOOGLE_ADS
+  EMAIL
+  BLOG
+  SEO
+  AEO_FAQ
+  ANSWER_SNIPPET
+}
+
+enum ExportType {
+  CAMPAIGN_PACK
+  AEO_PACK
+}
