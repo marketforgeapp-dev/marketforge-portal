@@ -10,6 +10,8 @@ import { CapacityStep } from "./steps/capacity-step";
 import { CompetitorsStep } from "./steps/competitors-step";
 import { WebsiteSeoStep } from "./steps/website-seo-step";
 import { MarketInitializationStep } from "./steps/market-initialization-step";
+import { OnboardingAiPrefill } from "@/components/onboarding/onboarding-ai-prefill";
+import type { OnboardingPrefillResult } from "@/lib/onboarding-prefill-schema";
 import { saveOnboarding } from "@/app/onboarding/actions";
 
 const STEP_LABELS = [
@@ -24,12 +26,17 @@ const STEP_LABELS = [
 const INITIAL_FORM_DATA: OnboardingFormData = {
   businessName: "BluePeak Plumbing",
   website: "",
+  logoUrl: "",
   phone: "",
   city: "Jasper",
   state: "GA",
+  serviceArea: "",
   serviceAreaRadiusMiles: 30,
   industry: "PLUMBING",
+  industryLabel: "Plumbing",
+  brandTone: "PROFESSIONAL",
 
+  preferredServices: [],
   primaryServices: [
     "Drain cleaning",
     "Water heater replacement",
@@ -37,6 +44,7 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
     "Toilet repair",
     "Pipe repair",
   ],
+  deprioritizedServices: [],
   averageJobValue: 450,
   highestMarginService: "Water heater replacement",
   lowestPriorityService: "Toilet repair",
@@ -45,26 +53,35 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   jobsPerTechnicianPerDay: 3,
   weeklyCapacity: 45,
   targetWeeklyRevenue: 12000,
+  targetBookedJobsPerWeek: null,
 
   competitors: [
     {
       name: "Masterflo Plumbing",
       websiteUrl: "",
       googleBusinessUrl: "",
+      logoUrl: "",
+      isPrimaryCompetitor: true,
     },
     {
       name: "Superior Plumbing",
       websiteUrl: "",
       googleBusinessUrl: "",
+      logoUrl: "",
+      isPrimaryCompetitor: false,
     },
   ],
 
   hasServicePages: true,
   hasFaqContent: false,
+  hasFaqPage: false,
   hasBlog: false,
   hasGoogleBusinessPage: true,
   googleBusinessProfileUrl: "",
+  servicePageUrls: [],
 
+  busySeason: "",
+  slowSeason: "",
   busyMonths: ["May", "June", "July", "August", "September"],
   slowMonths: ["January", "February"],
   seasonalityNotes: "",
@@ -80,6 +97,64 @@ export function OnboardingFlow() {
   const totalSteps = STEP_LABELS.length;
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === totalSteps - 1;
+
+  function applyAiPrefill(prefill: OnboardingPrefillResult) {
+    setFormData((current) => ({
+      ...current,
+      businessName: prefill.businessName || current.businessName,
+      website: prefill.website || current.website,
+      logoUrl: prefill.logoUrl || current.logoUrl,
+      phone: prefill.phone || current.phone,
+
+      serviceArea: prefill.serviceArea || current.serviceArea,
+      industry: prefill.industry || current.industry,
+      industryLabel:
+        prefill.industry === "PLUMBING"
+          ? "Plumbing"
+          : prefill.industry === "HVAC"
+            ? "HVAC"
+            : prefill.industry === "SEPTIC"
+              ? "Septic"
+              : prefill.industry === "TREE_SERVICE"
+                ? "Tree Service"
+                : current.industryLabel,
+
+      preferredServices:
+        prefill.preferredServices.length > 0
+          ? prefill.preferredServices
+          : current.preferredServices,
+
+      primaryServices:
+        prefill.preferredServices.length > 0
+          ? prefill.preferredServices
+          : current.primaryServices,
+
+      servicePageUrls:
+        prefill.servicePageUrls.length > 0
+          ? prefill.servicePageUrls
+          : current.servicePageUrls,
+
+      hasFaqContent: prefill.hasFaqContent,
+      hasFaqPage: prefill.hasFaqContent || current.hasFaqPage,
+
+      busySeason: prefill.busySeason || current.busySeason,
+      slowSeason: prefill.slowSeason || current.slowSeason,
+
+      averageJobValue:
+        prefill.averageJobValueHint ?? current.averageJobValue,
+
+      competitors:
+        prefill.competitors.length > 0
+          ? prefill.competitors.map((competitor, index) => ({
+              name: competitor.name,
+              websiteUrl: competitor.websiteUrl ?? "",
+              googleBusinessUrl: "",
+              logoUrl: competitor.logoUrl ?? "",
+              isPrimaryCompetitor: index === 0,
+            }))
+          : current.competitors,
+    }));
+  }
 
   const currentStepComponent = useMemo(() => {
     switch (currentStep) {
@@ -117,14 +192,19 @@ export function OnboardingFlow() {
     setSubmitError(null);
 
     startTransition(async () => {
-      const result = await saveOnboarding(formData);
+      try {
+        const result = await saveOnboarding(formData);
 
-      if (!result.success) {
-        setSubmitError(result.error ?? "Something went wrong while saving onboarding.");
-        return;
+        if (!result?.success) {
+          setSubmitError("Something went wrong while saving onboarding.");
+          return;
+        }
+
+        router.push("/dashboard");
+      } catch (error) {
+        console.error(error);
+        setSubmitError("Something went wrong while saving onboarding.");
       }
-
-      router.push("/dashboard");
     });
   };
 
@@ -144,12 +224,35 @@ export function OnboardingFlow() {
           </p>
         </div>
 
+        <div className="mb-6">
+          <OnboardingAiPrefill onApply={applyAiPrefill} />
+        </div>
+
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
           <OnboardingProgress
             currentStep={currentStep}
             totalSteps={totalSteps}
             stepLabels={STEP_LABELS}
           />
+
+          {formData.logoUrl ? (
+            <div className="mt-6 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={formData.logoUrl}
+                alt={`${formData.businessName || "Business"} logo`}
+                className="h-12 w-12 rounded-lg bg-white object-contain p-1"
+              />
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  Company logo loaded
+                </p>
+                <p className="text-xs text-gray-600">
+                  This logo will be stored for use throughout the MarketForge workspace.
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-8">{currentStepComponent}</div>
 

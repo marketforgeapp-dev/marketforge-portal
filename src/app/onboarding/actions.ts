@@ -1,48 +1,52 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
-import { onboardingSchema, type OnboardingSchemaInput } from "@/lib/onboarding-schema";
+import { onboardingSchema } from "@/lib/onboarding-schema";
 
-function toNullableString(value: string) {
+function toNullableString(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function toNullableNumber(value: number | "") {
-  return value === "" ? null : value;
+function toRequiredString(
+  value: string | null | undefined,
+  fallback = ""
+): string {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
 }
 
-export async function saveOnboarding(data: OnboardingSchemaInput) {
+function toNumberOrNull(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function cleanStringArray(value: string[] | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => item.trim()).filter((item) => item.length > 0);
+}
+
+export async function saveOnboarding(input: unknown) {
   const { userId: clerkUserId } = await auth();
 
   if (!clerkUserId) {
-    return {
-      success: false,
-      error: "You must be signed in to complete onboarding.",
-    };
+    throw new Error("Unauthorized");
   }
 
-  const parsed = onboardingSchema.safeParse(data);
+  const parsed = onboardingSchema.safeParse(input);
 
   if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid onboarding data.",
-    };
+    throw new Error("Invalid onboarding data");
   }
 
-  const formData = parsed.data;
+  const values = parsed.data;
+
   const clerkUser = await currentUser();
-
-  const email =
-    clerkUser?.emailAddresses?.find(
-      (email) => email.id === clerkUser.primaryEmailAddressId
-    )?.emailAddress ??
-    clerkUser?.emailAddresses?.[0]?.emailAddress ??
-    null;
-
+  const email = clerkUser?.emailAddresses?.[0]?.emailAddress?.trim() || null;
   const firstName = clerkUser?.firstName ?? null;
   const lastName = clerkUser?.lastName ?? null;
 
@@ -61,182 +65,183 @@ export async function saveOnboarding(data: OnboardingSchemaInput) {
     },
   });
 
-  const baseSlug = slugify(formData.businessName);
-  let workspaceSlug = baseSlug;
-  let slugSuffix = 1;
+  const businessName = values.businessName.trim();
+  const baseSlug = slugify(businessName);
+  const workspaceSlug = `${baseSlug}-${clerkUserId.slice(-6)}`;
 
-  while (true) {
-    const existingWorkspace = await prisma.workspace.findUnique({
-      where: { slug: workspaceSlug },
-    });
-
-    if (!existingWorkspace) break;
-    workspaceSlug = `${baseSlug}-${slugSuffix}`;
-    slugSuffix += 1;
-  }
-
-  let workspaceMembership = await prisma.workspaceMember.findFirst({
-    where: {
-      userId: appUser.id,
-      role: "OWNER",
+  const workspace = await prisma.workspace.upsert({
+    where: { slug: workspaceSlug },
+    update: {
+      name: businessName,
+      industry: values.industry,
     },
-    include: {
-      workspace: true,
+    create: {
+      name: businessName,
+      slug: workspaceSlug,
+      industry: values.industry,
     },
   });
 
-  if (!workspaceMembership) {
-    const createdWorkspace = await prisma.workspace.create({
-      data: {
-        name: formData.businessName,
-        slug: workspaceSlug,
-        industry: formData.industry === "" ? null : formData.industry,
-        members: {
-          create: {
-            userId: appUser.id,
-            role: "OWNER",
-          },
-        },
-      },
-    });
-
-    workspaceMembership = await prisma.workspaceMember.findFirst({
-      where: {
-        workspaceId: createdWorkspace.id,
+  await prisma.workspaceMember.upsert({
+    where: {
+      workspaceId_userId: {
+        workspaceId: workspace.id,
         userId: appUser.id,
       },
-      include: {
-        workspace: true,
-      },
-    });
-
-    if (!workspaceMembership) {
-      return {
-        success: false,
-        error: "Workspace membership could not be created.",
-      };
-    }
-  } else {
-    await prisma.workspace.update({
-      where: { id: workspaceMembership.workspace.id },
-      data: {
-        name: formData.businessName,
-        industry: formData.industry === "" ? null : formData.industry,
-      },
-    });
-  }
-
-  const workspaceId = workspaceMembership.workspace.id;
-
-  await prisma.businessProfile.upsert({
-    where: { workspaceId },
+    },
     update: {
-      businessName: formData.businessName,
-      website: toNullableString(formData.website),
-      phone: toNullableString(formData.phone),
-      city: formData.city,
-      state: toNullableString(formData.state),
-      serviceArea: `${formData.city}, ${formData.state} (${formData.serviceAreaRadiusMiles || 0} miles)`,
-      serviceAreaRadiusMiles: toNullableNumber(formData.serviceAreaRadiusMiles),
-      industryLabel: formData.industry || null,
-
-      averageJobValue: toNullableNumber(formData.averageJobValue),
-      highestMarginService: toNullableString(formData.highestMarginService),
-      lowestPriorityService: toNullableString(formData.lowestPriorityService),
-
-      technicians: toNullableNumber(formData.technicians),
-      jobsPerTechnicianPerDay: toNullableNumber(formData.jobsPerTechnicianPerDay),
-      weeklyCapacity: toNullableNumber(formData.weeklyCapacity),
-      targetBookedJobsPerWeek: null,
-      targetWeeklyRevenue: toNullableNumber(formData.targetWeeklyRevenue),
-
-      preferredServices: formData.primaryServices,
-      deprioritizedServices: formData.lowestPriorityService
-        ? [formData.lowestPriorityService]
-        : [],
-
-      busyMonths: formData.busyMonths,
-      slowMonths: formData.slowMonths,
-      seasonalityNotes: toNullableString(formData.seasonalityNotes),
-
-      googleBusinessProfileUrl: toNullableString(formData.googleBusinessProfileUrl),
-      servicePageUrls: [],
-      hasServicePages: formData.hasServicePages,
-      hasFaqContent: formData.hasFaqContent,
-      hasBlog: formData.hasBlog,
-      hasGoogleBusinessPage: formData.hasGoogleBusinessPage,
+      role: "OWNER",
     },
     create: {
-      workspaceId,
-      businessName: formData.businessName,
-      website: toNullableString(formData.website),
-      phone: toNullableString(formData.phone),
-      city: formData.city,
-      state: toNullableString(formData.state),
-      serviceArea: `${formData.city}, ${formData.state} (${formData.serviceAreaRadiusMiles || 0} miles)`,
-      serviceAreaRadiusMiles: toNullableNumber(formData.serviceAreaRadiusMiles),
-      industryLabel: formData.industry || null,
+      workspaceId: workspace.id,
+      userId: appUser.id,
+      role: "OWNER",
+    },
+  });
 
-      averageJobValue: toNullableNumber(formData.averageJobValue),
-      highestMarginService: toNullableString(formData.highestMarginService),
-      lowestPriorityService: toNullableString(formData.lowestPriorityService),
+  const preferredServices =
+    cleanStringArray(values.preferredServices).length > 0
+      ? cleanStringArray(values.preferredServices)
+      : cleanStringArray(values.primaryServices);
 
-      technicians: toNullableNumber(formData.technicians),
-      jobsPerTechnicianPerDay: toNullableNumber(formData.jobsPerTechnicianPerDay),
-      weeklyCapacity: toNullableNumber(formData.weeklyCapacity),
-      targetBookedJobsPerWeek: null,
-      targetWeeklyRevenue: toNullableNumber(formData.targetWeeklyRevenue),
+  const deprioritizedServices =
+    cleanStringArray(values.deprioritizedServices).length > 0
+      ? cleanStringArray(values.deprioritizedServices)
+      : values.lowestPriorityService
+        ? [values.lowestPriorityService]
+        : [];
 
-      preferredServices: formData.primaryServices,
-      deprioritizedServices: formData.lowestPriorityService
-        ? [formData.lowestPriorityService]
-        : [],
+const cityValue = toNullableString(values.city);
+const stateValue = toNullableString(values.state);
 
-      busyMonths: formData.busyMonths,
-      slowMonths: formData.slowMonths,
-      seasonalityNotes: toNullableString(formData.seasonalityNotes),
+const cityState =
+  cityValue && stateValue
+    ? `${cityValue}, ${stateValue}`
+    : cityValue ?? stateValue ?? null;
 
-      googleBusinessProfileUrl: toNullableString(formData.googleBusinessProfileUrl),
-      servicePageUrls: [],
-      hasServicePages: formData.hasServicePages,
-      hasFaqContent: formData.hasFaqContent,
-      hasBlog: formData.hasBlog,
-      hasGoogleBusinessPage: formData.hasGoogleBusinessPage,
+const serviceArea =
+  toNullableString(values.serviceArea) ??
+  cityState ??
+  "Not specified";
+
+  const busyMonths = cleanStringArray(
+  Array.isArray(values.busyMonths)
+    ? values.busyMonths
+    : typeof values.busyMonths === "string"
+      ? values.busyMonths.split(",")
+      : []
+);
+
+const slowMonths = cleanStringArray(
+  Array.isArray(values.slowMonths)
+    ? values.slowMonths
+    : typeof values.slowMonths === "string"
+      ? values.slowMonths.split(",")
+      : []
+);
+
+const busySeason: string | null =
+  toNullableString(values.busySeason) ??
+  (busyMonths.length > 0 ? busyMonths.join(", ") : null);
+
+const slowSeason: string | null =
+  toNullableString(values.slowSeason) ??
+  (slowMonths.length > 0 ? slowMonths.join(", ") : null);
+
+  const targetBookedJobsPerWeek =
+    toNumberOrNull(values.targetBookedJobsPerWeek) ?? null;
+
+  const businessProfileData = {
+    businessName,
+    website: toNullableString(values.website),
+    logoUrl: toNullableString(values.logoUrl),
+    phone: toNullableString(values.phone),
+
+    city: toRequiredString(values.city, "Not specified"),
+    state: toRequiredString(values.state, "Not specified"),
+    serviceArea,
+    serviceAreaRadiusMiles: toNumberOrNull(values.serviceAreaRadiusMiles),
+
+    brandTone: values.brandTone ?? null,
+    industryLabel:
+      toNullableString(values.industryLabel) ?? values.industry,
+
+    averageJobValue: toNumberOrNull(values.averageJobValue),
+    targetWeeklyRevenue: toNumberOrNull(values.targetWeeklyRevenue),
+    technicians: toNumberOrNull(values.technicians),
+    jobsPerTechnicianPerDay: toNumberOrNull(values.jobsPerTechnicianPerDay),
+    weeklyCapacity: toNumberOrNull(values.weeklyCapacity),
+    targetBookedJobsPerWeek,
+
+    preferredServices,
+    deprioritizedServices,
+
+    highestMarginService: toNullableString(values.highestMarginService),
+    lowestPriorityService: toNullableString(values.lowestPriorityService),
+
+    busySeason,
+    slowSeason,
+    busyMonths,
+    slowMonths,
+    seasonalityNotes: toNullableString(values.seasonalityNotes),
+
+    googleBusinessProfileUrl:
+      toNullableString(values.googleBusinessProfileUrl),
+    hasFaqContent: values.hasFaqContent || values.hasFaqPage || false,
+    hasBlog: values.hasBlog || false,
+    hasGoogleBusinessPage: values.hasGoogleBusinessPage || false,
+    hasServicePages: values.hasServicePages || false,
+    servicePageUrls: cleanStringArray(values.servicePageUrls),
+  };
+
+  await prisma.businessProfile.upsert({
+    where: { workspaceId: workspace.id },
+    update: businessProfileData,
+    create: {
+      workspaceId: workspace.id,
+      ...businessProfileData,
     },
   });
 
   await prisma.competitor.deleteMany({
-    where: { workspaceId },
+    where: { workspaceId: workspace.id },
   });
 
-  const cleanedCompetitors = formData.competitors.filter(
-    (competitor) => competitor.name.trim().length > 0
-  );
+  const competitors = values.competitors
+    .filter((competitor) => competitor.name.trim().length > 0)
+    .map((competitor, index) => ({
+      workspaceId: workspace.id,
+      name: competitor.name.trim(),
+      websiteUrl: toNullableString(competitor.websiteUrl),
+      googleBusinessUrl: toNullableString(competitor.googleBusinessUrl),
+      logoUrl: toNullableString(competitor.logoUrl),
+      isPrimaryCompetitor:
+        competitor.isPrimaryCompetitor ?? index === 0,
+      notes: null,
+      serviceFocus: [],
+      rating: null,
+      reviewCount: null,
+      isRunningAds: null,
+      isPostingActively: null,
+      hasActivePromo: null,
+      reviewVelocity: null,
+      signalSummary: null,
+    }));
 
-  if (cleanedCompetitors.length > 0) {
+  if (competitors.length > 0) {
     await prisma.competitor.createMany({
-      data: cleanedCompetitors.map((competitor, index) => ({
-        workspaceId,
-        name: competitor.name.trim(),
-        websiteUrl: toNullableString(competitor.websiteUrl),
-        googleBusinessUrl: toNullableString(competitor.googleBusinessUrl),
-        serviceFocus: [],
-        isPrimaryCompetitor: index === 0,
-      })),
+      data: competitors,
     });
   }
 
-  await prisma.workspace.update({
-    where: { id: workspaceId },
-    data: {
-      onboardingCompletedAt: new Date(),
-      demoInitializedAt: new Date(),
-    },
-  });
+  revalidatePath("/onboarding");
+  revalidatePath("/dashboard");
+  revalidatePath("/competitors");
+  revalidatePath("/campaigns");
+  revalidatePath("/execution");
 
   return {
     success: true,
-    workspaceId,
-    workspaceSlug: workspaceMembership.workspace.slug,
+    workspaceId: workspace.id,
   };
 }

@@ -1,41 +1,101 @@
 import { z } from "zod";
 
-export const competitorInputSchema = z.object({
-  name: z.string().trim().min(1, "Competitor name is required"),
-  websiteUrl: z.string().trim(),
-  googleBusinessUrl: z.string().trim(),
-});
+const emptyStringToNull = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+};
+
+const nullableString = z.preprocess(
+  emptyStringToNull,
+  z.string().nullable()
+).optional();
+
+const nullableNumber = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}, z.number().nullable()).optional();
+
+const stringArray = z.preprocess((value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}, z.array(z.string()));
 
 export const onboardingSchema = z.object({
-  businessName: z.string().trim().min(1, "Business name is required"),
-  website: z.string().trim(),
-  phone: z.string().trim(),
-  city: z.string().trim().min(1, "City is required"),
-  state: z.string().trim().min(1, "State is required"),
-  serviceAreaRadiusMiles: z.union([z.number().int().nonnegative(), z.literal("")]),
-  industry: z.enum(["PLUMBING", "HVAC", "SEPTIC", "TREE_SERVICE", ""]),
+  businessName: z.string().min(1, "Business name is required"),
+  website: nullableString,
+  logoUrl: nullableString,
+  phone: nullableString,
 
-  primaryServices: z.array(z.string().trim().min(1)).min(1, "Add at least one service"),
-  averageJobValue: z.union([z.number().nonnegative(), z.literal("")]),
-  highestMarginService: z.string().trim(),
-  lowestPriorityService: z.string().trim(),
+  city: nullableString,
+  state: nullableString,
+  serviceArea: nullableString,
+  serviceAreaRadiusMiles: nullableNumber,
 
-  technicians: z.union([z.number().int().nonnegative(), z.literal("")]),
-  jobsPerTechnicianPerDay: z.union([z.number().int().nonnegative(), z.literal("")]),
-  weeklyCapacity: z.union([z.number().int().nonnegative(), z.literal("")]),
-  targetWeeklyRevenue: z.union([z.number().nonnegative(), z.literal("")]),
+  industry: z.enum(["PLUMBING", "HVAC", "SEPTIC", "TREE_SERVICE"]),
+  industryLabel: nullableString,
+  brandTone: z
+    .enum(["PROFESSIONAL", "FRIENDLY", "URGENT", "LOCAL"])
+    .nullable()
+    .optional(),
 
-  competitors: z.array(competitorInputSchema),
+  averageJobValue: nullableNumber,
+  targetWeeklyRevenue: nullableNumber,
+  technicians: nullableNumber,
+  jobsPerTechnicianPerDay: nullableNumber,
+  weeklyCapacity: nullableNumber,
+  targetBookedJobsPerWeek: nullableNumber,
 
-  hasServicePages: z.boolean(),
-  hasFaqContent: z.boolean(),
-  hasBlog: z.boolean(),
-  hasGoogleBusinessPage: z.boolean(),
-  googleBusinessProfileUrl: z.string().trim(),
+  preferredServices: stringArray,
+  primaryServices: stringArray,
+  deprioritizedServices: stringArray,
 
-  busyMonths: z.array(z.string()),
-  slowMonths: z.array(z.string()),
-  seasonalityNotes: z.string().trim(),
+  highestMarginService: nullableString,
+  lowestPriorityService: nullableString,
+
+  busySeason: nullableString,
+  slowSeason: nullableString,
+  busyMonths: nullableString,
+  slowMonths: nullableString,
+  seasonalityNotes: nullableString,
+
+  googleBusinessProfileUrl: nullableString,
+  hasFaqContent: z.boolean().optional().default(false),
+  hasFaqPage: z.boolean().optional().default(false),
+  hasBlog: z.boolean().optional().default(false),
+  hasGoogleBusinessPage: z.boolean().optional().default(false),
+  hasServicePages: z.boolean().optional().default(false),
+  servicePageUrls: stringArray,
+
+  competitors: z
+    .array(
+      z.object({
+        name: z.string().min(1, "Competitor name is required"),
+        websiteUrl: nullableString,
+        googleBusinessUrl: nullableString,
+        logoUrl: nullableString,
+        isPrimaryCompetitor: z.boolean().optional().default(false),
+      })
+    )
+    .default([]),
 });
 
-export type OnboardingSchemaInput = z.infer<typeof onboardingSchema>;
+export type OnboardingSchemaInput = z.input<typeof onboardingSchema>;
+export type OnboardingSchemaParsed = z.infer<typeof onboardingSchema>;

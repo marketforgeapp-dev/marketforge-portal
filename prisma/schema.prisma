@@ -6,6 +6,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -42,6 +43,7 @@ model Workspace {
   recommendations      Recommendation[]
   intelligenceAlerts   IntelligenceAlert[]
   campaigns            Campaign[]
+  leads                Lead[]
   attributions         AttributionEntry[]
   exports              ExportLog[]
 }
@@ -65,6 +67,7 @@ model BusinessProfile {
 
   businessName           String
   website                String?
+  logoUrl                String?
   phone                  String?
   city                   String
   state                  String?
@@ -85,7 +88,9 @@ model BusinessProfile {
 
   preferredServices     String[]
   deprioritizedServices String[]
-
+  
+  busySeason       String?
+  slowSeason       String?
   busyMonths       String[]
   slowMonths       String[]
   seasonalityNotes String?
@@ -110,6 +115,7 @@ model Competitor {
 
   name                String
   websiteUrl          String?
+  logoUrl             String?
   googleBusinessUrl   String?
   notes               String?
   serviceFocus        String[]
@@ -139,6 +145,7 @@ model RevenueOpportunity {
   description     String?
   opportunityType OpportunityType
   whyNow          String[]
+  leads           Lead[]
   priorityScore   Float?
 
   estimatedRevenueMin    Decimal?         @db.Decimal(10, 2)
@@ -159,6 +166,32 @@ model RevenueOpportunity {
   explanations InsightExplanation[]
 
   @@index([workspaceId])
+}
+
+model Lead {
+  id                    String        @id @default(cuid())
+  workspaceId           String
+  campaignId            String?
+  revenueOpportunityId  String?
+
+  leadName              String
+  phone                 String?
+  email                 String?
+  source                String?
+  notes                 String?
+  status                LeadStatus    @default(NEW)
+
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  workspace             Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign              Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  revenueOpportunity    RevenueOpportunity? @relation(fields: [revenueOpportunityId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([campaignId])
+  @@index([revenueOpportunityId])
+  @@index([status])
 }
 
 model InsightExplanation {
@@ -261,6 +294,7 @@ model Campaign {
   recommendation     Recommendation?     @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
   revenueOpportunity RevenueOpportunity? @relation(fields: [revenueOpportunityId], references: [id], onDelete: SetNull)
   assets             CampaignAsset[]
+  leads              Lead[]
   attributions       AttributionEntry[]
   exports            ExportLog[]
 
@@ -454,4 +488,12 @@ enum AssetType {
 enum ExportType {
   CAMPAIGN_PACK
   AEO_PACK
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  ESTIMATE_SCHEDULED
+  BOOKED
+  LOST
 }

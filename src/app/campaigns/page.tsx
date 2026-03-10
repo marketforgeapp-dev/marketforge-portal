@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { CampaignsGrid } from "@/components/campaigns/campaigns-grid";
 import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
+import { NlCampaignPanel } from "@/components/campaigns/nl-campaign-panel";
 
 export default async function CampaignsPage() {
   const workspace = await getCurrentWorkspace();
@@ -12,13 +13,10 @@ export default async function CampaignsPage() {
     redirect("/onboarding");
   }
 
-  // Ensure demo data exists
   await seedDemoWorkspaceData(workspace.id);
 
   const campaigns = await prisma.campaign.findMany({
-    where: {
-      workspaceId: workspace.id,
-    },
+    where: { workspaceId: workspace.id },
     include: {
       assets: true,
       attributions: true,
@@ -44,9 +42,12 @@ export default async function CampaignsPage() {
             </h1>
 
             <p className="mt-2 text-gray-600">
-              AI-generated marketing campaigns designed to capture missed revenue opportunities.
+              Generate Draft Ready campaigns tied to real revenue opportunities
+              and review the assets before approval.
             </p>
           </div>
+
+          <NlCampaignPanel />
 
           {campaigns.length === 0 ? (
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

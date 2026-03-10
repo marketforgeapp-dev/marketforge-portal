@@ -21,9 +21,8 @@ export function DashboardHeader({ workspaceName }: DashboardHeaderProps) {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-            AI-powered revenue intelligence for local service businesses. Track
-            missed revenue, launch campaigns, and monitor competitor movement in
-            one place.
+            Revenue intelligence, campaign guidance, and managed launch workflow
+            for local service businesses.
           </p>
         </div>
 
