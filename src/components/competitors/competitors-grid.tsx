@@ -1,4 +1,4 @@
-import { Competitor } from "@prisma/client";
+import { Competitor } from "@/generated/prisma";
 import { CompetitorCard } from "./competitor-card";
 
 type Props = {
