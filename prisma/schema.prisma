@@ -31,6 +31,7 @@ model Workspace {
   name                  String
   slug                  String        @unique
   industry              IndustryType?
+  isDemo                Boolean       @default(false)
   onboardingCompletedAt DateTime?
   demoInitializedAt     DateTime?
   createdAt             DateTime      @default(now())

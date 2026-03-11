@@ -24,12 +24,12 @@ const STEP_LABELS = [
 ];
 
 const INITIAL_FORM_DATA: OnboardingFormData = {
-  businessName: "BluePeak Plumbing",
+  businessName: "",
   website: "",
   logoUrl: "",
   phone: "",
-  city: "Jasper",
-  state: "GA",
+  city: "",
+  state: "",
   serviceArea: "",
   serviceAreaRadiusMiles: 30,
   industry: "PLUMBING",
@@ -37,17 +37,11 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   brandTone: "PROFESSIONAL",
 
   preferredServices: [],
-  primaryServices: [
-    "Drain cleaning",
-    "Water heater replacement",
-    "Leak repair",
-    "Toilet repair",
-    "Pipe repair",
-  ],
+  primaryServices: [],
   deprioritizedServices: [],
   averageJobValue: 450,
-  highestMarginService: "Water heater replacement",
-  lowestPriorityService: "Toilet repair",
+  highestMarginService: "",
+  lowestPriorityService: "",
 
   technicians: 3,
   jobsPerTechnicianPerDay: 3,
@@ -55,35 +49,20 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   targetWeeklyRevenue: 12000,
   targetBookedJobsPerWeek: null,
 
-  competitors: [
-    {
-      name: "Masterflo Plumbing",
-      websiteUrl: "",
-      googleBusinessUrl: "",
-      logoUrl: "",
-      isPrimaryCompetitor: true,
-    },
-    {
-      name: "Superior Plumbing",
-      websiteUrl: "",
-      googleBusinessUrl: "",
-      logoUrl: "",
-      isPrimaryCompetitor: false,
-    },
-  ],
+  competitors: [],
 
-  hasServicePages: true,
+  hasServicePages: false,
   hasFaqContent: false,
   hasFaqPage: false,
   hasBlog: false,
-  hasGoogleBusinessPage: true,
+  hasGoogleBusinessPage: false,
   googleBusinessProfileUrl: "",
   servicePageUrls: [],
 
   busySeason: "",
   slowSeason: "",
-  busyMonths: ["May", "June", "July", "August", "September"],
-  slowMonths: ["January", "February"],
+  busyMonths: [],
+  slowMonths: [],
   seasonalityNotes: "",
 };
 

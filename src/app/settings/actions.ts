@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { slugify } from "@/lib/slugify";
 import { onboardingSchema } from "@/lib/onboarding-schema";
 
 function toNullableString(value: string | null | undefined): string | null {
@@ -30,7 +29,7 @@ function cleanStringArray(value: string[] | undefined): string[] {
   return value.map((item) => item.trim()).filter((item) => item.length > 0);
 }
 
-export async function saveOnboarding(input: unknown) {
+export async function saveSettings(input: unknown) {
   const { userId: clerkUserId } = await auth();
 
   if (!clerkUserId) {
@@ -40,84 +39,31 @@ export async function saveOnboarding(input: unknown) {
   const parsed = onboardingSchema.safeParse(input);
 
   if (!parsed.success) {
-    throw new Error("Invalid onboarding data");
+    throw new Error("Invalid settings data");
   }
 
   const values = parsed.data;
 
-  const clerkUser = await currentUser();
-  const email = clerkUser?.emailAddresses?.[0]?.emailAddress?.trim() || null;
-  const firstName = clerkUser?.firstName ?? null;
-  const lastName = clerkUser?.lastName ?? null;
-
-  const appUser = await prisma.user.upsert({
+  const user = await prisma.user.findUnique({
     where: { clerkUserId },
-    update: {
-      email,
-      firstName,
-      lastName,
-    },
-    create: {
-      clerkUserId,
-      email,
-      firstName,
-      lastName,
-    },
-  });
-
-  const businessName = values.businessName.trim();
-  const baseSlug = slugify(businessName);
-  const fallbackWorkspaceSlug = `${baseSlug}-${clerkUserId.slice(-6)}`;
-  const now = new Date();
-
-  const existingMembership = await prisma.workspaceMember.findFirst({
-    where: {
-      userId: appUser.id,
-    },
     include: {
-      workspace: true,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  const workspace = existingMembership
-    ? await prisma.workspace.update({
-        where: { id: existingMembership.workspaceId },
-        data: {
-          name: businessName,
-          industry: values.industry,
-          isDemo: false,
-          onboardingCompletedAt: now,
+      workspaces: {
+        include: {
+          workspace: true,
         },
-      })
-    : await prisma.workspace.create({
-        data: {
-          name: businessName,
-          slug: fallbackWorkspaceSlug,
-          industry: values.industry,
-          isDemo: false,
-          onboardingCompletedAt: now,
+        orderBy: {
+          createdAt: "asc",
         },
-      });
-
-  await prisma.workspaceMember.upsert({
-    where: {
-      workspaceId_userId: {
-        workspaceId: workspace.id,
-        userId: appUser.id,
       },
     },
-    update: {
-      role: "OWNER",
-    },
-    create: {
-      workspaceId: workspace.id,
-      userId: appUser.id,
-      role: "OWNER",
-    },
   });
+
+  if (!user || user.workspaces.length === 0) {
+    throw new Error("Workspace not found");
+  }
+
+  const workspace = user.workspaces[0].workspace;
+  const businessName = values.businessName.trim();
 
   const preferredServices =
     cleanStringArray(values.preferredServices).length > 0
@@ -140,9 +86,7 @@ export async function saveOnboarding(input: unknown) {
       : cityValue ?? stateValue ?? null;
 
   const serviceArea =
-    toNullableString(values.serviceArea) ??
-    cityState ??
-    "Not specified";
+    toNullableString(values.serviceArea) ?? cityState ?? "Not specified";
 
   const busyMonths = cleanStringArray(
     Array.isArray(values.busyMonths)
@@ -171,6 +115,14 @@ export async function saveOnboarding(input: unknown) {
   const targetBookedJobsPerWeek =
     toNumberOrNull(values.targetBookedJobsPerWeek) ?? null;
 
+  await prisma.workspace.update({
+    where: { id: workspace.id },
+    data: {
+      name: businessName,
+      industry: values.industry,
+    },
+  });
+
   const businessProfileData = {
     businessName,
     website: toNullableString(values.website),
@@ -183,8 +135,7 @@ export async function saveOnboarding(input: unknown) {
     serviceAreaRadiusMiles: toNumberOrNull(values.serviceAreaRadiusMiles),
 
     brandTone: values.brandTone ?? null,
-    industryLabel:
-      toNullableString(values.industryLabel) ?? values.industry,
+    industryLabel: toNullableString(values.industryLabel) ?? values.industry,
 
     averageJobValue: toNumberOrNull(values.averageJobValue),
     targetWeeklyRevenue: toNumberOrNull(values.targetWeeklyRevenue),
@@ -205,8 +156,7 @@ export async function saveOnboarding(input: unknown) {
     slowMonths,
     seasonalityNotes: toNullableString(values.seasonalityNotes),
 
-    googleBusinessProfileUrl:
-      toNullableString(values.googleBusinessProfileUrl),
+    googleBusinessProfileUrl: toNullableString(values.googleBusinessProfileUrl),
     hasFaqContent: values.hasFaqContent || values.hasFaqPage || false,
     hasBlog: values.hasBlog || false,
     hasGoogleBusinessPage: values.hasGoogleBusinessPage || false,
@@ -235,8 +185,7 @@ export async function saveOnboarding(input: unknown) {
       websiteUrl: toNullableString(competitor.websiteUrl),
       googleBusinessUrl: toNullableString(competitor.googleBusinessUrl),
       logoUrl: toNullableString(competitor.logoUrl),
-      isPrimaryCompetitor:
-        competitor.isPrimaryCompetitor ?? index === 0,
+      isPrimaryCompetitor: competitor.isPrimaryCompetitor ?? index === 0,
       notes: null,
       serviceFocus: [],
       rating: null,
@@ -254,14 +203,11 @@ export async function saveOnboarding(input: unknown) {
     });
   }
 
-  revalidatePath("/onboarding");
+  revalidatePath("/settings");
   revalidatePath("/dashboard");
   revalidatePath("/competitors");
   revalidatePath("/campaigns");
-  revalidatePath("/execution");
+  revalidatePath("/reports");
 
-  return {
-    success: true,
-    workspaceId: workspace.id,
-  };
+  return { success: true };
 }

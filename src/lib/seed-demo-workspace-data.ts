@@ -212,6 +212,10 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     throw new Error("Workspace not found for demo seed.");
   }
 
+  if (!workspace.isDemo) {
+    throw new Error("Refusing to seed demo data into a non-demo workspace.");
+  }
+
   if (workspace.businessProfile) {
     await prisma.businessProfile.update({
       where: { workspaceId },
@@ -273,6 +277,69 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
         aeoReadinessScore: 61,
       },
     });
+  } else {
+    await prisma.businessProfile.create({
+      data: {
+        workspaceId,
+        businessName: "BluePeak Plumbing",
+        website: "https://www.bluepeakplumbing.com",
+        logoUrl:
+          "https://bluepeakmechanical.com/wp-content/uploads/2025/12/colored-mini-black.png",
+        phone: "(770) 555-0148",
+        city: "Jasper",
+        state: "GA",
+        serviceArea:
+          "Jasper, Canton, Woodstock, Ball Ground, Cumming, Milton, Alpharetta, Dawsonville",
+        serviceAreaRadiusMiles: 30,
+        industryLabel: "PLUMBING",
+        brandTone: "PROFESSIONAL",
+
+        averageJobValue: 475,
+        highestMarginService: "Water Heater Replacement",
+        lowestPriorityService: "Very small fixture repairs",
+
+        technicians: 4,
+        jobsPerTechnicianPerDay: 3,
+        weeklyCapacity: 48,
+        targetBookedJobsPerWeek: 36,
+        targetWeeklyRevenue: 17100,
+
+        preferredServices: [
+          "Water heater replacement",
+          "Leak detection",
+          "Pipe repair",
+          "Preventative plumbing maintenance",
+          "Drain cleaning",
+        ],
+        deprioritizedServices: [
+          "Very small fixture repairs",
+          "Low-ticket handyman-style plumbing requests",
+        ],
+
+        busySeason: "Winter",
+        slowSeason: "Late Summer",
+        busyMonths: ["November", "December", "January", "February"],
+        slowMonths: ["August", "September"],
+        seasonalityNotes:
+          "Winter tends to drive pipe, water heater, and urgent plumbing demand. Late summer tends to be softer.",
+
+        googleBusinessProfileUrl:
+          "https://maps.google.com/?cid=bluepeak-plumbing-demo",
+        servicePageUrls: [
+          "https://www.bluepeakplumbing.com/drain-cleaning",
+          "https://www.bluepeakplumbing.com/water-heaters",
+          "https://www.bluepeakplumbing.com/leak-detection",
+          "https://www.bluepeakplumbing.com/pipe-repair",
+          "https://www.bluepeakplumbing.com/plumbing-maintenance",
+          "https://www.bluepeakplumbing.com/emergency-plumber",
+        ],
+        hasServicePages: true,
+        hasFaqContent: false,
+        hasBlog: true,
+        hasGoogleBusinessPage: true,
+        aeoReadinessScore: 61,
+      },
+    });
   }
 
   await upsertCompetitor(workspaceId, {
@@ -283,7 +350,12 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     googleBusinessUrl: "",
     notes:
       "Recognizable local competitor in the Jasper market. Useful benchmark for local reputation and steady plumbing service messaging.",
-    serviceFocus: ["Water heaters", "Drain issues", "General plumbing", "Maintenance"],
+    serviceFocus: [
+      "Water heaters",
+      "Drain issues",
+      "General plumbing",
+      "Maintenance",
+    ],
     rating: 4.8,
     reviewCount: 167,
     isPrimaryCompetitor: true,
@@ -883,6 +955,13 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
         notes: "Higher-ticket conversion, lower total volume.",
       },
     ],
+  });
+
+  await prisma.workspace.update({
+    where: { id: workspaceId },
+    data: {
+      demoInitializedAt: new Date(),
+    },
   });
 
   return {
