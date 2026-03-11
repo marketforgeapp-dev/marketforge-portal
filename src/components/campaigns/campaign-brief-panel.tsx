@@ -1,3 +1,10 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { CampaignStatus } from "@/generated/prisma";
+import { saveCampaignBriefEdits } from "@/app/campaigns/[campaignId]/actions";
+
 type CampaignBriefData = {
   userPrompt?: string;
   parsedIntent?: {
@@ -29,101 +36,361 @@ type CampaignBriefData = {
 };
 
 type Props = {
-  briefJson: CampaignBriefData | null;
+  campaignId: string;
+  status: CampaignStatus;
+  campaignName: string;
+  targetService: string | null;
+  offer: string | null;
+  audience: string | null;
+  briefJson: unknown;
 };
 
-export function CampaignBriefPanel({ briefJson }: Props) {
-  const parsedIntent = briefJson?.parsedIntent;
-  const opportunityCheck = briefJson?.opportunityCheck;
-  const campaignDraft = briefJson?.campaignDraft;
-  const creativeGuidance = briefJson?.creativeGuidance;
+function parseBriefJson(value: unknown): CampaignBriefData | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as CampaignBriefData;
+}
+
+function buildCreativePreviewLines(params: {
+  description: string;
+  offer: string;
+  cta: string;
+}) {
+  const lines = [params.description, params.offer, params.cta]
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.slice(0, 3);
+}
+
+export function CampaignBriefPanel({
+  campaignId,
+  status,
+  campaignName,
+  targetService,
+  offer,
+  audience,
+  briefJson,
+}: Props) {
+  const parsed = parseBriefJson(briefJson);
+
+  const parsedIntent = parsed?.parsedIntent;
+  const opportunityCheck = parsed?.opportunityCheck;
+  const campaignDraft = parsed?.campaignDraft;
+  const creativeGuidance = parsed?.creativeGuidance;
+
+  const confidence = opportunityCheck?.confidenceScore ?? null;
+
+  let confidenceLabel = "Early Signal";
+  if (confidence && confidence >= 85) confidenceLabel = "High Confidence";
+  else if (confidence && confidence >= 70) confidenceLabel = "Strong Signal";
+  else if (confidence && confidence >= 55) confidenceLabel = "Moderate Signal";
+
+  const canEdit = status !== "LAUNCHED" && status !== "COMPLETED";
+
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [isEditing, setIsEditing] = useState(false);
+
+  const [draftName, setDraftName] = useState(campaignName);
+  const [draftTargetService, setDraftTargetService] = useState(
+    targetService ?? ""
+  );
+  const [draftOffer, setDraftOffer] = useState(
+    campaignDraft?.offer ?? offer ?? ""
+  );
+  const [draftAudience, setDraftAudience] = useState(
+    campaignDraft?.audience ?? audience ?? ""
+  );
+  const [draftDescription, setDraftDescription] = useState(
+    campaignDraft?.description ?? ""
+  );
+  const [draftCta, setDraftCta] = useState(campaignDraft?.cta ?? "");
+  const [draftRecommendedImage, setDraftRecommendedImage] = useState(
+    creativeGuidance?.recommendedImage ?? ""
+  );
+  const [draftAvoidImagery, setDraftAvoidImagery] = useState(
+    creativeGuidance?.avoidImagery ?? ""
+  );
+
+  const creativePreviewLines = buildCreativePreviewLines({
+    description: campaignDraft?.description ?? draftDescription,
+    offer: campaignDraft?.offer ?? draftOffer,
+    cta: campaignDraft?.cta ?? draftCta,
+  });
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-      <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-        AI Campaign Brief
-      </p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+          MarketForge Intelligence
+        </p>
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-2">
+        {canEdit && !isEditing ? (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            Edit Campaign
+          </button>
+        ) : null}
+      </div>
+
+      {isEditing ? (
+        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm font-semibold text-gray-900">
+            Edit Campaign Before Approval / Launch
+          </p>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Campaign Name
+                </label>
+                <input
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Target Service
+                </label>
+                <input
+                  value={draftTargetService}
+                  onChange={(e) => setDraftTargetService(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Offer
+                </label>
+                <input
+                  value={draftOffer}
+                  onChange={(e) => setDraftOffer(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Audience
+                </label>
+                <input
+                  value={draftAudience}
+                  onChange={(e) => setDraftAudience(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  CTA
+                </label>
+                <input
+                  value={draftCta}
+                  onChange={(e) => setDraftCta(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Description
+                </label>
+                <textarea
+                  value={draftDescription}
+                  onChange={(e) => setDraftDescription(e.target.value)}
+                  rows={5}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Recommended Image
+                </label>
+                <textarea
+                  value={draftRecommendedImage}
+                  onChange={(e) => setDraftRecommendedImage(e.target.value)}
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Avoid Imagery
+                </label>
+                <textarea
+                  value={draftAvoidImagery}
+                  onChange={(e) => setDraftAvoidImagery(e.target.value)}
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() =>
+                startTransition(async () => {
+                  await saveCampaignBriefEdits({
+                    campaignId,
+                    name: draftName,
+                    targetService: draftTargetService,
+                    offer: draftOffer,
+                    audience: draftAudience,
+                    description: draftDescription,
+                    cta: draftCta,
+                    recommendedImage: draftRecommendedImage,
+                    avoidImagery: draftAvoidImagery,
+                  });
+                  setIsEditing(false);
+                  router.refresh();
+                })
+              }
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {isPending ? "Saving..." : "Save Campaign Edits"}
+            </button>
+
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => setIsEditing(false)}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs font-semibold uppercase text-gray-500">
-              User Prompt
+              Opportunity Match
             </p>
+
+            <p className="mt-2 text-sm font-semibold text-gray-900">
+              {opportunityCheck?.matchedOpportunityTitle ??
+                opportunityCheck?.matchedRecommendationTitle ??
+                "No strong opportunity match"}
+            </p>
+
+            <p className="mt-2 text-sm text-gray-600">
+              Based on your request to promote{" "}
+              {parsedIntent?.serviceCategory ?? "a service"}{" "}
+              {parsedIntent?.timeframe ?? ""}.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase text-gray-500">
+              Confidence
+            </p>
+
+            <p className="mt-2 text-sm font-semibold text-gray-900">
+              {confidenceLabel}
+              {confidence ? ` (${confidence}%)` : ""}
+            </p>
+
+            <p className="mt-2 text-sm text-gray-600">
+              Signals detected across local demand, competitor activity,
+              service prioritization, and capacity availability.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase text-gray-500">
+              Signals
+            </p>
+
             <p className="mt-2 text-sm text-gray-900">
-              {briefJson?.userPrompt ?? "No prompt stored"}
+              {Array.isArray(opportunityCheck?.sourceTags)
+                ? opportunityCheck.sourceTags.join(" • ")
+                : "No signals recorded"}
             </p>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Parsed Intent
-            </p>
-            <div className="mt-2 space-y-1 text-sm text-gray-900">
-              <p>Service: {parsedIntent?.serviceCategory ?? "—"}</p>
-              <p>Intent: {parsedIntent?.intent ?? "—"}</p>
-              <p>Urgency: {parsedIntent?.urgency ?? "—"}</p>
-              <p>Timeframe: {parsedIntent?.timeframe ?? "—"}</p>
-              <p>Promotion Type: {parsedIntent?.promotionType ?? "—"}</p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Opportunity Check
-            </p>
-            <div className="mt-2 space-y-2 text-sm text-gray-900">
-              <p>
-                Matched Opportunity:{" "}
-                {opportunityCheck?.matchedOpportunityTitle ?? "No strong match"}
-              </p>
-              <p>
-                Matched Recommendation:{" "}
-                {opportunityCheck?.matchedRecommendationTitle ?? "No strong match"}
-              </p>
-              <p>Confidence: {opportunityCheck?.confidenceScore ?? "—"}%</p>
-              <p>
-                Sources:{" "}
-                {Array.isArray(opportunityCheck?.sourceTags)
-                  ? opportunityCheck.sourceTags.join(" • ")
-                  : "—"}
-              </p>
-            </div>
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs font-semibold uppercase text-gray-500">
-              Why This Exists
+              Creative Preview
             </p>
-            <ul className="mt-2 space-y-2 text-sm text-gray-900">
-              {Array.isArray(opportunityCheck?.whyNowBullets) &&
-              opportunityCheck.whyNowBullets.length > 0 ? (
-                opportunityCheck.whyNowBullets.map((bullet) => (
-                  <li key={bullet}>• {bullet}</li>
-                ))
-              ) : (
-                <li>• No explanation stored</li>
-              )}
-            </ul>
+
+            <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-sm">
+              <div className="relative aspect-[4/3] p-4 text-white">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.24),transparent_40%)]" />
+
+                <div className="relative flex h-full flex-col justify-between">
+                  <div>
+                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90">
+                      Campaign Asset Mock
+                    </span>
+                    <p className="mt-3 max-w-[16rem] text-xl font-semibold leading-tight">
+                      {campaignName}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {creativePreviewLines.map((line) => (
+                      <p
+                        key={line}
+                        className="max-w-[17rem] text-sm leading-5 text-white/85"
+                      >
+                        {line}
+                      </p>
+                    ))}
+
+                    <div className="pt-2">
+                      <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
+                        {campaignDraft?.cta ?? "Book now"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-sm font-semibold text-gray-900">
+              Recommended Image
+            </p>
+
+            <p className="mt-1 text-sm leading-6 text-gray-700">
+              {creativeGuidance?.recommendedImage ?? "—"}
+            </p>
+
+            <p className="mt-3 text-sm font-semibold text-gray-900">
+              Avoid
+            </p>
+
+            <p className="mt-1 text-sm leading-6 text-gray-700">
+              {creativeGuidance?.avoidImagery ?? "—"}
+            </p>
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs font-semibold uppercase text-gray-500">
-              Why This Matters
+              Recommended Campaign Strategy
             </p>
-            <p className="mt-2 text-sm leading-6 text-gray-900">
-              {opportunityCheck?.whyThisMatters ??
-                opportunityCheck?.rationale ??
-                "—"}
-            </p>
-          </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Campaign Draft
-            </p>
             <div className="mt-2 space-y-2 text-sm text-gray-900">
               <p>Description: {campaignDraft?.description ?? "—"}</p>
               <p>Offer: {campaignDraft?.offer ?? "—"}</p>
@@ -134,14 +401,19 @@ export function CampaignBriefPanel({ briefJson }: Props) {
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs font-semibold uppercase text-gray-500">
-              Creative Guidance
+              Why This Opportunity Exists
             </p>
-            <div className="mt-2 space-y-2 text-sm text-gray-900">
-              <p>
-                Recommended Image: {creativeGuidance?.recommendedImage ?? "—"}
-              </p>
-              <p>Avoid: {creativeGuidance?.avoidImagery ?? "—"}</p>
-            </div>
+
+            <ul className="mt-2 space-y-2 text-sm text-gray-900">
+              {Array.isArray(opportunityCheck?.whyNowBullets) &&
+              opportunityCheck.whyNowBullets.length > 0 ? (
+                opportunityCheck.whyNowBullets.map((bullet) => (
+                  <li key={bullet}>• {bullet}</li>
+                ))
+              ) : (
+                <li>• No explanation stored</li>
+              )}
+            </ul>
           </div>
         </div>
       </div>

@@ -1,42 +1,9 @@
-import { notFound, redirect } from "next/navigation";
-import { Prisma } from "@/generated/prisma";
-import { getCurrentWorkspace } from "@/lib/get-current-workspace";
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { CampaignDetailHeader } from "@/components/campaigns/campaign-detail-header";
+import { CampaignStatusActions } from "@/components/campaigns/campaign-status-actions";
 import { CampaignBriefPanel } from "@/components/campaigns/campaign-brief-panel";
 import { CampaignAssetsReview } from "@/components/campaigns/campaign-assets-review";
-import { CampaignStatusActions } from "@/components/campaigns/campaign-status-actions";
-import { prisma } from "@/lib/prisma";
-
-type CampaignBriefData = {
-  userPrompt?: string;
-  parsedIntent?: {
-    serviceCategory?: string;
-    intent?: string;
-    urgency?: string;
-    timeframe?: string;
-    promotionType?: string;
-  };
-  opportunityCheck?: {
-    matchedOpportunityTitle?: string | null;
-    matchedRecommendationTitle?: string | null;
-    confidenceScore?: number;
-    sourceTags?: string[];
-    whyNowBullets?: string[];
-    whyThisMatters?: string;
-    rationale?: string;
-  };
-  campaignDraft?: {
-    description?: string;
-    offer?: string;
-    audience?: string;
-    cta?: string;
-  };
-  creativeGuidance?: {
-    recommendedImage?: string;
-    avoidImagery?: string;
-  };
-};
 
 type Props = {
   params: Promise<{
@@ -44,35 +11,39 @@ type Props = {
   }>;
 };
 
-function toCampaignBriefData(
-  value: Prisma.JsonValue | null
-): CampaignBriefData | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
+function calculateEstimatedFallbackRevenue(params: {
+  bookedJobs: number;
+  estimatedBookedJobs: number | null;
+  estimatedRevenue: unknown;
+}) {
+  const { bookedJobs, estimatedBookedJobs, estimatedRevenue } = params;
 
-  return value as CampaignBriefData;
+  const totalEstimatedRevenue = Number(estimatedRevenue ?? 0);
+  const estimatedJobs = estimatedBookedJobs ?? 0;
+
+  if (bookedJobs <= 0) return 0;
+  if (totalEstimatedRevenue <= 0 || estimatedJobs <= 0) return 0;
+
+  const perJobRevenue = totalEstimatedRevenue / Math.max(estimatedJobs, 1);
+  return Math.round(bookedJobs * perJobRevenue);
 }
 
 export default async function CampaignDetailPage({ params }: Props) {
-  const workspace = await getCurrentWorkspace();
-
-  if (!workspace || !workspace.onboardingCompletedAt) {
-    redirect("/onboarding");
-  }
-
   const { campaignId } = await params;
 
-  const campaign = await prisma.campaign.findFirst({
-    where: {
-      id: campaignId,
-      workspaceId: workspace.id,
-    },
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
     include: {
+      recommendation: true,
+      revenueOpportunity: true,
       assets: {
-        orderBy: {
-          createdAt: "asc",
-        },
+        orderBy: { createdAt: "asc" },
+      },
+      leads: {
+        orderBy: { createdAt: "desc" },
+      },
+      attributions: {
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -81,19 +52,74 @@ export default async function CampaignDetailPage({ params }: Props) {
     notFound();
   }
 
-  const briefData = toCampaignBriefData(campaign.briefJson);
+  const totalLeads = campaign.leads.length;
+  const bookedLeads = campaign.leads.filter((lead) => lead.status === "BOOKED");
+  const bookedJobs = bookedLeads.length;
+
+  const actualLeadRevenue = bookedLeads.reduce((sum, lead) => {
+    return sum + Number(lead.bookedRevenue ?? 0);
+  }, 0);
+
+  const attributedRevenue = campaign.attributions.reduce((sum, entry) => {
+    return sum + Number(entry.revenue ?? 0);
+  }, 0);
+
+  const estimatedFallbackRevenue = calculateEstimatedFallbackRevenue({
+    bookedJobs,
+    estimatedBookedJobs: campaign.estimatedBookedJobs,
+    estimatedRevenue: campaign.estimatedRevenue,
+  });
+
+  const revenueSoFar =
+    actualLeadRevenue > 0
+      ? actualLeadRevenue
+      : attributedRevenue > 0
+        ? attributedRevenue
+        : estimatedFallbackRevenue;
 
   return (
     <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
-        <DashboardSidebar />
+      <div className="mx-auto max-w-6xl space-y-6">
+        <CampaignDetailHeader
+          campaign={{
+            id: campaign.id,
+            name: campaign.name,
+            status: campaign.status,
+            estimatedLeads: campaign.estimatedLeads,
+            estimatedBookedJobs: campaign.estimatedBookedJobs,
+            estimatedRevenue: Number(campaign.estimatedRevenue ?? 0),
+            targetService: campaign.targetService,
+            recommendationTitle: campaign.recommendation?.title ?? null,
+            opportunityTitle: campaign.revenueOpportunity?.title ?? null,
+            opportunityType: campaign.revenueOpportunity?.opportunityType ?? null,
+          }}
+          results={{
+            totalLeads,
+            bookedJobs,
+            revenueSoFar,
+          }}
+        />
 
-        <main className="flex-1 space-y-6">
-          <CampaignDetailHeader campaign={campaign} />
-          <CampaignStatusActions campaignId={campaign.id} status={campaign.status}/>
-          <CampaignBriefPanel briefJson={briefData} />
-          <CampaignAssetsReview assets={campaign.assets} />
-        </main>
+        <CampaignStatusActions
+          campaignId={campaign.id}
+          status={campaign.status}
+        />
+
+        <CampaignBriefPanel
+          campaignId={campaign.id}
+          status={campaign.status}
+          campaignName={campaign.name}
+          targetService={campaign.targetService}
+          offer={campaign.offer}
+          audience={campaign.audience}
+          briefJson={campaign.briefJson}
+        />
+
+        <CampaignAssetsReview
+          campaignId={campaign.id}
+          status={campaign.status}
+          assets={campaign.assets}
+        />
       </div>
     </div>
   );
