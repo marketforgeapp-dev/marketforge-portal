@@ -1,26 +1,155 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0f1115;
+  --foreground: #f3f4f6;
+
+  --mf-gold: #f5b942;
+  --mf-emerald: #1ed18a;
+  --mf-midnight: #0f1115;
+  --mf-graphite: #151a21;
+  --mf-slate: #2a3340;
+
+  --mf-surface: #ffffff;
+  --mf-surface-muted: #f8fafc;
+  --mf-border: #e5e7eb;
+  --mf-text: #111827;
+  --mf-text-muted: #6b7280;
+  --mf-blue: #3b82f6;
+  --mf-success: #22c55e;
+  --mf-warning: #f59e0b;
+  --mf-danger: #ef4444;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
+  min-height: 100vh;
+
+  background:
+    radial-gradient(circle at top left, rgba(245, 185, 66, 0.08), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(30, 209, 138, 0.05), transparent 30%),
+    linear-gradient(180deg, #0b0e12 0%, #0f1115 60%, #0b0e12 100%);
+
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(245, 185, 66, 0.28);
+  color: #ffffff;
+}
+
+/* nicer default card feel across the app */
+.mf-page-shell {
+  position: relative;
+}
+
+.mf-page-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      rgba(255, 255, 255, 0) 24%
+    );
+}
+
+.mf-glass-panel {
+  background: rgba(21, 26, 33, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+}
+
+.mf-brand-gradient {
+  background: linear-gradient(135deg, #f5b942 0%, #1ed18a 100%);
+}
+
+.mf-surface-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 24px rgba(15, 17, 21, 0.08);
+}
+
+.mf-dark-panel {
+  background: linear-gradient(180deg, #1a212b 0%, #151a21 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+.mf-grid-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.mf-grid-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(245, 185, 66, 0.08),
+      transparent 35%,
+      rgba(30, 209, 138, 0.08)
+    );
+  opacity: 0.9;
+}
+/* ========================= */
+/* MarketForge UI Enhancers  */
+/* ========================= */
+
+.mf-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid #e5e7eb;
+  border-top: 3px solid transparent;
+  box-shadow: 0 8px 20px rgba(15, 17, 21, 0.08);
+  transition: all 0.2s ease;
+}
+
+.mf-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(15, 17, 21, 0.16);
+}
+
+.mf-card-highlight {
+  border-top: 3px solid #f5b942;
+}
+
+.mf-card-success {
+  border-top: 3px solid #1ed18a;
+}
+
+.mf-hover-lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.mf-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.15);
 }

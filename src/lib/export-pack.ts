@@ -93,6 +93,13 @@ function toCurrency(value: number | null | undefined) {
   return `$${Number(value ?? 0).toLocaleString()}`;
 }
 
+function sanitizeForFileName(value: string) {
+  return value
+    .replace(/[^a-zA-Z0-9-_ ]+/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
 function generateUtmSet(campaign: Campaign) {
   const baseCampaign = campaign.name
     .toLowerCase()
@@ -115,6 +122,10 @@ function generateUtmSet(campaign: Campaign) {
     googleBusiness: {
       post: `?utm_source=google_business&utm_medium=organic&utm_campaign=${baseCampaign}&utm_content=post&campaign_code=${campaign.campaignCode}`,
     },
+
+    yelp: {
+      ad: `?utm_source=yelp&utm_medium=local&utm_campaign=${baseCampaign}&utm_content=ad&campaign_code=${campaign.campaignCode}`,
+    },
   };
 }
 
@@ -133,18 +144,20 @@ export async function buildCampaignExportPack({
   const googleBusiness = assetByType(campaign.assets, "GOOGLE_BUSINESS");
   const meta = assetByType(campaign.assets, "META");
   const googleAds = assetByType(campaign.assets, "GOOGLE_ADS");
+  const yelp = assetByType(campaign.assets, "YELP");
   const email = assetByType(campaign.assets, "EMAIL");
   const blog = assetByType(campaign.assets, "BLOG");
   const aeoFaq = assetByType(campaign.assets, "AEO_FAQ");
   const answerSnippet = assetByType(campaign.assets, "ANSWER_SNIPPET");
   const seoAsset = assetByType(campaign.assets, "SEO");
 
-  const fileSafeCampaignName = campaign.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  const businessName = sanitizeForFileName(profile?.businessName ?? "Business");
+  const campaignName = sanitizeForFileName(campaign.name);
+  const campaignIdShort = campaign.id.slice(0, 8);
 
-  const root = zip.folder(`marketforge-export-${fileSafeCampaignName}`);
+  const exportBaseName = `${businessName}-${campaignIdShort}-${campaignName}`;
+
+  const root = zip.folder(exportBaseName);
   if (!root) {
     throw new Error("Failed to create export root folder.");
   }
@@ -166,10 +179,11 @@ This pack is designed so an operator can launch this campaign with minimal guess
 3. Use \`03-facebook/\` for Facebook posting or ad setup
 4. Use \`04-instagram/\` for Instagram feed / story / reel setup
 5. Use \`05-google-ads/\` for search ad copy
-6. Use \`06-email/\` if email is being sent
-7. Use \`07-blog/\` and \`08-aeo/\` for site/content updates
-8. Use \`09-seo/\` for search optimization guidance
-9. Follow \`10-operator-checklist/launch-checklist.md\`
+6. Use \`06-yelp/\` for Yelp ad / promoted listing copy
+7. Use \`07-email/\` if email is being sent
+8. Use \`08-blog/\` and \`09-aeo/\` for site/content updates
+9. Use \`10-seo/\` for search optimization guidance
+10. Follow \`11-operator-checklist/launch-checklist.md\`
 
 ## Creative guidance
 - Recommended image: ${brief?.creativeGuidance?.recommendedImage ?? "Not provided"}
@@ -183,6 +197,7 @@ This pack includes editable SVG templates sized for common operator workflows:
 - Instagram feed square
 - Instagram feed vertical 4:5
 - Instagram Stories / Reels 9:16
+- Yelp square creative placeholder
 
 `;
 
@@ -212,8 +227,8 @@ This pack includes editable SVG templates sized for common operator workflows:
   );
 
   root.file(
-  "utm-tracking.txt",
-`MarketForge Campaign Tracking Links
+    "utm-tracking.txt",
+    `MarketForge Campaign Tracking Links
 
 Facebook Feed
 ${utm.facebook.feed}
@@ -230,10 +245,13 @@ ${utm.googleAds.search}
 Google Business Post
 ${utm.googleBusiness.post}
 
+Yelp
+${utm.yelp.ad}
+
 Campaign Code
 ${campaign.campaignCode}
 `
-);
+  );
 
   const briefFolder = root.folder("01-campaign-brief");
   briefFolder?.file(
@@ -383,20 +401,53 @@ If you later run display or Performance Max creative, create image variants from
 `
   );
 
-  const emailFolder = root.folder("06-email");
+  const yelpFolder = root.folder("06-yelp");
+  yelpFolder?.file(
+    "yelp-ad-copy.txt",
+    yelp?.content ?? "No Yelp ad copy found."
+  );
+  yelpFolder?.file(
+    "operator-notes.md",
+    `# Yelp Operator Notes
+
+Use this content for Yelp promoted listing / ad setup or business update workflows.
+
+Recommended checks:
+- confirm service area naming matches Yelp profile
+- confirm primary phone number is correct
+- confirm offer language matches Yelp policy
+- add booking or call CTA
+- apply Yelp UTM tracking if a destination link is used
+
+Suggested UTM
+${utm.yelp.ad}
+`
+  );
+  yelpFolder?.file(
+    "yelp-square-template-1080x1080.svg",
+    svgTemplate({
+      width: 1080,
+      height: 1080,
+      title: campaign.name,
+      subtitle: campaign.offer ?? "Yelp creative template",
+      safeArea: "Local service-focused square creative",
+    })
+  );
+
+  const emailFolder = root.folder("07-email");
   emailFolder?.file("email-copy.txt", email?.content ?? "No email asset found.");
 
-  const blogFolder = root.folder("07-blog");
+  const blogFolder = root.folder("08-blog");
   blogFolder?.file("blog-outline.md", blog?.content ?? "No blog outline found.");
 
-  const aeoFolder = root.folder("08-aeo");
+  const aeoFolder = root.folder("09-aeo");
   aeoFolder?.file("faq-content.md", aeoFaq?.content ?? "No FAQ asset found.");
   aeoFolder?.file(
     "answer-snippet.txt",
     answerSnippet?.content ?? "No answer snippet found."
   );
 
-  const seoFolder = root.folder("09-seo");
+  const seoFolder = root.folder("10-seo");
   seoFolder?.file(
     "seo-guidance.md",
     `# SEO Optimization Guidance
@@ -451,7 +502,7 @@ Ensure service area is clearly stated on:
 `
   );
 
-  const opsFolder = root.folder("10-operator-checklist");
+  const opsFolder = root.folder("11-operator-checklist");
   opsFolder?.file(
     "launch-checklist.md",
     `# Operator Launch Checklist
@@ -487,6 +538,12 @@ Ensure service area is clearly stated on:
 - [ ] Final URL checked
 - [ ] Phone / call extension checked if applicable
 
+## Yelp
+- [ ] Yelp copy reviewed
+- [ ] Offer matches profile policy
+- [ ] Destination / call CTA checked
+- [ ] UTM applied if link is used
+
 ## SEO / Website
 - [ ] SEO guidance reviewed
 - [ ] Service page updated if needed
@@ -508,7 +565,7 @@ Ensure service area is clearly stated on:
 
   return {
     zipBuffer,
-    fileName: `marketforge-export-${fileSafeCampaignName}.zip`,
+    fileName: `${exportBaseName}.zip`,
     exportType: "CAMPAIGN_PACK",
   };
 }

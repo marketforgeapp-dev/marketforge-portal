@@ -75,6 +75,12 @@ export const nlCampaignSchema = z.object({
       headlines: z.array(z.string()).min(3).max(8),
       descriptions: z.array(z.string()).min(2).max(4),
     }),
+    yelpAd: z.object({
+    headline: z.string(),
+    body: z.string(),
+    offer: z.string().nullable(),
+    cta: z.string().nullable(),
+    }),
     emailCampaign: z.object({
       subjectLine: z.string(),
       body: z.string(),

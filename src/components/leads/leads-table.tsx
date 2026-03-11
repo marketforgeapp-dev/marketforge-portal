@@ -44,6 +44,9 @@ export function LeadsTable({ leads }: Props) {
                 Status
               </th>
               <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                Revenue
+              </th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
                 Notes
               </th>
             </tr>
@@ -76,7 +79,27 @@ export function LeadsTable({ leads }: Props) {
                   <LeadStatusSelect
                     leadId={lead.id}
                     currentStatus={lead.status}
+                    currentBookedRevenue={
+                      lead.bookedRevenue ? Number(lead.bookedRevenue) : null
+                    }
                   />
+                </td>
+
+                <td className="px-5 py-4 text-sm text-gray-700">
+                  {lead.bookedRevenue ? (
+                    <div>
+                      <p className="font-semibold text-emerald-700">
+                        ${Number(lead.bookedRevenue).toLocaleString()}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {lead.bookedAt
+                          ? `Booked ${new Date(lead.bookedAt).toLocaleDateString()}`
+                          : "Booked"}
+                      </p>
+                    </div>
+                  ) : (
+                    "—"
+                  )}
                 </td>
 
                 <td className="px-5 py-4 text-sm leading-6 text-gray-700">

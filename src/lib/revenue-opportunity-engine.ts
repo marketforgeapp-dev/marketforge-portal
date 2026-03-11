@@ -5,6 +5,10 @@ import {
   CapacityFit,
   OpportunityType,
 } from "@/generated/prisma";
+import {
+  CampaignPerformanceSignal,
+  CampaignPerformanceSignalMap,
+} from "@/lib/campaign-performance-signals";
 
 export type OpportunitySourceTag =
   | "Demand"
@@ -32,10 +36,14 @@ export type RankedOpportunity = {
   sourceTags: OpportunitySourceTag[];
   whyNowBullets: string[];
   whyThisMatters: string;
+  performanceLabel: "Strong" | "Promising" | "New";
+  performanceDetail: string;
+  historicalCampaignCount: number;
 };
 
 export type RevenueOpportunityHero = {
   title: string;
+  opportunityTitle: string;
   opportunityType: OpportunityType;
   jobsLow: number;
   jobsHigh: number;
@@ -52,6 +60,10 @@ export type RevenueOpportunityHero = {
   sourceTags: OpportunitySourceTag[];
   capacityFit: CapacityFit;
   availableJobsEstimate: number;
+  competitorSignal: string[];
+  performanceLabel: "Strong" | "Promising" | "New";
+  performanceDetail: string;
+  historicalCampaignCount: number;
 };
 
 export type RevenueOpportunityEngineResult = {
@@ -244,10 +256,11 @@ function inferConfidence(profile: BusinessProfile, competitors: Competitor[]) {
 
   score = clamp(score, 35, 95);
 
-  const label: OpportunityConfidenceLabel =
-    score >= 80 ? "High" : score >= 60 ? "Medium" : "Low";
+  return score;
+}
 
-  return { score, label };
+function confidenceLabelFromScore(score: number): OpportunityConfidenceLabel {
+  return score >= 80 ? "High" : score >= 60 ? "Medium" : "Low";
 }
 
 function recommendedCampaignForService(serviceName: string): {
@@ -296,25 +309,43 @@ function recommendedCampaignForService(serviceName: string): {
   };
 }
 
+function getPerformanceSignal(
+  performanceSignals: CampaignPerformanceSignalMap | undefined,
+  campaignType: CampaignType
+): CampaignPerformanceSignal | null {
+  return performanceSignals?.[campaignType] ?? null;
+}
+
 function buildRankedOpportunity(params: {
   candidate: ServiceCandidate;
   avgJobValue: number;
   availableJobsEstimate: number;
-  confidenceScore: number;
-  confidenceLabel: OpportunityConfidenceLabel;
+  baseConfidenceScore: number;
   capacityFit: CapacityFit;
+  performanceSignal: CampaignPerformanceSignal | null;
 }): RankedOpportunity {
   const {
     candidate,
     avgJobValue,
     availableJobsEstimate,
-    confidenceScore,
-    confidenceLabel,
+    baseConfidenceScore,
     capacityFit,
+    performanceSignal,
   } = params;
 
+  const adjustedConfidenceScore = clamp(
+    baseConfidenceScore + (performanceSignal?.confidenceBoost ?? 0),
+    35,
+    95
+  );
+  const adjustedConfidenceLabel = confidenceLabelFromScore(adjustedConfidenceScore);
+
   const confidenceAdjustment =
-    confidenceLabel === "High" ? 1 : confidenceLabel === "Medium" ? 0.88 : 0.76;
+    adjustedConfidenceLabel === "High"
+      ? 1
+      : adjustedConfidenceLabel === "Medium"
+        ? 0.88
+        : 0.76;
 
   const jobsHigh = clamp(
     Math.min(
@@ -345,29 +376,80 @@ function buildRankedOpportunity(params: {
     revenueLow,
     revenueHigh,
     rawOpportunityScore: Math.round(candidate.rawOpportunityScore),
-    confidenceScore,
-    confidenceLabel,
+    confidenceScore: adjustedConfidenceScore,
+    confidenceLabel: adjustedConfidenceLabel,
     capacityFit,
     sourceTags: candidate.sourceTags,
     whyNowBullets: candidate.whyNowBullets.slice(0, 3),
     whyThisMatters: candidate.whyThisMatters,
+    performanceLabel: performanceSignal?.performanceLabel ?? "New",
+    performanceDetail:
+      performanceSignal?.performanceDetail ??
+      "No campaign history yet for this action type.",
+    historicalCampaignCount: performanceSignal?.launchedCampaigns ?? 0,
   };
+}
+
+function buildCompetitorSignal(
+  serviceName: string,
+  competitors: Competitor[]
+): string[] {
+  const serviceToken = normalizeServiceName(serviceName).split(" ")[0];
+
+  const overlappingCompetitors = competitors.filter((competitor) =>
+    competitor.serviceFocus.some((focus) =>
+      normalizeServiceName(focus).includes(serviceToken)
+    )
+  );
+
+  const pool =
+    overlappingCompetitors.length > 0 ? overlappingCompetitors : competitors;
+
+  const signals: string[] = [];
+
+  const inactive = pool.filter(
+    (c) => !c.isRunningAds && !c.isPostingActively && !c.hasActivePromo
+  );
+
+  const lowPromo = pool.filter((c) => !c.hasActivePromo);
+
+  inactive.slice(0, 2).forEach((c) => {
+    signals.push(`${c.name} appears inactive this week`);
+  });
+
+  lowPromo
+    .filter((c) => !inactive.some((inactiveCompetitor) => inactiveCompetitor.id === c.id))
+    .slice(0, 2)
+    .forEach((c) => {
+      signals.push(`${c.name} is not promoting this service`);
+    });
+
+  if (signals.length === 0 && pool.length > 0) {
+    signals.push(
+      "Competitor activity appears balanced, so sharper positioning can create an edge"
+    );
+  }
+
+  if (signals.length === 0) {
+    signals.push(
+      "Competitor data is still limited, so this opportunity is driven more by demand and capacity signals"
+    );
+  }
+
+  return signals.slice(0, 3);
 }
 
 export function buildRevenueOpportunityEngine(params: {
   profile: BusinessProfile;
   competitors: Competitor[];
+  performanceSignals?: CampaignPerformanceSignalMap;
 }): RevenueOpportunityEngineResult {
-  const { profile, competitors } = params;
+  const { profile, competitors, performanceSignals } = params;
 
   const { availableJobsEstimate, capacityScore, capacityFit } =
     inferCapacity(profile);
 
-  const { score: confidenceScore, label: confidenceLabel } = inferConfidence(
-    profile,
-    competitors
-  );
-
+  const baseConfidenceScore = inferConfidence(profile, competitors);
   const visibilityGapScore = inferVisibilityGap(profile);
 
   const candidateServices =
@@ -377,11 +459,12 @@ export function buildRevenueOpportunityEngine(params: {
 
   const serviceCandidates: ServiceCandidate[] = candidateServices.map(
     (serviceName) => {
-      const serviceDemandScore = inferServicePriorityWeight(
-        serviceName,
-        profile.preferredServices,
-        profile.deprioritizedServices
-      ) + inferDemandBoost(serviceName);
+      const serviceDemandScore =
+        inferServicePriorityWeight(
+          serviceName,
+          profile.preferredServices,
+          profile.deprioritizedServices
+        ) + inferDemandBoost(serviceName);
 
       const competitorGap = inferCompetitorGap(serviceName, competitors);
 
@@ -394,13 +477,18 @@ export function buildRevenueOpportunityEngine(params: {
       );
 
       const recommended = recommendedCampaignForService(serviceName);
+      const performanceSignal = getPerformanceSignal(
+        performanceSignals,
+        recommended.campaignType
+      );
 
       const rawOpportunityScore =
         0.3 * clamp(serviceDemandScore, 0, 100) +
         0.25 * competitorGap.score +
         0.2 * capacityScore +
         0.15 * serviceValueScore +
-        0.1 * visibilityGapScore;
+        0.1 * visibilityGapScore +
+        (performanceSignal?.scoreBoost ?? 0);
 
       const sourceTags = uniqueTags([
         "Demand",
@@ -411,6 +499,11 @@ export function buildRevenueOpportunityEngine(params: {
           ? (["Service Value"] as OpportunitySourceTag[])
           : []),
       ]);
+
+      const learningBullet =
+        performanceSignal && performanceSignal.performanceLabel !== "New"
+          ? `Past ${recommended.bestMove.toLowerCase()} campaigns have performed ${performanceSignal.performanceLabel.toLowerCase()}ly.`
+          : null;
 
       return {
         serviceName,
@@ -430,6 +523,7 @@ export function buildRevenueOpportunityEngine(params: {
           availableJobsEstimate > 0
             ? `Your schedule likely has room for ${availableJobsEstimate} additional jobs`
             : "Capacity is tighter, so higher-value work matters more",
+          ...(learningBullet ? [learningBullet] : []),
         ],
         whyThisMatters: `${prettyServiceName(
           serviceName
@@ -471,16 +565,21 @@ export function buildRevenueOpportunityEngine(params: {
         candidate,
         avgJobValue,
         availableJobsEstimate,
-        confidenceScore,
-        confidenceLabel,
+        baseConfidenceScore,
         capacityFit,
+        performanceSignal: getPerformanceSignal(
+          performanceSignals,
+          candidate.recommendedCampaignType
+        ),
       })
     );
 
   const top = rankedOpportunities[0];
+  const competitorSignal = buildCompetitorSignal(top.serviceName, competitors);
 
   const hero: RevenueOpportunityHero = {
     title: "Jobs You Can Capture This Week",
+    opportunityTitle: top.title,
     opportunityType: top.opportunityType,
     jobsLow: top.jobsLow,
     jobsHigh: top.jobsHigh,
@@ -497,6 +596,10 @@ export function buildRevenueOpportunityEngine(params: {
     sourceTags: top.sourceTags,
     capacityFit: top.capacityFit,
     availableJobsEstimate,
+    competitorSignal,
+    performanceLabel: top.performanceLabel,
+    performanceDetail: top.performanceDetail,
+    historicalCampaignCount: top.historicalCampaignCount,
   };
 
   return {

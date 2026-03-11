@@ -46,6 +46,7 @@ model Workspace {
   leads                Lead[]
   attributions         AttributionEntry[]
   exports              ExportLog[]
+  baselineSnapshots    CampaignBaselineSnapshot[]
 }
 
 model WorkspaceMember {
@@ -180,6 +181,8 @@ model Lead {
   source                String?
   notes                 String?
   status                LeadStatus    @default(NEW)
+  bookedRevenue         Decimal?      @db.Decimal(10, 2)
+  bookedAt              DateTime?
 
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
@@ -297,6 +300,7 @@ model Campaign {
   leads              Lead[]
   attributions       AttributionEntry[]
   exports            ExportLog[]
+  baselineSnapshot  CampaignBaselineSnapshot?
 
   @@index([workspaceId])
   @@index([recommendationId])
@@ -371,6 +375,25 @@ model ExportLog {
   @@index([workspaceId])
   @@index([campaignId])
   @@index([userId])
+}
+model CampaignBaselineSnapshot {
+  id                    String   @id @default(cuid())
+  workspaceId           String
+  campaignId            String   @unique
+
+  estimatedWeeklyRevenue Decimal? @db.Decimal(10, 2)
+  estimatedBookedJobs    Int?
+  activeOpportunityCount Int?
+  aeoReadinessScore      Int?
+  opportunitySummary     Json?
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign  Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([campaignId])
 }
 
 enum WorkspaceRole {
@@ -478,6 +501,7 @@ enum AssetType {
   GOOGLE_BUSINESS
   META
   GOOGLE_ADS
+  YELP
   EMAIL
   BLOG
   SEO

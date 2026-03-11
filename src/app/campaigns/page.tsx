@@ -15,16 +15,21 @@ export default async function CampaignsPage() {
 
   await seedDemoWorkspaceData(workspace.id);
 
-  const campaigns = await prisma.campaign.findMany({
-    where: { workspaceId: workspace.id },
-    include: {
-      assets: true,
-      attributions: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  const [campaigns, profile] = await Promise.all([
+    prisma.campaign.findMany({
+      where: { workspaceId: workspace.id },
+      include: {
+        assets: true,
+        attributions: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+    prisma.businessProfile.findUnique({
+      where: { workspaceId: workspace.id },
+    }),
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
@@ -42,8 +47,8 @@ export default async function CampaignsPage() {
             </h1>
 
             <p className="mt-2 text-gray-600">
-              Generate Draft Ready campaigns tied to real revenue opportunities
-              and review the assets before approval.
+              Generate draft-ready campaigns tied to real revenue opportunities,
+              review the creative direction, and move them through managed launch.
             </p>
           </div>
 
@@ -54,7 +59,11 @@ export default async function CampaignsPage() {
               <p className="text-gray-600">No campaigns found.</p>
             </div>
           ) : (
-            <CampaignsGrid campaigns={campaigns} />
+            <CampaignsGrid
+              campaigns={campaigns}
+              businessLogoUrl={profile?.logoUrl ?? null}
+              businessName={profile?.businessName ?? workspace.name}
+            />
           )}
         </main>
       </div>

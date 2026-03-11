@@ -1,82 +1,115 @@
-import { Competitor } from "@prisma/client";
+import { Competitor } from "@/generated/prisma";
 
 type Props = {
   competitor: Competitor;
 };
 
+function signalLabel(
+  value: boolean | null | undefined,
+  positive: string,
+  negative: string
+) {
+  if (value == null) return "Unknown";
+  return value ? positive : negative;
+}
+
 export function CompetitorCard({ competitor }: Props) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-lg font-bold text-gray-900">
-            {competitor.name}
-          </h3>
-
-          {competitor.websiteUrl && (
-            <p className="mt-1 text-sm text-blue-600">
-              {competitor.websiteUrl}
-            </p>
+    <div className="mf-card rounded-2xl p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          {competitor.logoUrl ? (
+            <img
+              src={competitor.logoUrl}
+              alt={competitor.name}
+              className="h-12 w-12 rounded-xl border border-gray-200 bg-white p-1 object-contain"
+            />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-500">
+              {competitor.name.charAt(0)}
+            </div>
           )}
+
+          <div>
+            <p className="text-base font-semibold text-gray-900">
+              {competitor.name}
+            </p>
+            <p className="mt-1 text-sm text-gray-600">
+              {competitor.websiteUrl ?? "No website listed"}
+            </p>
+          </div>
         </div>
 
-        {competitor.isPrimaryCompetitor && (
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            Primary Competitor
+        {competitor.isPrimaryCompetitor ? (
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+            Primary
           </span>
-        )}
+        ) : null}
       </div>
 
-      {competitor.notes && (
-        <p className="mt-3 text-sm text-gray-600 leading-6">
-          {competitor.notes}
-        </p>
-      )}
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl bg-gray-50 p-3">
-          <p className="text-xs text-gray-600">Rating</p>
-          <p className="text-sm font-semibold text-gray-900">
-            {competitor.rating ?? "—"}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Service Focus
+          </p>
+          <p className="mt-1 text-sm text-gray-900">
+            {competitor.serviceFocus.length > 0
+              ? competitor.serviceFocus.join(" • ")
+              : "Not listed"}
           </p>
         </div>
 
         <div className="rounded-xl bg-gray-50 p-3">
-          <p className="text-xs text-gray-600">Reviews</p>
-          <p className="text-sm font-semibold text-gray-900">
-            {competitor.reviewCount ?? "—"}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Reviews
+          </p>
+          <p className="mt-1 text-sm text-gray-900">
+            {competitor.rating ? `${competitor.rating.toFixed(1)}★` : "—"} •{" "}
+            {competitor.reviewCount ?? 0} reviews
           </p>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium">
-        {competitor.isRunningAds && (
-          <span className="rounded-full bg-green-50 px-2.5 py-1 text-green-700">
-            Running Ads
-          </span>
-        )}
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Ads
+          </p>
+          <p className="mt-1 text-sm font-medium text-gray-900">
+            {signalLabel(competitor.isRunningAds, "Running Ads", "No Ad Signal")}
+          </p>
+        </div>
 
-        {competitor.isPostingActively && (
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
-            Active Content
-          </span>
-        )}
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Posting
+          </p>
+          <p className="mt-1 text-sm font-medium text-gray-900">
+            {signalLabel(
+              competitor.isPostingActively,
+              "Posting Actively",
+              "Low Activity"
+            )}
+          </p>
+        </div>
 
-        {competitor.hasActivePromo && (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
-            Promo Active
-          </span>
-        )}
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Promotions
+          </p>
+          <p className="mt-1 text-sm font-medium text-gray-900">
+            {signalLabel(competitor.hasActivePromo, "Active Promo", "No Promo")}
+          </p>
+        </div>
       </div>
 
-      {competitor.signalSummary && (
-        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase">
-            Signal Summary
+      {(competitor.signalSummary || competitor.notes) && (
+        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Why This Competitor Matters
           </p>
-
-          <p className="mt-1 text-sm text-gray-700">
-            {competitor.signalSummary}
+          <p className="mt-2 text-sm leading-6 text-gray-700">
+            {competitor.signalSummary ?? competitor.notes}
           </p>
         </div>
       )}

@@ -5,6 +5,7 @@ async function upsertCompetitor(
   data: {
     name: string;
     websiteUrl?: string | null;
+    logoUrl?: string | null;
     googleBusinessUrl?: string | null;
     notes?: string | null;
     serviceFocus: string[];
@@ -53,7 +54,13 @@ async function upsertIntelligenceAlert(
       | "AEO_OPPORTUNITY"
       | "UNDERUTILIZED_SCHEDULE"
       | "SEASONAL_SHIFT";
-    source?: "COMPETITOR" | "DEMAND_MODEL" | "AEO_MODEL" | "CAPACITY_MODEL" | "MANUAL" | null;
+    source?:
+      | "COMPETITOR"
+      | "DEMAND_MODEL"
+      | "AEO_MODEL"
+      | "CAPACITY_MODEL"
+      | "MANUAL"
+      | null;
     severity?: "LOW" | "MEDIUM" | "HIGH" | null;
     recommendedAction?: string | null;
     isRead?: boolean;
@@ -205,13 +212,14 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     throw new Error("Workspace not found for demo seed.");
   }
 
-  // 1. Enrich business profile without deleting onboarding data
   if (workspace.businessProfile) {
     await prisma.businessProfile.update({
       where: { workspaceId },
       data: {
         businessName: "BluePeak Plumbing",
         website: "https://www.bluepeakplumbing.com",
+        logoUrl:
+          "https://bluepeakmechanical.com/wp-content/uploads/2025/12/colored-mini-black.png",
         phone: "(770) 555-0148",
         city: "Jasper",
         state: "GA",
@@ -267,10 +275,11 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     });
   }
 
-  // 2. Competitors
   await upsertCompetitor(workspaceId, {
     name: "Masterflo Plumbing",
     websiteUrl: "https://www.masterfloplumbing.com",
+    logoUrl:
+      "https://masterfloplumbing.com/wp-content/uploads/2023/06/Plumbers-Near-Canton-Georgia.png",
     googleBusinessUrl: "",
     notes:
       "Recognizable local competitor in the Jasper market. Useful benchmark for local reputation and steady plumbing service messaging.",
@@ -289,6 +298,8 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
   await upsertCompetitor(workspaceId, {
     name: "Superior Plumbing",
     websiteUrl: "https://www.superiorplumbing.com",
+    logoUrl:
+      "https://lirp.cdn-website.com/17a155d8/dms3rep/multi/opt/LOGO-56168f3a-ee54f996-1920w.png",
     googleBusinessUrl: "",
     notes:
       "Large Atlanta-area plumbing competitor with broad metro visibility. Important benchmark for scale, SEO presence, and paid search visibility.",
@@ -313,6 +324,8 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
   await upsertCompetitor(workspaceId, {
     name: "North Georgia Rooter Pros",
     websiteUrl: "https://www.ngrooterpros.com",
+    logoUrl:
+      "https://northgeorgiarooter.com/wp-content/uploads/2025/02/dbeb8ad5-2561-4c49-99de-62dbae8880bc.png",
     googleBusinessUrl: "",
     notes:
       "Urgency-focused competitor more concentrated on drain and sewer issues.",
@@ -348,6 +361,8 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
   await upsertCompetitor(workspaceId, {
     name: "Summit Water Heater & Plumbing",
     websiteUrl: "https://www.summitwaterheaterplumbing.com",
+    logoUrl:
+      "https://s3-media0.fl.yelpcdn.com/bphoto/RwrG3Ejm4P8u6zVFHBSKFQ/l.jpg",
     googleBusinessUrl: "",
     notes:
       "Important high-ticket competitor focused on water heater replacement and repair.",
@@ -362,7 +377,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     signalSummary: "Strong focus on higher-ticket water heater work.",
   });
 
-  // 3. Intelligence Alerts
   await upsertIntelligenceAlert(workspaceId, {
     title: "Drain demand rising across North Atlanta",
     description:
@@ -418,7 +432,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     isRead: false,
   });
 
-  // 4. Revenue Opportunities
   const oppDrain = await upsertRevenueOpportunity(workspaceId, {
     title: "Drain Cleaning Demand Gap",
     description:
@@ -524,7 +537,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     isActive: true,
   });
 
-  // 5. Recommendations
   const recDrain = await upsertRecommendation(workspaceId, {
     title: "Drain Cleaning Special",
     description:
@@ -631,7 +643,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     isLaunched: false,
   });
 
-  // 6. Campaigns
   const campaignDrain = await prisma.campaign.upsert({
     where: { campaignCode: "BP-DRAIN-001" },
     update: {
@@ -760,7 +771,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     },
   });
 
-  // 7. Replace demo assets for the two demo campaigns only
   await prisma.campaignAsset.deleteMany({
     where: {
       campaignId: {
@@ -838,7 +848,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
     ],
   });
 
-  // 8. Replace demo attribution for the two demo campaigns only
   await prisma.attributionEntry.deleteMany({
     where: {
       campaignId: {

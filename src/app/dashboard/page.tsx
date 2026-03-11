@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { seedDemoLeads } from "@/lib/seed-demo-leads";
 import { buildRevenueOpportunityEngine } from "@/lib/revenue-opportunity-engine";
+import { getRevenueCapturedSummary } from "@/lib/revenue-captured-summary";
+import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
 
 export default async function DashboardPage() {
   const workspace = await getCurrentWorkspace();
@@ -28,18 +30,33 @@ export default async function DashboardPage() {
     redirect("/onboarding");
   }
 
-  const competitors = await prisma.competitor.findMany({
-    where: { workspaceId: workspace.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const [competitors, performanceSignals] = await Promise.all([
+    prisma.competitor.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { createdAt: "asc" },
+    }),
+    getCampaignPerformanceSignals(workspace.id),
+  ]);
 
   const engine = buildRevenueOpportunityEngine({
     profile,
     competitors,
+    performanceSignals,
   });
 
   const hero = engine.hero;
   const opportunities = engine.rankedOpportunities;
+
+  const totalJobsLow = opportunities.reduce((sum, item) => sum + item.jobsLow, 0);
+  const totalJobsHigh = opportunities.reduce((sum, item) => sum + item.jobsHigh, 0);
+  const totalRevenueLow = opportunities.reduce(
+    (sum, item) => sum + item.revenueLow,
+    0
+  );
+  const totalRevenueHigh = opportunities.reduce(
+    (sum, item) => sum + item.revenueHigh,
+    0
+  );
 
   const recommendations = await prisma.recommendation.findMany({
     where: {
@@ -48,19 +65,17 @@ export default async function DashboardPage() {
     orderBy: {
       score: "desc",
     },
-    take: 4,
+    take: 6,
   });
 
   const campaigns = await prisma.campaign.findMany({
     where: {
       workspaceId: workspace.id,
     },
-    select: {
-      id: true,
-      name: true,
-      campaignType: true,
-      recommendationId: true,
-      status: true,
+    include: {
+      assets: {
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -76,26 +91,6 @@ export default async function DashboardPage() {
     },
   });
 
-  const revenueYtd = attributions.reduce(
-    (sum, item) => sum + Number(item.revenue ?? 0),
-    0
-  );
-
-  const attributedJobs = attributions.reduce(
-    (sum, item) => sum + (item.bookedJobs ?? 0),
-    0
-  );
-
-  const attributedLeads = attributions.reduce(
-    (sum, item) => sum + (item.leadsGenerated ?? 0),
-    0
-  );
-
-  const winRate =
-    attributedLeads > 0
-      ? Math.round((attributedJobs / attributedLeads) * 100)
-      : 0;
-
   const avgRoi =
     attributions.length > 0
       ? attributions.reduce((sum, item) => sum + (item.roi ?? 0), 0) /
@@ -106,7 +101,9 @@ export default async function DashboardPage() {
     (campaign) => campaign.status === "SCHEDULED"
   ).length;
 
-  const recommendationCards = recommendations.map((recommendation) => {
+  const revenueSummary = await getRevenueCapturedSummary(workspace.id);
+
+  const allRecommendationCards = recommendations.map((recommendation) => {
     const linkedCampaign =
       campaigns.find(
         (campaign) => campaign.recommendationId === recommendation.id
@@ -126,22 +123,66 @@ export default async function DashboardPage() {
       estimatedBookedJobsMin: recommendation.estimatedBookedJobsMin,
       estimatedBookedJobsMax: recommendation.estimatedBookedJobsMax,
       linkedCampaignId: linkedCampaign?.id ?? null,
+      campaignType: recommendation.campaignType,
     };
   });
+
+  const filteredRecommendationCards = allRecommendationCards
+    .filter(
+      (recommendation) =>
+        recommendation.campaignType !== hero.recommendedCampaignType
+    )
+    .slice(0, 4)
+    .map(({ campaignType, ...rest }) => rest);
+
+  const heroCampaign =
+    campaigns.find(
+      (campaign) => campaign.campaignType === hero.recommendedCampaignType
+    ) ?? null;
 
   return (
     <DashboardShell
       workspaceName={workspace.name}
+      workspaceLogoUrl={profile.logoUrl}
       hero={hero}
-      opportunities={opportunities}
-      recommendations={recommendationCards}
+      heroCampaign={
+        heroCampaign
+          ? {
+              id: heroCampaign.id,
+              name: heroCampaign.name,
+              status: heroCampaign.status,
+              targetService: heroCampaign.targetService,
+              offer: heroCampaign.offer,
+              audience: heroCampaign.audience,
+              briefJson: heroCampaign.briefJson,
+              assets: heroCampaign.assets.map((asset) => ({
+                id: asset.id,
+                assetType: asset.assetType,
+                title: asset.title,
+                content: asset.content,
+              })),
+            }
+          : null
+      }
+      recommendations={filteredRecommendationCards}
       metrics={{
-        revenueCapturedYtd: revenueYtd,
+        jobsAvailableLow: totalJobsLow,
+        jobsAvailableHigh: totalJobsHigh,
+        revenueOpportunityLow: totalRevenueLow,
+        revenueOpportunityHigh: totalRevenueHigh,
+        revenueCapturedYtd: revenueSummary.totalRevenue,
         roi: avgRoi,
         activeOpportunities: opportunities.length,
         queuedForLaunch,
-        attributedJobs,
-        leadToJobRate: winRate,
+        attributedJobs: revenueSummary.bookedJobs,
+        leadToJobRate: revenueSummary.winRate,
+      }}
+      revenueCaptured={{
+        totalRevenue: revenueSummary.totalRevenue,
+        bookedJobs: revenueSummary.bookedJobs,
+        campaignsLaunched: revenueSummary.campaignsLaunched,
+        winRate: revenueSummary.winRate,
+        entries: revenueSummary.entries,
       }}
     />
   );

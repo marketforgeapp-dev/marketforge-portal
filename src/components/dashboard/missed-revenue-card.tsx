@@ -11,7 +11,7 @@ export function MissedRevenueCard({ hero }: Props) {
       <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
         <div className="flex-1">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-            {hero.title}
+            Jobs You Can Capture This Week
           </p>
 
           <h2 className="mt-3 text-5xl font-bold tracking-tight text-gray-900">
@@ -29,7 +29,7 @@ export function MissedRevenueCard({ hero }: Props) {
 
           <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Best Move
+              Recommended Campaign
             </p>
             <p className="mt-2 text-xl font-semibold text-gray-900">
               {hero.bestMove}
@@ -46,6 +46,19 @@ export function MissedRevenueCard({ hero }: Props) {
               ))}
             </ul>
           </div>
+
+          {hero.competitorSignal.length > 0 ? (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-gray-900">
+                Competitor Pressure
+              </p>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-gray-700">
+                {hero.competitorSignal.map((signal) => (
+                  <li key={signal}>• {signal}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <div className="w-full xl:max-w-sm">
@@ -92,7 +105,7 @@ export function MissedRevenueCard({ hero }: Props) {
               href="/campaigns"
               className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
             >
-              Launch Campaign
+              Review Campaign
             </Link>
           </div>
 

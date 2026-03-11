@@ -18,12 +18,8 @@ function midpoint(low?: number | null, high?: number | null) {
   return Math.round(((low ?? 0) + (high ?? 0)) / 2);
 }
 
-function formatFaq(
-  faq: Array<{ question: string; answer: string }>
-): string {
-  return faq
-    .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
-    .join("\n\n");
+function formatFaq(faq: Array<{ question: string; answer: string }>): string {
+  return faq.map((item) => `Q: ${item.question}\nA: ${item.answer}`).join("\n\n");
 }
 
 function formatGoogleAds(googleAds: {
@@ -34,6 +30,23 @@ function formatGoogleAds(googleAds: {
   const descriptions = googleAds.descriptions.map((d) => `- ${d}`).join("\n");
 
   return `Headlines:\n${headlines}\n\nDescriptions:\n${descriptions}`;
+}
+
+function formatYelp(yelp: {
+  headline: string;
+  body: string;
+  offer: string | null;
+  cta: string | null;
+}) {
+  return [
+    `Headline: ${yelp.headline}`,
+    "",
+    "Body:",
+    yelp.body,
+    "",
+    `Offer: ${yelp.offer ?? "Not provided"}`,
+    `CTA: ${yelp.cta ?? "Call now or book online"}`,
+  ].join("\n");
 }
 
 export async function createCampaignFromPrompt(
@@ -170,6 +183,22 @@ Critical rules:
 - Service area: ${profile.serviceArea}.
 - Average job value: ${profile.averageJobValue ? Number(profile.averageJobValue) : "unknown"}.
 - AEO readiness score: ${profile.aeoReadinessScore ?? "unknown"}.
+
+Generate channel assets for:
+- Google Business Profile
+- Meta / Facebook / Instagram
+- Google Ads
+- Yelp
+- Email
+- Blog
+- AEO FAQ
+- Answer Snippet
+
+For Yelp, create practical local-service copy that fits a Yelp business ad / promoted listing style:
+- one headline
+- one body block
+- one offer
+- one CTA
 `;
 
   const userPrompt = `
@@ -304,6 +333,12 @@ Return a single structured campaign object.
         assetType: "GOOGLE_ADS",
         title: "Google Ads Copy",
         content: formatGoogleAds(parsed.assets.googleAds),
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "YELP",
+        title: "Yelp Ad Copy",
+        content: formatYelp(parsed.assets.yelpAd),
       },
       {
         campaignId: campaign.id,

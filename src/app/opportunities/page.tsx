@@ -4,6 +4,8 @@ import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { OpportunitiesGrid } from "@/components/opportunities/opportunities-grid";
+import { buildRevenueOpportunityEngine } from "@/lib/revenue-opportunity-engine";
+import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
 
 export default async function OpportunitiesPage() {
   const workspace = await getCurrentWorkspace();
@@ -12,17 +14,49 @@ export default async function OpportunitiesPage() {
     redirect("/onboarding");
   }
 
-  // ensure demo data exists
   await seedDemoWorkspaceData(workspace.id);
 
-  const opportunities = await prisma.revenueOpportunity.findMany({
-    where: {
-      workspaceId: workspace.id,
-      isActive: true,
-    },
-    orderBy: {
-      priorityScore: "desc",
-    },
+  const profile = await prisma.businessProfile.findUnique({
+    where: { workspaceId: workspace.id },
+  });
+
+  if (!profile) {
+    redirect("/onboarding");
+  }
+
+  const [competitors, campaigns, performanceSignals] = await Promise.all([
+    prisma.competitor.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.campaign.findMany({
+      where: { workspaceId: workspace.id },
+      select: {
+        id: true,
+        campaignType: true,
+        status: true,
+      },
+    }),
+    getCampaignPerformanceSignals(workspace.id),
+  ]);
+
+  const engine = buildRevenueOpportunityEngine({
+    profile,
+    competitors,
+    performanceSignals,
+  });
+
+  const opportunities = engine.rankedOpportunities.map((opportunity) => {
+    const linkedCampaign =
+      campaigns.find(
+        (campaign) =>
+          campaign.campaignType === opportunity.recommendedCampaignType
+      ) ?? null;
+
+    return {
+      ...opportunity,
+      linkedCampaignId: linkedCampaign?.id ?? null,
+    };
   });
 
   return (
@@ -33,16 +67,16 @@ export default async function OpportunitiesPage() {
         <main className="flex-1 space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-              Opportunities
+              Other Revenue Opportunities
             </p>
 
             <h1 className="mt-2 text-3xl font-bold text-gray-900">
-              Revenue Opportunity Engine
+              Other Revenue Opportunities
             </h1>
 
             <p className="mt-2 text-gray-600">
-              Prioritized local revenue opportunities based on demand signals,
-              competitor activity, and business capacity.
+              Explore additional local revenue opportunities beyond the primary
+              Command Center recommendation and launch them when needed.
             </p>
           </div>
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma";
+import { ensureCampaignBaselineSnapshot } from "@/lib/campaign-baseline";
 
 type ExecutionPatch = {
   scheduledLaunchDate?: string | null;
@@ -42,6 +43,7 @@ function revalidateExecution(campaignId: string) {
   revalidatePath("/campaigns");
   revalidatePath(`/campaigns/${campaignId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/reports");
 }
 
 export async function queueCampaignWithExecutionDetails(input: {
@@ -61,6 +63,8 @@ export async function queueCampaignWithExecutionDetails(input: {
   });
 
   if (!campaign) return;
+
+  await ensureCampaignBaselineSnapshot(input.campaignId);
 
   await prisma.campaign.update({
     where: { id: input.campaignId },
@@ -90,6 +94,8 @@ export async function markCampaignLaunched(campaignId: string) {
 
   if (!campaign) return;
 
+  await ensureCampaignBaselineSnapshot(campaignId);
+
   await prisma.campaign.update({
     where: { id: campaignId },
     data: {
@@ -105,6 +111,8 @@ export async function markCampaignLaunched(campaignId: string) {
 }
 
 export async function markCampaignCompleted(campaignId: string) {
+  await ensureCampaignBaselineSnapshot(campaignId);
+
   await prisma.campaign.update({
     where: { id: campaignId },
     data: {
