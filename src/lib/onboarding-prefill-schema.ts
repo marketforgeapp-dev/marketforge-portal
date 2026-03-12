@@ -2,13 +2,17 @@ import { z } from "zod";
 
 export const onboardingPrefillSchema = z.object({
   businessName: z.string(),
-  website: z.string().url(),
+  website: z.string(),
   logoUrl: z.string().nullable(),
   phone: z.string().nullable(),
+
+  city: z.string().nullable(),
+  state: z.string().nullable(),
   serviceArea: z.string().nullable(),
+
   industry: z.enum(["PLUMBING", "HVAC", "SEPTIC", "TREE_SERVICE"]),
-  preferredServices: z.array(z.string()).min(1).max(8),
-  servicePageUrls: z.array(z.string()).max(10),
+  preferredServices: z.array(z.string()).max(8).default([]),
+  servicePageUrls: z.array(z.string()).max(10).default([]),
   hasFaqContent: z.boolean(),
   busySeason: z.string().nullable(),
   slowSeason: z.string().nullable(),
@@ -18,13 +22,14 @@ export const onboardingPrefillSchema = z.object({
       z.object({
         name: z.string(),
         websiteUrl: z.string().nullable(),
+        googleBusinessUrl: z.string().nullable(),
         logoUrl: z.string().nullable(),
         whyItMatters: z.string(),
-        serviceFocus: z.array(z.string()).max(6),
+        serviceFocus: z.array(z.string()).max(6).default([]),
       })
     )
-    .min(1)
-    .max(5),
+    .max(5)
+    .default([]),
 });
 
 export type OnboardingPrefillResult = z.infer<typeof onboardingPrefillSchema>;

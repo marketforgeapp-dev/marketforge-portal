@@ -8,6 +8,7 @@ type Props = {
   workspaceName: string;
   isDemo: boolean;
   initialData: OnboardingFormData;
+  primaryEmail: string | null;
 };
 
 function Field({
@@ -42,6 +43,7 @@ export function SettingsForm({
   workspaceName,
   isDemo,
   initialData,
+  primaryEmail,
 }: Props) {
   const [formData, setFormData] = useState<OnboardingFormData>(initialData);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -202,7 +204,23 @@ export function SettingsForm({
           </div>
         </div>
       </section>
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+  <h2 className="text-xl font-bold text-gray-900">Account</h2>
 
+  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <Field label="Primary Email">
+      <input
+        disabled
+        className="w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700"
+        value={primaryEmail ?? ""}
+      />
+    </Field>
+
+    <div className="text-sm text-gray-600 flex items-end">
+      This email is used for login and notifications.
+    </div>
+  </div>
+</section>
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Business Profile</h2>
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">

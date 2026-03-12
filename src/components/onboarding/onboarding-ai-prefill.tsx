@@ -8,15 +8,64 @@ type Props = {
   onApply: (data: OnboardingPrefillResult) => void;
 };
 
+function FieldPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  if (!value) return null;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+      <p className="mt-1 text-sm text-gray-800">{value}</p>
+    </div>
+  );
+}
+
+function ListCard({
+  title,
+  items,
+  emptyLabel,
+}: {
+  title: string;
+  items: string[];
+  emptyLabel: string;
+}) {
+  return (
+    <div className="rounded-xl bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {title}
+      </p>
+
+      {items.length > 0 ? (
+        <ul className="mt-3 space-y-1 text-sm text-gray-700">
+          {items.map((item) => (
+            <li key={item}>• {item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-gray-500">{emptyLabel}</p>
+      )}
+    </div>
+  );
+}
+
 export function OnboardingAiPrefill({ onApply }: Props) {
   const [companyName, setCompanyName] = useState("");
   const [website, setWebsite] = useState("");
   const [result, setResult] = useState<OnboardingPrefillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasApplied, setHasApplied] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function handleGenerate() {
     setError(null);
+    setHasApplied(false);
 
     startTransition(async () => {
       const response = await generateOnboardingPrefill({
@@ -30,6 +79,8 @@ export function OnboardingAiPrefill({ onApply }: Props) {
       }
 
       setResult(response.data);
+      onApply(response.data);
+      setHasApplied(true);
     });
   }
 
@@ -44,8 +95,9 @@ export function OnboardingAiPrefill({ onApply }: Props) {
       </h2>
 
       <p className="mt-2 text-sm leading-6 text-gray-600">
-        MarketForge will suggest business details, likely services, logo URLs,
-        and likely competitors. You review and apply the suggestions.
+        MarketForge analyzes the company website, suggests business details,
+        likely services, and local competitors, then applies those suggestions
+        to the onboarding form for review.
       </p>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -53,7 +105,7 @@ export function OnboardingAiPrefill({ onApply }: Props) {
           type="text"
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
-          placeholder="BluePeak Plumbing"
+          placeholder="Enter company name"
           className="rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900"
         />
 
@@ -61,20 +113,26 @@ export function OnboardingAiPrefill({ onApply }: Props) {
           type="text"
           value={website}
           onChange={(e) => setWebsite(e.target.value)}
-          placeholder="bluepeakplumbing.com"
+          placeholder="Enter company website"
           className="rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900"
         />
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={handleGenerate}
           disabled={isPending || !companyName.trim() || !website.trim()}
           className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending ? "Generating..." : "Generate Suggestions"}
+          {isPending ? "Generating..." : "Generate & Apply Suggestions"}
         </button>
+
+        {hasApplied ? (
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+            Suggestions applied to onboarding
+          </span>
+        ) : null}
       </div>
 
       {error ? (
@@ -84,66 +142,134 @@ export function OnboardingAiPrefill({ onApply }: Props) {
       ) : null}
 
       {result ? (
-        <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-5">
+        <div className="mt-6 space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-lg font-semibold text-gray-900">
                 {result.businessName}
               </p>
               <p className="mt-1 text-sm text-gray-600">
-                {result.serviceArea ?? "Service area not suggested yet"}
+                Review these suggestions before continuing.
               </p>
             </div>
 
             {result.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={result.logoUrl}
                 alt={`${result.businessName} logo`}
-                className="h-12 w-12 rounded-lg border border-gray-200 bg-white object-contain p-1"
+                className="h-14 w-14 rounded-lg border border-gray-200 bg-white object-contain p-1"
               />
-            ) : null}
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                No Logo
+              </div>
+            )}
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Suggested Services
-              </p>
-              <ul className="mt-2 space-y-1 text-sm text-gray-700">
-                {result.preferredServices.map((service) => (
-                  <li key={service}>• {service}</li>
-                ))}
-              </ul>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <FieldPill label="Website" value={result.website} />
+            <FieldPill label="Phone" value={result.phone} />
+            <FieldPill
+              label="Location"
+              value={[result.city, result.state].filter(Boolean).join(", ")}
+            />
+            <FieldPill label="Service Area" value={result.serviceArea} />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <ListCard
+              title="Suggested Services"
+              items={result.preferredServices}
+              emptyLabel="No services suggested yet."
+            />
+
+            <ListCard
+              title="Service Pages"
+              items={result.servicePageUrls}
+              emptyLabel="No service pages detected yet."
+            />
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Suggested Competitors
+                </p>
+                <p className="mt-1 text-sm text-gray-600">
+                  Review and edit these in onboarding if anything looks off.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                {result.competitors.length} found
+              </span>
             </div>
 
-            <div className="rounded-xl bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Suggested Competitors
-              </p>
-              <ul className="mt-2 space-y-2 text-sm text-gray-700">
+            {result.competitors.length > 0 ? (
+              <div className="mt-4 grid gap-3">
                 {result.competitors.map((competitor) => (
-                  <li key={competitor.name}>
-                    <span className="font-semibold text-gray-900">
-                      {competitor.name}
-                    </span>
-                    <span className="text-gray-600">
-                      {" "}
-                      — {competitor.whyItMatters}
-                    </span>
-                  </li>
+                  <div
+                    key={competitor.name}
+                    className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      {competitor.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={competitor.logoUrl}
+                          alt={`${competitor.name} logo`}
+                          className="h-12 w-12 rounded-lg border border-gray-200 bg-white object-contain p-1"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                          No Logo
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-gray-900">
+                          {competitor.name}
+                        </p>
+
+                        {competitor.websiteUrl ? (
+                          <p className="mt-1 break-all text-sm text-blue-700">
+                            {competitor.websiteUrl}
+                          </p>
+                        ) : null}
+
+                        <p className="mt-2 text-sm text-gray-600">
+                          {competitor.whyItMatters}
+                        </p>
+
+                        {competitor.serviceFocus.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {competitor.serviceFocus.map((focus) => (
+                              <span
+                                key={focus}
+                                className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200"
+                              >
+                                {focus}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </ul>
-            </div>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-gray-500">
+                No competitors suggested yet.
+              </p>
+            )}
           </div>
 
-          <div className="mt-5">
-            <button
-              type="button"
-              onClick={() => onApply(result)}
-              className="rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white hover:bg-green-700"
-            >
-              Apply Suggestions to Onboarding
-            </button>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            AI suggestions have been applied to the onboarding form below.
+            Review and edit anything before continuing.
           </div>
         </div>
       ) : null}

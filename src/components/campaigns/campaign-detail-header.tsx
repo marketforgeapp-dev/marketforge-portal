@@ -12,6 +12,11 @@ type HeaderCampaign = {
   recommendationTitle: string | null;
   opportunityTitle: string | null;
   opportunityType: OpportunityType | null;
+  userPrompt?: string | null;
+  matchedOpportunityTitle?: string | null;
+  nextBestActionTitle?: string | null;
+  nextBestActionType?: string | null;
+  executionMode?: string | null;
 };
 
 type HeaderResults = {
@@ -61,7 +66,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
 
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
             Review the revenue opportunity, confirm the recommended action, and
-            move this campaign through managed launch.
+            move this plan through managed launch.
           </p>
         </div>
 
@@ -79,6 +84,59 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
         </div>
       </div>
 
+      <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+          Prompt Debug
+        </p>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg bg-white p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Execution Mode
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {campaign.executionMode ?? "Not recorded"}
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-white p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Action Type
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {campaign.nextBestActionType ?? "Not recorded"}
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-white p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Action Title
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {campaign.nextBestActionTitle ?? "Not recorded"}
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-white p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Matched Opportunity
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {campaign.matchedOpportunityTitle ?? "Not recorded"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg bg-white p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            User Prompt
+          </p>
+          <p className="mt-1 text-sm text-gray-800">
+            {campaign.userPrompt ?? "Not recorded"}
+          </p>
+        </div>
+      </div>
+
       <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -91,7 +149,9 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
                 Opportunity
               </p>
               <p className="mt-1 text-sm font-semibold text-gray-900">
-                {campaign.opportunityTitle ?? "Not linked"}
+                {campaign.opportunityTitle ??
+                  campaign.matchedOpportunityTitle ??
+                  "Not linked"}
               </p>
               <p className="mt-1 text-xs text-gray-600">
                 {campaign.opportunityType
@@ -105,7 +165,9 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
                 Recommended Action
               </p>
               <p className="mt-1 text-sm font-semibold text-gray-900">
-                {campaign.recommendationTitle ?? campaign.name}
+                {campaign.nextBestActionTitle ??
+                  campaign.recommendationTitle ??
+                  campaign.name}
               </p>
               <p className="mt-1 text-xs text-gray-600">
                 {campaign.targetService ?? "General service promotion"}

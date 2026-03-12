@@ -5,52 +5,51 @@ import { useRouter } from "next/navigation";
 import { createCampaignFromPrompt } from "@/app/campaigns/actions";
 
 const SUGGESTIONS = [
+  "What is the best next action for this plumbing business right now?",
+  "Slow week, help fill the schedule",
+  "Should we focus on AEO / FAQ improvements first?",
   "Promote drain cleaning this week",
   "We need more water heater installs",
-  "Slow week, help fill the schedule",
   "Promote emergency plumbing services",
-  "Create an AEO FAQ campaign for drain cleaning",
 ];
 
 export function NlCampaignPanel() {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleGenerate() {
     setError(null);
-    setSuccess(null);
 
     startTransition(async () => {
-      const result = await createCampaignFromPrompt(prompt);
+      const submittedPrompt = prompt.trim();
+      const result = await createCampaignFromPrompt(submittedPrompt);
 
       if (!result.success) {
         setError(result.error);
         return;
       }
 
-      setSuccess(`Draft Ready: ${result.campaignName}`);
       setPrompt("");
-      router.refresh();
+      router.push(`/campaigns/${result.campaignId}`);
     });
   }
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
       <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-        Create Campaign
+        Next Best Action
       </p>
 
       <h2 className="mt-2 text-2xl font-bold text-gray-900">
-        What do you want to promote?
+        What should MarketForge create or recommend next?
       </h2>
 
       <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-        Describe the campaign you want in plain English. MarketForge will parse
-        the request, check it against active revenue opportunities, and generate
-        a Draft Ready campaign with channel assets.
+        Describe the business goal in plain English. MarketForge will evaluate the
+        best next action across revenue, capacity, competitor pressure, and
+        AI/local visibility signals, then generate a draft-ready execution plan.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -71,7 +70,7 @@ export function NlCampaignPanel() {
           htmlFor="campaign-prompt"
           className="text-sm font-medium text-gray-900"
         >
-          Campaign request
+          Action request
         </label>
 
         <textarea
@@ -79,7 +78,7 @@ export function NlCampaignPanel() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           rows={5}
-          placeholder="Example: Promote drain cleaning this week in Jasper and Canton with a fast-response offer."
+          placeholder="Example: Should we push drain cleaning this week, or is improving local FAQ / AEO visibility a better move first?"
           className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
         />
       </div>
@@ -90,16 +89,10 @@ export function NlCampaignPanel() {
         </div>
       ) : null}
 
-      {success ? (
-        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          {success}
-        </div>
-      ) : null}
-
       <div className="mt-5 flex items-center justify-between">
         <p className="text-xs text-gray-500">
-          Internal status maps to <span className="font-semibold">READY</span>,
-          customer-facing status is <span className="font-semibold">Draft Ready</span>.
+          MarketForge may recommend a campaign, an AEO/SEO action pack, or another
+          execution-ready move based on current intelligence.
         </p>
 
         <button

@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
-import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 
@@ -38,8 +37,6 @@ export default async function ReportsPage() {
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
-
-  await seedDemoWorkspaceData(workspace.id);
 
   const campaigns = await prisma.campaign.findMany({
     where: { workspaceId: workspace.id },

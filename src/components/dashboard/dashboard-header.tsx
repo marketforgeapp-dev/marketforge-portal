@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { UserButton } from "@clerk/nextjs";
 
 type DashboardHeaderProps = {
   workspaceName: string;
@@ -37,6 +38,7 @@ export function DashboardHeader({
           <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/10">
               {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={logoUrl}
                   alt={workspaceName}
@@ -68,8 +70,15 @@ export function DashboardHeader({
             Notifications
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/80">
-            Profile
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+            <span className="text-xs font-medium text-white/80">Account</span>
+            <UserButton
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: "h-8 w-8",
+                },
+              }}
+            />
           </div>
         </div>
       </div>

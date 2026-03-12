@@ -13,6 +13,7 @@ import { MarketInitializationStep } from "./steps/market-initialization-step";
 import { OnboardingAiPrefill } from "@/components/onboarding/onboarding-ai-prefill";
 import type { OnboardingPrefillResult } from "@/lib/onboarding-prefill-schema";
 import { saveOnboarding } from "@/app/onboarding/actions";
+import { OnboardingTopbar } from "@/components/onboarding/onboarding-topbar";
 
 const STEP_LABELS = [
   "Business Info",
@@ -84,7 +85,8 @@ export function OnboardingFlow() {
       website: prefill.website || current.website,
       logoUrl: prefill.logoUrl || current.logoUrl,
       phone: prefill.phone || current.phone,
-
+      city: prefill.city || current.city,
+      state: prefill.state || current.state,
       serviceArea: prefill.serviceArea || current.serviceArea,
       industry: prefill.industry || current.industry,
       industryLabel:
@@ -119,19 +121,40 @@ export function OnboardingFlow() {
       busySeason: prefill.busySeason || current.busySeason,
       slowSeason: prefill.slowSeason || current.slowSeason,
 
-      averageJobValue:
-        prefill.averageJobValueHint ?? current.averageJobValue,
+      averageJobValue: prefill.averageJobValueHint ?? current.averageJobValue,
 
       competitors:
         prefill.competitors.length > 0
-          ? prefill.competitors.map((competitor, index) => ({
-              name: competitor.name,
-              websiteUrl: competitor.websiteUrl ?? "",
-              googleBusinessUrl: "",
-              logoUrl: competitor.logoUrl ?? "",
-              isPrimaryCompetitor: index === 0,
-            }))
-          : current.competitors,
+          ? [...prefill.competitors]
+              .slice(0, 5)
+              .map((competitor, index) => ({
+                name: competitor.name,
+                websiteUrl: competitor.websiteUrl ?? "",
+                googleBusinessUrl: competitor.googleBusinessUrl ?? "",
+                logoUrl: competitor.logoUrl ?? "",
+                isPrimaryCompetitor: index === 0,
+              }))
+              .concat(
+                Array.from({
+                  length: Math.max(0, 5 - prefill.competitors.length),
+                }).map((_, index) => ({
+                  name: "",
+                  websiteUrl: "",
+                  googleBusinessUrl: "",
+                  logoUrl: "",
+                  isPrimaryCompetitor:
+                    prefill.competitors.length === 0 && index === 0,
+                }))
+              )
+          : current.competitors.length > 0
+            ? current.competitors
+            : Array.from({ length: 5 }).map((_, index) => ({
+                name: "",
+                websiteUrl: "",
+                googleBusinessUrl: "",
+                logoUrl: "",
+                isPrimaryCompetitor: index === 0,
+              })),
     }));
   }
 
@@ -190,6 +213,7 @@ export function OnboardingFlow() {
   return (
     <div className="min-h-screen bg-gray-100 px-6 py-10">
       <div className="mx-auto max-w-5xl">
+          <OnboardingTopbar />
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
             MarketForge Setup

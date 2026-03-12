@@ -19,8 +19,10 @@ export default async function DashboardPage() {
     redirect("/onboarding");
   }
 
-  await seedDemoWorkspaceData(workspace.id);
-  await seedDemoLeads(workspace.id);
+  if (workspace.isDemo && !workspace.demoInitializedAt) {
+    await seedDemoWorkspaceData(workspace.id);
+    await seedDemoLeads(workspace.id);
+  }
 
   const profile = await prisma.businessProfile.findUnique({
     where: { workspaceId: workspace.id },
@@ -58,16 +60,6 @@ export default async function DashboardPage() {
     0
   );
 
-  const recommendations = await prisma.recommendation.findMany({
-    where: {
-      workspaceId: workspace.id,
-    },
-    orderBy: {
-      score: "desc",
-    },
-    take: 6,
-  });
-
   const campaigns = await prisma.campaign.findMany({
     where: {
       workspaceId: workspace.id,
@@ -103,37 +95,32 @@ export default async function DashboardPage() {
 
   const revenueSummary = await getRevenueCapturedSummary(workspace.id);
 
-  const allRecommendationCards = recommendations.map((recommendation) => {
-    const linkedCampaign =
-      campaigns.find(
-        (campaign) => campaign.recommendationId === recommendation.id
-      ) ??
-      campaigns.find(
-        (campaign) => campaign.campaignType === recommendation.campaignType
-      ) ??
-      null;
-
-    return {
-      id: recommendation.id,
-      title: recommendation.title,
-      description: recommendation.description,
-      score: recommendation.score,
-      estimatedRevenueMin: Number(recommendation.estimatedRevenueMin ?? 0),
-      estimatedRevenueMax: Number(recommendation.estimatedRevenueMax ?? 0),
-      estimatedBookedJobsMin: recommendation.estimatedBookedJobsMin,
-      estimatedBookedJobsMax: recommendation.estimatedBookedJobsMax,
-      linkedCampaignId: linkedCampaign?.id ?? null,
-      campaignType: recommendation.campaignType,
-    };
-  });
-
-  const filteredRecommendationCards = allRecommendationCards
+  const filteredRecommendationCards = opportunities
     .filter(
-      (recommendation) =>
-        recommendation.campaignType !== hero.recommendedCampaignType
+      (opportunity) =>
+        opportunity.recommendedCampaignType !== hero.recommendedCampaignType ||
+        opportunity.title !== hero.opportunityTitle
     )
     .slice(0, 4)
-    .map(({ campaignType, ...rest }) => rest);
+    .map((opportunity) => {
+      const linkedCampaign =
+        campaigns.find(
+          (campaign) =>
+            campaign.campaignType === opportunity.recommendedCampaignType
+        ) ?? null;
+
+      return {
+        id: `${opportunity.opportunityType}-${opportunity.serviceName}`,
+        title: opportunity.title,
+        description: opportunity.whyThisMatters,
+        score: opportunity.rawOpportunityScore / 10,
+        estimatedRevenueMin: opportunity.revenueLow,
+        estimatedRevenueMax: opportunity.revenueHigh,
+        estimatedBookedJobsMin: opportunity.jobsLow,
+        estimatedBookedJobsMax: opportunity.jobsHigh,
+        linkedCampaignId: linkedCampaign?.id ?? null,
+      };
+    });
 
   const heroCampaign =
     campaigns.find(

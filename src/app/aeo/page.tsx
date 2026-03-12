@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
-import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { AeoScoreCard } from "@/components/aeo/aeo-score-card";
@@ -13,8 +12,6 @@ export default async function AeoPage() {
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
-
-  await seedDemoWorkspaceData(workspace.id);
 
   const profile = await prisma.businessProfile.findUnique({
     where: { workspaceId: workspace.id },

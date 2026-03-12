@@ -6,6 +6,8 @@ import {
   onboardingPrefillSchema,
   type OnboardingPrefillResult,
 } from "@/lib/onboarding-prefill-schema";
+import { getWebsitePrefillContext } from "@/lib/website-prefill-context";
+import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
 
 type PrefillResponse =
   | {
@@ -40,6 +42,44 @@ function faviconFromWebsite(website: string | null): string | null {
   }
 }
 
+function cleanString(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    )
+  );
+}
+
+function inferIndustryFromCompanyName(companyName: string) {
+  const lower = companyName.toLowerCase();
+
+  if (
+    lower.includes("hvac") ||
+    lower.includes("heating") ||
+    lower.includes("cooling")
+  ) {
+    return "HVAC" as const;
+  }
+
+  if (lower.includes("septic")) {
+    return "SEPTIC" as const;
+  }
+
+  if (lower.includes("tree")) {
+    return "TREE_SERVICE" as const;
+  }
+
+  return "PLUMBING" as const;
+}
+
 export async function generateOnboardingPrefill(input: {
   companyName: string;
   website: string;
@@ -55,6 +95,18 @@ export async function generateOnboardingPrefill(input: {
   }
 
   try {
+    const websiteContext = await getWebsitePrefillContext(website);
+    const inferredIndustry = inferIndustryFromCompanyName(companyName);
+
+    const competitorCandidates = await discoverLocalCompetitors({
+      companyName,
+      industry: inferredIndustry,
+      city: websiteContext?.city ?? null,
+      state: websiteContext?.state ?? null,
+      serviceArea: websiteContext?.address ?? null,
+      website,
+    });
+
     const completion = await openai.chat.completions.parse({
       model: "gpt-4o-2024-08-06",
       messages: [
@@ -64,14 +116,23 @@ export async function generateOnboardingPrefill(input: {
 You are assisting MarketForge onboarding for a local home-service business.
 
 Your job:
-- infer likely business profile details from the company name and website
-- suggest likely competitors
-- suggest likely service pages and services
+- infer likely business profile details from grounded website content
+- suggest likely services, service pages, service area, city, state, phone, seasonality
+- use the provided competitor candidates as the primary source for competitor suggestions
 - infer whether FAQ content likely exists
-- suggest likely logo URLs if possible
+- suggest logo URLs if possible
 - if uncertain, return null rather than inventing specifics
+- use the supplied website context first, and only infer conservatively beyond it
 
-This is a suggestion set for user confirmation only.
+Important:
+- return plain strings for URLs
+- if a field is unknown, return null or an empty array
+- do not make up a phone number
+- do not make up a city or state unless reasonably supported by the website context
+- do not invent competitors beyond the candidate list unless absolutely necessary
+- prefer the competitor candidates provided below
+- this is a suggestion set for user confirmation only
+
 Return structured output only.
           `.trim(),
         },
@@ -80,6 +141,45 @@ Return structured output only.
           content: `
 Company name: ${companyName}
 Website: ${website}
+
+Grounded website context:
+${JSON.stringify(
+  {
+    normalizedWebsite: websiteContext?.normalizedWebsite ?? website,
+    title: websiteContext?.title ?? null,
+    metaDescription: websiteContext?.metaDescription ?? null,
+    detectedPhone: websiteContext?.phone ?? null,
+    detectedEmail: websiteContext?.email ?? null,
+    detectedAddress: websiteContext?.address ?? null,
+    detectedCity: websiteContext?.city ?? null,
+    detectedState: websiteContext?.state ?? null,
+    logoCandidates: websiteContext?.logoCandidates ?? [],
+    internalLinks:
+      websiteContext?.internalLinks.map((link) => ({
+        text: link.text,
+        href: link.href,
+      })) ?? [],
+    homepageText: websiteContext?.visibleTextExcerpt ?? null,
+    fetchedPages: websiteContext?.fetchedPages ?? [],
+  },
+  null,
+  2
+)}
+
+Google Places competitor candidates:
+${JSON.stringify(
+  competitorCandidates.map((candidate) => ({
+    name: candidate.name,
+    websiteUrl: candidate.websiteUrl,
+    googleBusinessUrl: candidate.googleBusinessUrl,
+    formattedAddress: candidate.formattedAddress,
+    phone: candidate.phone,
+    serviceFocus: candidate.serviceFocus,
+    whyItMatters: candidate.whyItMatters,
+  })),
+  null,
+  2
+)}
 
 Return best-effort onboarding suggestions for MarketForge.
           `.trim(),
@@ -100,15 +200,80 @@ Return best-effort onboarding suggestions for MarketForge.
       };
     }
 
+    const normalizedWebsite =
+      cleanString(parsed.website) ??
+      websiteContext?.normalizedWebsite ??
+      website;
+
+    const fallbackLogo =
+      websiteContext?.logoCandidates[0] ??
+      faviconFromWebsite(normalizedWebsite);
+
+    const mergedServicePageUrls = uniqueStrings([
+      ...(parsed.servicePageUrls ?? []),
+      ...(websiteContext?.internalLinks
+        .filter((link) => {
+          const combined = `${link.text} ${link.href}`.toLowerCase();
+          return (
+            combined.includes("service") ||
+            combined.includes("drain") ||
+            combined.includes("repair") ||
+            combined.includes("water-heater") ||
+            combined.includes("water heater") ||
+            combined.includes("plumb")
+          );
+        })
+        .map((link) => link.href) ?? []),
+    ]).slice(0, 10);
+
+    const mergedCompetitors =
+      competitorCandidates.length > 0
+        ? competitorCandidates.slice(0, 5).map((candidate) => ({
+            name: candidate.name,
+            websiteUrl: candidate.websiteUrl,
+            googleBusinessUrl: candidate.googleBusinessUrl,
+            logoUrl:
+              candidate.logoUrl ??
+              faviconFromWebsite(candidate.websiteUrl) ??
+              null,
+            whyItMatters: candidate.whyItMatters,
+            serviceFocus: candidate.serviceFocus.slice(0, 6),
+          }))
+        : (parsed.competitors ?? []).map((competitor) => {
+            const competitorWebsite = cleanString(competitor.websiteUrl);
+
+            return {
+              ...competitor,
+              websiteUrl: competitorWebsite,
+              googleBusinessUrl: cleanString(competitor.googleBusinessUrl),
+              logoUrl:
+                cleanString(competitor.logoUrl) ??
+                faviconFromWebsite(competitorWebsite) ??
+                null,
+              serviceFocus: uniqueStrings(competitor.serviceFocus ?? []).slice(
+                0,
+                6
+              ),
+            };
+          });
+
     const data: OnboardingPrefillResult = {
       ...parsed,
-      logoUrl: parsed.logoUrl ?? faviconFromWebsite(parsed.website),
-      competitors: parsed.competitors.map((competitor) => ({
-        ...competitor,
-        logoUrl:
-          competitor.logoUrl ??
-          faviconFromWebsite(competitor.websiteUrl ?? null),
-      })),
+      website: normalizedWebsite,
+      logoUrl: cleanString(parsed.logoUrl) ?? fallbackLogo ?? null,
+      phone: cleanString(parsed.phone) ?? websiteContext?.phone ?? null,
+      city: cleanString(parsed.city) ?? websiteContext?.city ?? null,
+      state: cleanString(parsed.state) ?? websiteContext?.state ?? null,
+      serviceArea: cleanString(parsed.serviceArea),
+      busySeason: cleanString(parsed.busySeason),
+      slowSeason: cleanString(parsed.slowSeason),
+      industry: parsed.industry ?? inferredIndustry,
+      preferredServices: uniqueStrings(parsed.preferredServices ?? []).slice(
+        0,
+        8
+      ),
+      servicePageUrls: mergedServicePageUrls,
+      competitors: mergedCompetitors,
     };
 
     return {

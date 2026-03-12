@@ -3,7 +3,6 @@ import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { CampaignsGrid } from "@/components/campaigns/campaigns-grid";
-import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { NlCampaignPanel } from "@/components/campaigns/nl-campaign-panel";
 
 export default async function CampaignsPage() {
@@ -12,8 +11,6 @@ export default async function CampaignsPage() {
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
-
-  await seedDemoWorkspaceData(workspace.id);
 
   const [campaigns, profile] = await Promise.all([
     prisma.campaign.findMany({

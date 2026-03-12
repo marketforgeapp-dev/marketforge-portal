@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
-import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
-import { seedDemoLeads } from "@/lib/seed-demo-leads";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { LeadsTable } from "@/components/leads/leads-table";
@@ -12,9 +10,6 @@ export default async function LeadsPage() {
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
-
-  await seedDemoWorkspaceData(workspace.id);
-  await seedDemoLeads(workspace.id);
 
   const leads = await prisma.lead.findMany({
     where: { workspaceId: workspace.id },

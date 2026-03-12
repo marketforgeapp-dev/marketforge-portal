@@ -8,6 +8,42 @@ const sourceTagSchema = z.enum([
   "AEO",
 ]);
 
+const campaignTypeSchema = z.enum([
+  "DRAIN_SPECIAL",
+  "WATER_HEATER",
+  "MAINTENANCE_PUSH",
+  "REVIEW_GENERATION",
+  "EMERGENCY_SERVICE",
+  "SEO_CONTENT",
+  "AEO_FAQ",
+  "CUSTOM",
+]);
+
+const campaignObjectiveSchema = z.enum([
+  "FILL_OPEN_SCHEDULE",
+  "PUSH_HIGHER_TICKET_JOBS",
+  "DEFEND_AGAINST_COMPETITOR",
+  "IMPROVE_AI_SEARCH_VISIBILITY",
+  "INCREASE_REVIEWS",
+  "CAPTURE_SEASONAL_DEMAND",
+]);
+
+const executionModeSchema = z.enum([
+  "CAMPAIGN",
+  "ACTION_PACK",
+]);
+
+const actionTypeSchema = z.enum([
+  "CAMPAIGN_LAUNCH",
+  "AEO_CONTENT",
+  "SEO_CONTENT",
+  "GBP_OPTIMIZATION",
+  "REVIEW_GENERATION",
+  "CAPACITY_FILL",
+  "HIGH_VALUE_SERVICE_PUSH",
+  "CUSTOM",
+]);
+
 export const nlCampaignSchema = z.object({
   parsedIntent: z.object({
     serviceCategory: z.string(),
@@ -31,32 +67,26 @@ export const nlCampaignSchema = z.object({
     aligned: z.boolean(),
     confidenceScore: z.number().min(0).max(100),
     sourceTags: z.array(sourceTagSchema).min(1).max(5),
-    whyNowBullets: z.array(z.string()).length(3),
+    whyNowBullets: z.array(z.string()).min(3).max(5),
     rationale: z.string(),
     whyThisMatters: z.string(),
+  }),
+
+  nextBestAction: z.object({
+    executionMode: executionModeSchema,
+    actionType: actionTypeSchema,
+    title: z.string(),
+    summary: z.string(),
+    primaryGoal: z.string(),
+    expectedOutcome: z.string(),
+    whyThisIsTheBestMoveNow: z.string(),
   }),
 
   campaign: z.object({
     title: z.string(),
     description: z.string(),
-    campaignType: z.enum([
-      "DRAIN_SPECIAL",
-      "WATER_HEATER",
-      "MAINTENANCE_PUSH",
-      "REVIEW_GENERATION",
-      "EMERGENCY_SERVICE",
-      "SEO_CONTENT",
-      "AEO_FAQ",
-      "CUSTOM",
-    ]),
-    objective: z.enum([
-      "FILL_OPEN_SCHEDULE",
-      "PUSH_HIGHER_TICKET_JOBS",
-      "DEFEND_AGAINST_COMPETITOR",
-      "IMPROVE_AI_SEARCH_VISIBILITY",
-      "INCREASE_REVIEWS",
-      "CAPTURE_SEASONAL_DEMAND",
-    ]),
+    campaignType: campaignTypeSchema,
+    objective: campaignObjectiveSchema,
     targetService: z.string(),
     offer: z.string(),
     audience: z.string(),
@@ -66,6 +96,23 @@ export const nlCampaignSchema = z.object({
       recommendedImage: z.string(),
       avoidImagery: z.string(),
     }),
+  }).nullable(),
+
+  actionPack: z.object({
+    actionTitle: z.string(),
+    implementationType: z.enum([
+      "FAQ_BUILD",
+      "ANSWER_SNIPPET_PACK",
+      "SERVICE_PAGE_IMPROVEMENT",
+      "GBP_IMPROVEMENT",
+      "REVIEW_RECOVERY",
+      "LOCAL_VISIBILITY_IMPROVEMENT",
+      "CUSTOM",
+    ]),
+    priority: z.enum(["Low", "Medium", "High"]),
+    implementationSteps: z.array(z.string()).min(3).max(7),
+    ownerNotes: z.string(),
+    successMetric: z.string(),
   }),
 
   assets: z.object({
@@ -76,10 +123,10 @@ export const nlCampaignSchema = z.object({
       descriptions: z.array(z.string()).min(2).max(4),
     }),
     yelpAd: z.object({
-    headline: z.string(),
-    body: z.string(),
-    offer: z.string().nullable(),
-    cta: z.string().nullable(),
+      headline: z.string(),
+      body: z.string(),
+      offer: z.string().nullable(),
+      cta: z.string().nullable(),
     }),
     emailCampaign: z.object({
       subjectLine: z.string(),

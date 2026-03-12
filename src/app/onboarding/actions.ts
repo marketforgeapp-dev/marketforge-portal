@@ -30,6 +30,45 @@ function cleanStringArray(value: string[] | undefined): string[] {
   return value.map((item) => item.trim()).filter((item) => item.length > 0);
 }
 
+function sanitizeOnboardingInput(input: unknown) {
+  if (!input || typeof input !== "object") {
+    return input;
+  }
+
+  const raw = input as Record<string, unknown>;
+
+  const rawCompetitors = Array.isArray(raw.competitors)
+    ? raw.competitors
+    : [];
+
+  const sanitizedCompetitors = rawCompetitors
+    .filter((competitor) => competitor && typeof competitor === "object")
+    .map((competitor) => {
+      const item = competitor as Record<string, unknown>;
+
+      return {
+        name: typeof item.name === "string" ? item.name.trim() : "",
+        websiteUrl:
+          typeof item.websiteUrl === "string" ? item.websiteUrl : "",
+        googleBusinessUrl:
+          typeof item.googleBusinessUrl === "string"
+            ? item.googleBusinessUrl
+            : "",
+        logoUrl: typeof item.logoUrl === "string" ? item.logoUrl : "",
+        isPrimaryCompetitor:
+          typeof item.isPrimaryCompetitor === "boolean"
+            ? item.isPrimaryCompetitor
+            : false,
+      };
+    })
+    .filter((competitor) => competitor.name.length > 0);
+
+  return {
+    ...raw,
+    competitors: sanitizedCompetitors,
+  };
+}
+
 export async function saveOnboarding(input: unknown) {
   const { userId: clerkUserId } = await auth();
 
@@ -37,9 +76,11 @@ export async function saveOnboarding(input: unknown) {
     throw new Error("Unauthorized");
   }
 
-  const parsed = onboardingSchema.safeParse(input);
+  const sanitizedInput = sanitizeOnboardingInput(input);
+  const parsed = onboardingSchema.safeParse(sanitizedInput);
 
   if (!parsed.success) {
+    console.error("Onboarding validation failed:", parsed.error.flatten());
     throw new Error("Invalid onboarding data");
   }
 
@@ -144,21 +185,8 @@ export async function saveOnboarding(input: unknown) {
     cityState ??
     "Not specified";
 
-  const busyMonths = cleanStringArray(
-    Array.isArray(values.busyMonths)
-      ? values.busyMonths
-      : typeof values.busyMonths === "string"
-        ? values.busyMonths.split(",")
-        : []
-  );
-
-  const slowMonths = cleanStringArray(
-    Array.isArray(values.slowMonths)
-      ? values.slowMonths
-      : typeof values.slowMonths === "string"
-        ? values.slowMonths.split(",")
-        : []
-  );
+  const busyMonths = cleanStringArray(values.busyMonths);
+  const slowMonths = cleanStringArray(values.slowMonths);
 
   const busySeason: string | null =
     toNullableString(values.busySeason) ??
@@ -259,6 +287,8 @@ export async function saveOnboarding(input: unknown) {
   revalidatePath("/competitors");
   revalidatePath("/campaigns");
   revalidatePath("/execution");
+  revalidatePath("/settings");
+  revalidatePath("/reports");
 
   return {
     success: true,

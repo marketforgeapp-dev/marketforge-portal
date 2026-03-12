@@ -12,6 +12,47 @@ type Props = {
   opportunities: OpportunityCardData[];
 };
 
+function getCreativeTheme(opportunityType: OpportunityCardData["opportunityType"]) {
+  switch (opportunityType) {
+    case "SEASONAL_DEMAND":
+      return {
+        label: "Seasonal Demand",
+        classes:
+          "from-sky-900 via-blue-800 to-cyan-700",
+      };
+    case "HIGH_VALUE_SERVICE":
+      return {
+        label: "High-Value Service",
+        classes:
+          "from-amber-900 via-orange-800 to-yellow-700",
+      };
+    case "AI_SEARCH_VISIBILITY":
+      return {
+        label: "AEO / Visibility",
+        classes:
+          "from-violet-900 via-fuchsia-800 to-indigo-700",
+      };
+    case "CAPACITY_GAP":
+      return {
+        label: "Capacity Fill",
+        classes:
+          "from-emerald-900 via-green-800 to-teal-700",
+      };
+    case "COMPETITOR_INACTIVE":
+      return {
+        label: "Competitor Gap",
+        classes:
+          "from-rose-900 via-red-800 to-orange-700",
+      };
+    default:
+      return {
+        label: "Local Opportunity",
+        classes:
+          "from-slate-800 via-slate-700 to-slate-900",
+      };
+  }
+}
+
 function OpportunityCreativeTile({
   title,
   bestMove,
@@ -19,6 +60,7 @@ function OpportunityCreativeTile({
   jobsHigh,
   revenueLow,
   revenueHigh,
+  opportunityType,
 }: {
   title: string;
   bestMove: string;
@@ -26,14 +68,19 @@ function OpportunityCreativeTile({
   jobsHigh: number;
   revenueLow: number;
   revenueHigh: number;
+  opportunityType: OpportunityCardData["opportunityType"];
 }) {
+  const theme = getCreativeTheme(opportunityType);
+
   return (
-    <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 p-4 text-white shadow-sm">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.24),transparent_40%)]" />
-      <div className="relative flex min-h-[170px] flex-col justify-between">
+    <div
+      className={`relative overflow-hidden rounded-xl border border-gray-200 bg-gradient-to-br ${theme.classes} p-4 text-white shadow-sm`}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_40%)]" />
+      <div className="relative flex min-h-[190px] flex-col justify-between">
         <div>
           <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90">
-            Opportunity Creative
+            {theme.label}
           </span>
           <p className="mt-3 max-w-[16rem] text-lg font-semibold leading-tight">
             {title}
@@ -41,14 +88,14 @@ function OpportunityCreativeTile({
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm text-white/85">{bestMove}</p>
-          <p className="text-sm text-white/75">
+          <p className="text-sm font-medium text-white/90">{bestMove}</p>
+          <p className="text-sm text-white/80">
             {jobsLow}–{jobsHigh} jobs • ${revenueLow.toLocaleString()}–$
             {revenueHigh.toLocaleString()}
           </p>
           <div className="pt-1">
             <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
-              Ready to Review
+              Intelligence-Driven
             </span>
           </div>
         </div>
@@ -73,6 +120,7 @@ export function OpportunitiesGrid({ opportunities }: Props) {
               jobsHigh={opportunity.jobsHigh}
               revenueLow={opportunity.revenueLow}
               revenueHigh={opportunity.revenueHigh}
+              opportunityType={opportunity.opportunityType}
             />
 
             <div className="flex flex-col justify-between">

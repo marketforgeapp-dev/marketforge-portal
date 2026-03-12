@@ -5,19 +5,53 @@ type Props = {
   setFormData: React.Dispatch<React.SetStateAction<OnboardingFormData>>;
 };
 
+function calculateWeeklyCapacity(
+  technicians: number | "",
+  jobsPerTechnicianPerDay: number | ""
+): number | "" {
+  if (typeof technicians !== "number" || typeof jobsPerTechnicianPerDay !== "number") {
+    return "";
+  }
+
+  if (!Number.isFinite(technicians) || !Number.isFinite(jobsPerTechnicianPerDay)) {
+    return "";
+  }
+
+  return technicians * jobsPerTechnicianPerDay * 5;
+}
+
 export function CapacityStep({ formData, setFormData }: Props) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <Field label="Technicians">
         <input
           type="number"
           className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
           value={formData.technicians}
           onChange={(e) =>
-            setFormData((prev) => ({
-              ...prev,
-              technicians: e.target.value === "" ? "" : Number(e.target.value),
-            }))
+            setFormData((prev) => {
+              const nextTechnicians =
+                e.target.value === "" ? "" : Number(e.target.value);
+
+              const previousDerived = calculateWeeklyCapacity(
+                prev.technicians,
+                prev.jobsPerTechnicianPerDay
+              );
+
+              const shouldAutoUpdateWeeklyCapacity =
+                prev.weeklyCapacity === "" || prev.weeklyCapacity === previousDerived;
+
+              return {
+                ...prev,
+                technicians: nextTechnicians,
+                weeklyCapacity: shouldAutoUpdateWeeklyCapacity
+                  ? calculateWeeklyCapacity(
+                      nextTechnicians,
+                      prev.jobsPerTechnicianPerDay
+                    )
+                  : prev.weeklyCapacity,
+              };
+            })
           }
         />
       </Field>
@@ -28,11 +62,29 @@ export function CapacityStep({ formData, setFormData }: Props) {
           className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
           value={formData.jobsPerTechnicianPerDay}
           onChange={(e) =>
-            setFormData((prev) => ({
-              ...prev,
-              jobsPerTechnicianPerDay:
-                e.target.value === "" ? "" : Number(e.target.value),
-            }))
+            setFormData((prev) => {
+              const nextJobsPerTechnicianPerDay =
+                e.target.value === "" ? "" : Number(e.target.value);
+
+              const previousDerived = calculateWeeklyCapacity(
+                prev.technicians,
+                prev.jobsPerTechnicianPerDay
+              );
+
+              const shouldAutoUpdateWeeklyCapacity =
+                prev.weeklyCapacity === "" || prev.weeklyCapacity === previousDerived;
+
+              return {
+                ...prev,
+                jobsPerTechnicianPerDay: nextJobsPerTechnicianPerDay,
+                weeklyCapacity: shouldAutoUpdateWeeklyCapacity
+                  ? calculateWeeklyCapacity(
+                      prev.technicians,
+                      nextJobsPerTechnicianPerDay
+                    )
+                  : prev.weeklyCapacity,
+              };
+            })
           }
         />
       </Field>
@@ -49,6 +101,10 @@ export function CapacityStep({ formData, setFormData }: Props) {
             }))
           }
         />
+        <p className="mt-2 text-xs text-gray-500">
+          Defaults to technicians × jobs per technician per day × 5 days per week.
+          You can override this if the real weekly capacity is different.
+        </p>
       </Field>
 
       <Field label="Target Weekly Revenue">
@@ -78,7 +134,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium text-gray-700 mb-2">{label}</span>
+      <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
       {children}
     </label>
   );

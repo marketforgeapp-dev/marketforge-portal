@@ -4,6 +4,7 @@ import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "@/components/settings/settings-form";
 import type { OnboardingFormData } from "@/types/onboarding";
+import { currentUser } from "@clerk/nextjs/server";
 
 function toFormNumber(value: number | null | undefined): number | "" {
   return typeof value === "number" ? value : "";
@@ -15,7 +16,9 @@ function toFormString(value: string | null | undefined): string {
 
 export default async function SettingsPage() {
   const workspace = await getCurrentWorkspace();
-
+  const user = await currentUser();
+  const primaryEmail =
+    user?.emailAddresses?.[0]?.emailAddress ?? null;
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
@@ -101,6 +104,7 @@ export default async function SettingsPage() {
             workspaceName={fullWorkspace.name}
             isDemo={fullWorkspace.isDemo}
             initialData={initialData}
+            primaryEmail={primaryEmail}
           />
         </main>
       </div>

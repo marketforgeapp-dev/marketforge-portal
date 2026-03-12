@@ -72,8 +72,8 @@ export const onboardingSchema = z.object({
 
   busySeason: nullableString,
   slowSeason: nullableString,
-  busyMonths: nullableString,
-  slowMonths: nullableString,
+  busyMonths: stringArray,
+  slowMonths: stringArray,
   seasonalityNotes: nullableString,
 
   googleBusinessProfileUrl: nullableString,

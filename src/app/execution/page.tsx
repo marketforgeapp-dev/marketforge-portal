@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
-import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ExecutionBoard } from "@/components/execution/execution-board";
 
@@ -11,8 +10,6 @@ export default async function ExecutionPage() {
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
-
-  await seedDemoWorkspaceData(workspace.id);
 
   const campaigns = await prisma.campaign.findMany({
     where: {
@@ -50,7 +47,7 @@ export default async function ExecutionPage() {
             </p>
           </section>
 
-                    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
                 Draft Ready

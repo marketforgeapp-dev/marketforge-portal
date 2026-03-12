@@ -11,6 +11,24 @@ type Props = {
   }>;
 };
 
+type CampaignBriefJson = {
+  userPrompt?: string;
+  matchedOpportunityTitle?: string | null;
+  nextBestAction?: {
+    title?: string;
+    actionType?: string;
+    executionMode?: string;
+  };
+};
+
+function parseBriefJson(value: unknown): CampaignBriefJson | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as CampaignBriefJson;
+}
+
 function calculateEstimatedFallbackRevenue(params: {
   bookedJobs: number;
   estimatedBookedJobs: number | null;
@@ -52,6 +70,8 @@ export default async function CampaignDetailPage({ params }: Props) {
     notFound();
   }
 
+  const parsedBrief = parseBriefJson(campaign.briefJson);
+
   const totalLeads = campaign.leads.length;
   const bookedLeads = campaign.leads.filter((lead) => lead.status === "BOOKED");
   const bookedJobs = bookedLeads.length;
@@ -92,6 +112,11 @@ export default async function CampaignDetailPage({ params }: Props) {
             recommendationTitle: campaign.recommendation?.title ?? null,
             opportunityTitle: campaign.revenueOpportunity?.title ?? null,
             opportunityType: campaign.revenueOpportunity?.opportunityType ?? null,
+            userPrompt: parsedBrief?.userPrompt ?? null,
+            matchedOpportunityTitle: parsedBrief?.matchedOpportunityTitle ?? null,
+            nextBestActionTitle: parsedBrief?.nextBestAction?.title ?? null,
+            nextBestActionType: parsedBrief?.nextBestAction?.actionType ?? null,
+            executionMode: parsedBrief?.nextBestAction?.executionMode ?? null,
           }}
           results={{
             totalLeads,
