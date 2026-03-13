@@ -65,6 +65,10 @@ function buildCreativePreviewLines(params: {
   return lines.slice(0, 3);
 }
 
+function formatIntent(value?: string) {
+  return value ?? "Not recorded";
+}
+
 export function CampaignBriefPanel({
   campaignId,
   status,
@@ -116,16 +120,16 @@ export function CampaignBriefPanel({
   );
 
   const creativePreviewLines = buildCreativePreviewLines({
-    description: campaignDraft?.description ?? draftDescription,
-    offer: campaignDraft?.offer ?? draftOffer,
-    cta: campaignDraft?.cta ?? draftCta,
+    description: isEditing ? draftDescription : campaignDraft?.description ?? "",
+    offer: isEditing ? draftOffer : campaignDraft?.offer ?? offer ?? "",
+    cta: isEditing ? draftCta : campaignDraft?.cta ?? "",
   });
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="mf-card rounded-3xl p-5">
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-          MarketForge Intelligence
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+          Action Brief
         </p>
 
         {canEdit && !isEditing ? (
@@ -134,22 +138,22 @@ export function CampaignBriefPanel({
             onClick={() => setIsEditing(true)}
             className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
-            Edit Campaign
+            Edit Action
           </button>
         ) : null}
       </div>
 
       {isEditing ? (
-        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
           <p className="text-sm font-semibold text-gray-900">
-            Edit Campaign Before Approval / Launch
+            Edit action before approval or launch
           </p>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Campaign Name
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  Action Name
                 </label>
                 <input
                   value={draftName}
@@ -159,7 +163,7 @@ export function CampaignBriefPanel({
               </div>
 
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   Target Service
                 </label>
                 <input
@@ -170,7 +174,7 @@ export function CampaignBriefPanel({
               </div>
 
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   Offer
                 </label>
                 <input
@@ -181,7 +185,7 @@ export function CampaignBriefPanel({
               </div>
 
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   Audience
                 </label>
                 <input
@@ -192,7 +196,7 @@ export function CampaignBriefPanel({
               </div>
 
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   CTA
                 </label>
                 <input
@@ -205,7 +209,7 @@ export function CampaignBriefPanel({
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   Description
                 </label>
                 <textarea
@@ -217,7 +221,7 @@ export function CampaignBriefPanel({
               </div>
 
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   Recommended Image
                 </label>
                 <textarea
@@ -229,7 +233,7 @@ export function CampaignBriefPanel({
               </div>
 
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   Avoid Imagery
                 </label>
                 <textarea
@@ -265,7 +269,7 @@ export function CampaignBriefPanel({
               }
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {isPending ? "Saving..." : "Save Campaign Edits"}
+              {isPending ? "Saving..." : "Save Action Edits"}
             </button>
 
             <button
@@ -280,10 +284,10 @@ export function CampaignBriefPanel({
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
               Opportunity Match
             </p>
 
@@ -293,15 +297,15 @@ export function CampaignBriefPanel({
                 "No strong opportunity match"}
             </p>
 
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm leading-5 text-gray-600">
               Based on your request to promote{" "}
               {parsedIntent?.serviceCategory ?? "a service"}{" "}
               {parsedIntent?.timeframe ?? ""}.
             </p>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
               Confidence
             </p>
 
@@ -310,15 +314,15 @@ export function CampaignBriefPanel({
               {confidence ? ` (${confidence}%)` : ""}
             </p>
 
-            <p className="mt-2 text-sm text-gray-600">
-              Signals detected across local demand, competitor activity,
-              service prioritization, and capacity availability.
+            <p className="mt-2 text-sm leading-5 text-gray-600">
+              Signals were evaluated across demand, competitor activity, service
+              prioritization, and available capacity.
             </p>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Signals
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Signal Mix
             </p>
 
             <p className="mt-2 text-sm text-gray-900">
@@ -327,22 +331,34 @@ export function CampaignBriefPanel({
                 : "No signals recorded"}
             </p>
           </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Intent Read
+            </p>
+
+            <div className="mt-2 space-y-1 text-sm text-gray-700">
+              <p>Intent: {formatIntent(parsedIntent?.intent)}</p>
+              <p>Urgency: {formatIntent(parsedIntent?.urgency)}</p>
+              <p>Timeframe: {formatIntent(parsedIntent?.timeframe)}</p>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Creative Preview
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Visual Preview
             </p>
 
-            <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-sm">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-sm">
               <div className="relative aspect-[4/3] p-4 text-white">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.24),transparent_40%)]" />
 
                 <div className="relative flex h-full flex-col justify-between">
                   <div>
-                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90">
-                      Campaign Asset Mock
+                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
+                      Action Preview
                     </span>
                     <p className="mt-3 max-w-[16rem] text-xl font-semibold leading-tight">
                       {campaignName}
@@ -350,18 +366,24 @@ export function CampaignBriefPanel({
                   </div>
 
                   <div className="space-y-2">
-                    {creativePreviewLines.map((line) => (
-                      <p
-                        key={line}
-                        className="max-w-[17rem] text-sm leading-5 text-white/85"
-                      >
-                        {line}
+                    {creativePreviewLines.length > 0 ? (
+                      creativePreviewLines.map((line) => (
+                        <p
+                          key={line}
+                          className="max-w-[17rem] text-sm leading-5 text-white/85"
+                        >
+                          {line}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="max-w-[17rem] text-sm leading-5 text-white/85">
+                        Action messaging will appear here once the brief is fully defined.
                       </p>
-                    ))}
+                    )}
 
                     <div className="pt-2">
                       <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
-                        {campaignDraft?.cta ?? "Book now"}
+                        {(isEditing ? draftCta : campaignDraft?.cta) || "Book now"}
                       </span>
                     </div>
                   </div>
@@ -372,36 +394,36 @@ export function CampaignBriefPanel({
             <p className="mt-3 text-sm font-semibold text-gray-900">
               Recommended Image
             </p>
-
             <p className="mt-1 text-sm leading-6 text-gray-700">
-              {creativeGuidance?.recommendedImage ?? "—"}
+              {(isEditing
+                ? draftRecommendedImage
+                : creativeGuidance?.recommendedImage) || "—"}
             </p>
 
             <p className="mt-3 text-sm font-semibold text-gray-900">
               Avoid
             </p>
-
             <p className="mt-1 text-sm leading-6 text-gray-700">
-              {creativeGuidance?.avoidImagery ?? "—"}
+              {(isEditing ? draftAvoidImagery : creativeGuidance?.avoidImagery) || "—"}
             </p>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Recommended Campaign Strategy
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Action Strategy
             </p>
 
             <div className="mt-2 space-y-2 text-sm text-gray-900">
-              <p>Description: {campaignDraft?.description ?? "—"}</p>
-              <p>Offer: {campaignDraft?.offer ?? "—"}</p>
-              <p>Audience: {campaignDraft?.audience ?? "—"}</p>
-              <p>CTA: {campaignDraft?.cta ?? "—"}</p>
+              <p>Description: {(isEditing ? draftDescription : campaignDraft?.description) || "—"}</p>
+              <p>Offer: {(isEditing ? draftOffer : campaignDraft?.offer) || "—"}</p>
+              <p>Audience: {(isEditing ? draftAudience : campaignDraft?.audience) || "—"}</p>
+              <p>CTA: {(isEditing ? draftCta : campaignDraft?.cta) || "—"}</p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Why This Opportunity Exists
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Why This Action Exists
             </p>
 
             <ul className="mt-2 space-y-2 text-sm text-gray-900">

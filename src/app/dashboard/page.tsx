@@ -4,9 +4,8 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { prisma } from "@/lib/prisma";
 import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { seedDemoLeads } from "@/lib/seed-demo-leads";
-import { buildRevenueOpportunityEngine } from "@/lib/revenue-opportunity-engine";
 import { getRevenueCapturedSummary } from "@/lib/revenue-captured-summary";
-import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
+import { getOrCreateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 
 export default async function DashboardPage() {
   const workspace = await getCurrentWorkspace();
@@ -32,106 +31,58 @@ export default async function DashboardPage() {
     redirect("/onboarding");
   }
 
-  const [competitors, performanceSignals] = await Promise.all([
-    prisma.competitor.findMany({
-      where: { workspaceId: workspace.id },
-      orderBy: { createdAt: "asc" },
+  const [snapshot, campaigns, revenueSummary] = await Promise.all([
+    getOrCreateWorkspaceOpportunitySnapshot(workspace.id),
+    prisma.campaign.findMany({
+      where: {
+        workspaceId: workspace.id,
+      },
+      include: {
+        assets: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
     }),
-    getCampaignPerformanceSignals(workspace.id),
+    getRevenueCapturedSummary(workspace.id),
   ]);
 
-  const engine = buildRevenueOpportunityEngine({
-    profile,
-    competitors,
-    performanceSignals,
-  });
+  const visibleOpportunities = [
+    snapshot.topOpportunity,
+    ...snapshot.backlogOpportunities,
+  ];
 
-  const hero = engine.hero;
-  const opportunities = engine.rankedOpportunities;
+  const totalJobsLow = visibleOpportunities.reduce(
+    (sum, item) => sum + item.jobsLow,
+    0
+  );
 
-  const totalJobsLow = opportunities.reduce((sum, item) => sum + item.jobsLow, 0);
-  const totalJobsHigh = opportunities.reduce((sum, item) => sum + item.jobsHigh, 0);
-  const totalRevenueLow = opportunities.reduce(
+  const totalJobsHigh = visibleOpportunities.reduce(
+    (sum, item) => sum + item.jobsHigh,
+    0
+  );
+
+  const totalRevenueLow = visibleOpportunities.reduce(
     (sum, item) => sum + item.revenueLow,
     0
   );
-  const totalRevenueHigh = opportunities.reduce(
+
+  const totalRevenueHigh = visibleOpportunities.reduce(
     (sum, item) => sum + item.revenueHigh,
     0
   );
 
-  const campaigns = await prisma.campaign.findMany({
-    where: {
-      workspaceId: workspace.id,
-    },
-    include: {
-      assets: {
-        orderBy: { createdAt: "asc" },
-      },
-    },
-  });
-
-  const attributions = await prisma.attributionEntry.findMany({
-    where: {
-      workspaceId: workspace.id,
-    },
-    include: {
-      campaign: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-
-  const avgRoi =
-    attributions.length > 0
-      ? attributions.reduce((sum, item) => sum + (item.roi ?? 0), 0) /
-        attributions.length
-      : 0;
-
-  const queuedForLaunch = campaigns.filter(
-    (campaign) => campaign.status === "SCHEDULED"
-  ).length;
-
-  const revenueSummary = await getRevenueCapturedSummary(workspace.id);
-
-  const filteredRecommendationCards = opportunities
-    .filter(
-      (opportunity) =>
-        opportunity.recommendedCampaignType !== hero.recommendedCampaignType ||
-        opportunity.title !== hero.opportunityTitle
-    )
-    .slice(0, 4)
-    .map((opportunity) => {
-      const linkedCampaign =
-        campaigns.find(
-          (campaign) =>
-            campaign.campaignType === opportunity.recommendedCampaignType
-        ) ?? null;
-
-      return {
-        id: `${opportunity.opportunityType}-${opportunity.serviceName}`,
-        title: opportunity.title,
-        description: opportunity.whyThisMatters,
-        score: opportunity.rawOpportunityScore / 10,
-        estimatedRevenueMin: opportunity.revenueLow,
-        estimatedRevenueMax: opportunity.revenueHigh,
-        estimatedBookedJobsMin: opportunity.jobsLow,
-        estimatedBookedJobsMax: opportunity.jobsHigh,
-        linkedCampaignId: linkedCampaign?.id ?? null,
-      };
-    });
-
   const heroCampaign =
-    campaigns.find(
-      (campaign) => campaign.campaignType === hero.recommendedCampaignType
-    ) ?? null;
+    snapshot.topOpportunity.linkedCampaignId
+      ? campaigns.find(
+          (campaign) => campaign.id === snapshot.topOpportunity.linkedCampaignId
+        ) ?? null
+      : null;
 
   return (
     <DashboardShell
       workspaceName={workspace.name}
       workspaceLogoUrl={profile.logoUrl}
-      hero={hero}
+      hero={snapshot.hero}
       heroCampaign={
         heroCampaign
           ? {
@@ -151,16 +102,14 @@ export default async function DashboardPage() {
             }
           : null
       }
-      recommendations={filteredRecommendationCards}
       metrics={{
         jobsAvailableLow: totalJobsLow,
         jobsAvailableHigh: totalJobsHigh,
         revenueOpportunityLow: totalRevenueLow,
         revenueOpportunityHigh: totalRevenueHigh,
+        topActionRevenueLow: snapshot.hero.revenueLow,
+        topActionRevenueHigh: snapshot.hero.revenueHigh,
         revenueCapturedYtd: revenueSummary.totalRevenue,
-        roi: avgRoi,
-        activeOpportunities: opportunities.length,
-        queuedForLaunch,
         attributedJobs: revenueSummary.bookedJobs,
         leadToJobRate: revenueSummary.winRate,
       }}

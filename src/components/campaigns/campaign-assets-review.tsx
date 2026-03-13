@@ -11,6 +11,13 @@ type Props = {
   assets: CampaignAsset[];
 };
 
+function formatAssetType(value: string) {
+  return value
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export function CampaignAssetsReview({ campaignId, status, assets }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -21,10 +28,10 @@ export function CampaignAssetsReview({ campaignId, status, assets }: Props) {
   const canEdit = status !== "LAUNCHED" && status !== "COMPLETED";
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="mf-card rounded-3xl p-5">
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Review Generated Assets
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+          Action Assets
         </p>
 
         {canEdit ? (
@@ -45,12 +52,12 @@ export function CampaignAssetsReview({ campaignId, status, assets }: Props) {
           return (
             <div
               key={asset.id}
-              className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+              className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
             >
               <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
-                    {asset.assetType.replaceAll("_", " ")}
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
+                    {formatAssetType(asset.assetType)}
                   </p>
 
                   {isEditing ? (

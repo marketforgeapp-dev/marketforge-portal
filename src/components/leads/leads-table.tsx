@@ -13,40 +13,47 @@ type Props = {
 export function LeadsTable({ leads }: Props) {
   if (leads.length === 0) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mf-card rounded-3xl p-5">
         <p className="text-lg font-semibold text-gray-900">No leads yet</p>
         <p className="mt-2 text-sm text-gray-600">
-          Once campaigns begin generating responses, leads will appear here.
+          Once MarketForge actions begin generating responses, leads will appear
+          here.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+          Lead Pipeline
+        </p>
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead className="border-b border-gray-200 bg-gray-50">
             <tr>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                 Lead
               </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                 Contact
               </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Campaign
+              <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
+                Action Source
               </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                 Opportunity
               </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                 Status
               </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                 Revenue
               </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                 Notes
               </th>
             </tr>

@@ -1,4 +1,4 @@
-import { Campaign, AttributionEntry } from "@prisma/client";
+import { Campaign, AttributionEntry } from "@/generated/prisma";
 
 type Row = {
   campaign: Campaign;

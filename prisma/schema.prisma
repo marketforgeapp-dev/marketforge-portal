@@ -11,6 +11,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -43,11 +44,31 @@ model Workspace {
   revenueOpportunities RevenueOpportunity[]
   recommendations      Recommendation[]
   intelligenceAlerts   IntelligenceAlert[]
+  opportunitySnapshot WorkspaceOpportunitySnapshot?
   campaigns            Campaign[]
   leads                Lead[]
   attributions         AttributionEntry[]
   exports              ExportLog[]
   baselineSnapshots    CampaignBaselineSnapshot[]
+}
+
+model WorkspaceOpportunitySnapshot {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  snapshotVersion    Int      @default(1)
+  topOpportunityJson Json
+  backlogJson        Json
+  heroJson           Json
+  generatedAt        DateTime @default(now())
+  expiresAt          DateTime
+  invalidatedAt      DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([expiresAt])
 }
 
 model WorkspaceMember {

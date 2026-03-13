@@ -30,27 +30,27 @@ export default async function AeoPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
-        <main className="flex-1 space-y-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+        <main className="min-w-0 flex-1 space-y-5">
+          <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
               AEO
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">
-              AI Search Readiness
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              AI search readiness
             </h1>
 
-            <p className="mt-2 text-gray-600">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
               Evaluate how well your business is positioned for AI-assisted local
               search, answer engines, and structured question-based discovery.
             </p>
-          </div>
+          </section>
 
-          <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
             <AeoScoreCard score={profile.aeoReadinessScore ?? 0} />
 
             <AeoSignalList

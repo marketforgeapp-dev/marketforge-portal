@@ -1,4 +1,4 @@
-import { IntelligenceAlert } from "@prisma/client";
+import { IntelligenceAlert } from "@/generated/prisma";
 
 type Props = {
   alerts: IntelligenceAlert[];

@@ -27,69 +27,84 @@ export default async function ExecutionPage() {
   const completedCount = campaigns.filter((c) => c.status === "COMPLETED").length;
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
-        <main className="flex-1 space-y-6">
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-              Managed Execution
+        <main className="min-w-0 flex-1 space-y-5">
+          <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
+              Action Execution
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900">
-              Launch Queue
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              Managed launch workflow
             </h1>
 
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-              Move campaigns from approval into MarketForge-managed launch,
-              track launch ownership, and manage the execution workflow.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
+              Review approved actions, move them into queue, track launch
+              progress, and keep execution organized from draft to completion.
             </p>
           </section>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Draft Ready
               </p>
-              <p className="mt-3 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {readyCount}
               </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Ready for review and approval
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Approved
               </p>
-              <p className="mt-3 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {approvedCount}
               </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Ready to move into queue
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Queued for Launch
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                Queued
               </p>
-              <p className="mt-3 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {queuedCount}
               </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Scheduled for managed launch
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Launched
               </p>
-              <p className="mt-3 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {launchedCount}
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Live and being tracked
               </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Completed
               </p>
-              <p className="mt-3 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {completedCount}
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Closed and retained for reporting
               </p>
             </div>
           </section>

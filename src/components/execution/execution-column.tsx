@@ -13,12 +13,12 @@ type Props = {
 
 export function ExecutionColumn({ title, description, campaigns }: Props) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-gray-100 p-4">
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
       <div className="mb-4">
-        <p className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/85">
           {title}
         </p>
-        <p className="mt-1 text-sm text-gray-600">{description}</p>
+        <p className="mt-1 text-sm leading-5 text-white/60">{description}</p>
       </div>
 
       <div className="space-y-4">
@@ -27,8 +27,8 @@ export function ExecutionColumn({ title, description, campaigns }: Props) {
             <ExecutionCard key={campaign.id} campaign={campaign} />
           ))
         ) : (
-          <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
-            No campaigns in this stage.
+          <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-4 text-sm text-white/55">
+            No actions in this stage.
           </div>
         )}
       </div>

@@ -27,9 +27,9 @@ export function ExecutionStatusActions({ campaignId, status }: Props) {
   const canComplete = status === "LAUNCHED";
 
   return (
-    <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-        Managed Execution
+    <div className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+        Execution Controls
       </p>
 
       {canQueue ? (
@@ -91,7 +91,7 @@ export function ExecutionStatusActions({ campaignId, status }: Props) {
             }
             className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
           >
-            {isPending ? "Queueing..." : "Queue for Launch"}
+            {isPending ? "Queueing..." : "Move to Queue"}
           </button>
         </div>
       ) : null}
@@ -107,7 +107,7 @@ export function ExecutionStatusActions({ campaignId, status }: Props) {
           }
           className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending ? "Updating..." : "Mark Launched"}
+          {isPending ? "Updating..." : "Mark as Launched"}
         </button>
       ) : null}
 
@@ -122,13 +122,13 @@ export function ExecutionStatusActions({ campaignId, status }: Props) {
           }
           className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
         >
-          {isPending ? "Updating..." : "Mark Completed"}
+          {isPending ? "Updating..." : "Mark as Completed"}
         </button>
       ) : null}
 
       {!canQueue && !canLaunch && !canComplete ? (
-        <p className="text-sm text-gray-600">
-          This campaign is not yet ready for the next execution step.
+        <p className="text-sm leading-5 text-gray-600">
+          This action is not yet ready for the next execution step.
         </p>
       ) : null}
     </div>

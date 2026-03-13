@@ -1,4 +1,4 @@
-import { AttributionEntry } from "@prisma/client";
+import { AttributionEntry } from "@/generated/prisma";
 
 type Props = {
   entries: AttributionEntry[];

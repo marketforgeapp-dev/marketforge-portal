@@ -1,4 +1,4 @@
-import { RevenueOpportunity } from "@prisma/client";
+import { RevenueOpportunity } from "@/generated/prisma";
 
 type OpportunityCardProps = {
   opportunity: RevenueOpportunity;

@@ -10,43 +10,43 @@ type Props = {
 };
 
 export function ExecutionBoard({ campaigns }: Props) {
-  const draftReady = campaigns.filter((c) => c.status === "READY");
-  const approved = campaigns.filter((c) => c.status === "APPROVED");
-  const queued = campaigns.filter((c) => c.status === "SCHEDULED");
-  const launched = campaigns.filter((c) => c.status === "LAUNCHED");
-  const completed = campaigns.filter((c) => c.status === "COMPLETED");
+  const ready = campaigns.filter((campaign) => campaign.status === "READY");
+  const approved = campaigns.filter((campaign) => campaign.status === "APPROVED");
+  const queued = campaigns.filter((campaign) => campaign.status === "SCHEDULED");
+  const launched = campaigns.filter((campaign) => campaign.status === "LAUNCHED");
+  const completed = campaigns.filter((campaign) => campaign.status === "COMPLETED");
 
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
+    <section className="grid gap-4 xl:grid-cols-5">
       <ExecutionColumn
         title="Draft Ready"
-        description="AI-generated campaigns ready for customer review."
-        campaigns={draftReady}
+        description="Generated actions waiting for review and approval."
+        campaigns={ready}
       />
 
       <ExecutionColumn
         title="Approved"
-        description="Approved campaigns that can be moved into the launch queue."
+        description="Approved actions ready to move into queue."
         campaigns={approved}
       />
 
       <ExecutionColumn
-        title="Queued for Launch"
-        description="Campaigns waiting for MarketForge-managed execution."
+        title="Queued"
+        description="Actions prepared for managed launch."
         campaigns={queued}
       />
 
       <ExecutionColumn
         title="Launched"
-        description="Campaigns currently live in market."
+        description="Actions currently live and being tracked."
         campaigns={launched}
       />
 
       <ExecutionColumn
         title="Completed"
-        description="Campaigns that have finished their run."
+        description="Finished actions retained for results and reporting."
         campaigns={completed}
       />
-    </div>
+    </section>
   );
 }

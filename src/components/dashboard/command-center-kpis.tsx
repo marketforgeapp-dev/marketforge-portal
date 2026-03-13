@@ -3,10 +3,9 @@ type Props = {
   jobsHigh: number;
   revenueOpportunityLow: number;
   revenueOpportunityHigh: number;
+  topActionRevenueLow: number;
+  topActionRevenueHigh: number;
   revenueCapturedYtd: number;
-  roi: number;
-  activeOpportunities: number;
-  queuedForLaunch: number;
   attributedJobs: number;
   leadToJobRate: number;
 };
@@ -15,11 +14,13 @@ function KpiCard({
   label,
   value,
   subtext,
+  detail,
   accent = "gold",
 }: {
   label: string;
   value: string;
   subtext: string;
+  detail: string;
   accent?: "gold" | "emerald" | "blue" | "slate";
 }) {
   const accentClasses =
@@ -32,16 +33,17 @@ function KpiCard({
           : "border-t-[#64748B]";
 
   return (
-    <div
-      className={`mf-card rounded-2xl border-t-4 ${accentClasses} p-4`}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+    <div className={`mf-card rounded-2xl border-t-4 ${accentClasses} p-4`}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
         {label}
       </p>
       <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
         {value}
       </p>
-      <p className="mt-2 text-sm leading-6 text-gray-600">{subtext}</p>
+      <p className="mt-1.5 text-sm font-medium leading-5 text-gray-700">
+        {subtext}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-gray-500">{detail}</p>
     </div>
   );
 }
@@ -51,48 +53,44 @@ export function CommandCenterKpis({
   jobsHigh,
   revenueOpportunityLow,
   revenueOpportunityHigh,
+  topActionRevenueLow,
+  topActionRevenueHigh,
   revenueCapturedYtd,
-  roi,
-  activeOpportunities,
-  queuedForLaunch,
   attributedJobs,
   leadToJobRate,
 }: Props) {
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <KpiCard
-        label="Jobs Available This Week"
-        value={`${jobsLow}–${jobsHigh}`}
-        subtext="Estimated jobs available across your current top opportunities."
-        accent="gold"
-      />
-
-      <KpiCard
-        label="Revenue Opportunity"
+        label="Weekly Revenue Opportunity"
         value={`$${revenueOpportunityLow.toLocaleString()}–$${revenueOpportunityHigh.toLocaleString()}`}
-        subtext="Estimated revenue available if you act on the strongest signals now."
+        subtext="Current ranked action set"
+        detail="Estimated total value across the opportunities MarketForge is tracking right now."
         accent="gold"
       />
 
       <KpiCard
-        label="Revenue Captured by MarketForge"
-        value={`$${revenueCapturedYtd.toLocaleString()}`}
-        subtext={`${attributedJobs} booked jobs • ${leadToJobRate}% lead-to-job rate`}
-        accent="emerald"
+        label="Available Jobs This Week"
+        value={`${jobsLow}–${jobsHigh}`}
+        subtext="Bookable near-term capacity"
+        detail="Estimated jobs available if you act on current demand, capacity, and visibility signals."
+        accent="gold"
       />
 
       <KpiCard
-        label="Active Opportunities"
-        value={`${activeOpportunities}`}
-        subtext={`${queuedForLaunch} campaign${queuedForLaunch === 1 ? "" : "s"} queued for managed launch`}
+        label="Top Action Value"
+        value={`$${topActionRevenueLow.toLocaleString()}–$${topActionRevenueHigh.toLocaleString()}`}
+        subtext="Highest-priority move"
+        detail="Estimated value of the single action MarketForge recommends you take next."
         accent="blue"
       />
 
       <KpiCard
-        label="Average ROI Signal"
-        value={roi > 0 ? `${roi.toFixed(1)}x` : "—"}
-        subtext="Early ROI view based on launched campaign performance data."
-        accent="slate"
+        label="Revenue Captured"
+        value={`$${revenueCapturedYtd.toLocaleString()}`}
+        subtext={`${attributedJobs} booked jobs`}
+        detail={`${leadToJobRate}% lead-to-job rate from launched actions tracked in the workspace.`}
+        accent="emerald"
       />
     </section>
   );

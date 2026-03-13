@@ -3,7 +3,7 @@ import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 
-type CampaignReportRow = {
+type ActionReportRow = {
   id: string;
   name: string;
   status: string;
@@ -31,6 +31,23 @@ function calculateFallbackRevenue(params: {
   return Math.round(bookedJobs * perJobRevenue);
 }
 
+function formatStatusLabel(status: string) {
+  switch (status) {
+    case "READY":
+      return "Draft Ready";
+    case "APPROVED":
+      return "Approved";
+    case "SCHEDULED":
+      return "Queued";
+    case "LAUNCHED":
+      return "Launched";
+    case "COMPLETED":
+      return "Completed";
+    default:
+      return status;
+  }
+}
+
 export default async function ReportsPage() {
   const workspace = await getCurrentWorkspace();
 
@@ -49,7 +66,7 @@ export default async function ReportsPage() {
     },
   });
 
-  const rows: CampaignReportRow[] = campaigns.map((campaign) => {
+  const rows: ActionReportRow[] = campaigns.map((campaign) => {
     const leads = campaign.leads.length;
     const bookedLeads = campaign.leads.filter((lead) => lead.status === "BOOKED");
     const bookedJobs = bookedLeads.length;
@@ -96,72 +113,85 @@ export default async function ReportsPage() {
   const totalRevenue = rows.reduce((sum, row) => sum + row.actualRevenue, 0);
   const totalBookedJobs = rows.reduce((sum, row) => sum + row.bookedJobs, 0);
   const totalLeads = rows.reduce((sum, row) => sum + row.leads, 0);
-  const campaignsWithRevenue = rows.filter((row) => row.actualRevenue > 0).length;
+  const actionsWithRevenue = rows.filter((row) => row.actualRevenue > 0).length;
   const leadToJobRate =
     totalLeads > 0 ? Math.round((totalBookedJobs / totalLeads) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
-        <main className="flex-1 space-y-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+        <main className="min-w-0 flex-1 space-y-5">
+          <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
               Reports
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">
-              Attribution & Performance
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              Revenue attribution and performance
             </h1>
 
-            <p className="mt-2 text-gray-600">
-              Track booked jobs, real revenue captured, and campaign performance.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
+              Track booked jobs, captured revenue, and action performance across
+              the workspace.
             </p>
-          </div>
+          </section>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Revenue Captured
               </p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 ${totalRevenue.toLocaleString()}
               </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Attributed and booked revenue recorded
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Booked Jobs
               </p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {totalBookedJobs}
               </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Jobs converted from tracked leads
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Lead-to-Job Rate
               </p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {leadToJobRate}%
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Conversion from lead to booked work
               </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Campaigns With Revenue
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                Actions With Revenue
               </p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
-                {campaignsWithRevenue}
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
+                {actionsWithRevenue}
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Actions that have produced measurable value
               </p>
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-              <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-                Campaign Revenue Detail
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                Action Revenue Detail
               </p>
             </div>
 
@@ -169,25 +199,25 @@ export default async function ReportsPage() {
               <table className="w-full text-left">
                 <thead className="border-b border-gray-200 bg-gray-50">
                   <tr>
-                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
-                      Campaign
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
+                      Action
                     </th>
-                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                       Status
                     </th>
-                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                       Leads
                     </th>
-                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                       Booked Jobs
                     </th>
-                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                       Real Revenue
                     </th>
-                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                       Est Revenue
                     </th>
-                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                       ROI
                     </th>
                   </tr>
@@ -201,7 +231,7 @@ export default async function ReportsPage() {
                       </td>
 
                       <td className="px-5 py-4 text-sm text-gray-700">
-                        {row.status}
+                        {formatStatusLabel(row.status)}
                       </td>
 
                       <td className="px-5 py-4 text-sm text-gray-700">

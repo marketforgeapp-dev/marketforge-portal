@@ -17,8 +17,8 @@ function toFormString(value: string | null | undefined): string {
 export default async function SettingsPage() {
   const workspace = await getCurrentWorkspace();
   const user = await currentUser();
-  const primaryEmail =
-    user?.emailAddresses?.[0]?.emailAddress ?? null;
+  const primaryEmail = user?.emailAddresses?.[0]?.emailAddress ?? null;
+
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
@@ -95,11 +95,26 @@ export default async function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
-        <main className="flex-1">
+        <main className="min-w-0 flex-1 space-y-5">
+          <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
+              Settings
+            </p>
+
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              Workspace and business profile
+            </h1>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
+              Update the business profile, service mix, competitors, capacity,
+              and digital presence signals that power MarketForge intelligence.
+            </p>
+          </section>
+
           <SettingsForm
             workspaceName={fullWorkspace.name}
             isDemo={fullWorkspace.isDemo}

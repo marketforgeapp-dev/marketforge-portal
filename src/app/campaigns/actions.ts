@@ -7,6 +7,7 @@ import { openai } from "@/lib/openai";
 import { nlCampaignSchema } from "@/lib/nl-campaign-schema";
 import { buildRevenueOpportunityEngine } from "@/lib/revenue-opportunity-engine";
 import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
+import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import type {
   CampaignObjective,
   CampaignType,
@@ -17,8 +18,8 @@ type CreateCampaignResult =
   | { success: true; campaignId: string; campaignName: string }
   | { success: false; error: string };
 
-type EngineOpportunity = ReturnType<
-  typeof buildRevenueOpportunityEngine
+type EngineOpportunity = Awaited<
+  ReturnType<typeof buildRevenueOpportunityEngine>
 >["rankedOpportunities"][number];
 
 type PromptLane =
@@ -47,6 +48,7 @@ type RoutedIntent = {
 };
 
 type ResolvedOpportunity = {
+  opportunityKey: string;
   title: string;
   serviceName: string;
   opportunityType: OpportunityType;
@@ -67,6 +69,24 @@ type ResolvedOpportunity = {
 
 function normalize(text: string): string {
   return text.trim().toLowerCase();
+}
+
+function slugify(value: string): string {
+  return normalize(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function buildSyntheticOpportunityKey(params: {
+  serviceName: string;
+  opportunityType: OpportunityType;
+  bestMove: string;
+}) {
+  return [
+    slugify(params.serviceName),
+    params.opportunityType,
+    slugify(params.bestMove),
+  ].join("::");
 }
 
 function formatFaq(faq: Array<{ question: string; answer: string }>): string {
@@ -307,8 +327,7 @@ function scoreExistingOpportunityFit(
 
   if (
     routedIntent.lane === "REVIEWS" &&
-    (opportunity.opportunityType === "REVIEW_SENTIMENT_SHIFT" ||
-      opportunity.recommendedCampaignType === "REVIEW_GENERATION")
+    opportunity.recommendedCampaignType === "REVIEW_GENERATION"
   ) {
     score += 35;
   }
@@ -370,11 +389,20 @@ function buildSyntheticOpportunity(params: {
   const lowerPrompt = normalize(prompt);
 
   if (routedIntent.lane === "DRAIN") {
+    const bestMove = "Drain Cleaning Special";
+    const serviceName = "Drain Cleaning";
+    const opportunityType: OpportunityType = "SEASONAL_DEMAND";
+
     return {
+      opportunityKey: buildSyntheticOpportunityKey({
+        serviceName,
+        opportunityType,
+        bestMove,
+      }),
       title: "Drain Cleaning Demand Opportunity",
-      serviceName: "Drain Cleaning",
-      opportunityType: "SEASONAL_DEMAND",
-      bestMove: "Drain Cleaning Special",
+      serviceName,
+      opportunityType,
+      bestMove,
       recommendedCampaignType: "DRAIN_SPECIAL",
       jobsLow: 2,
       jobsHigh: 4,
@@ -387,8 +415,7 @@ function buildSyntheticOpportunity(params: {
         "Drain-focused offers are usually a practical fast-conversion service line.",
         "This is a better fit than reusing an unrelated existing opportunity.",
       ],
-      whyThisMatters:
-        `A drain-focused push is the most direct match to the request and should produce a more believable execution plan for ${profile.serviceArea}.`,
+      whyThisMatters: `A drain-focused push is the most direct match to the request and should produce a more believable execution plan for ${profile.serviceArea}.`,
       sourceTags: ["Demand", "Capacity"],
       source: "generated",
       fitScore: 92,
@@ -396,11 +423,20 @@ function buildSyntheticOpportunity(params: {
   }
 
   if (routedIntent.lane === "EMERGENCY") {
+    const bestMove = "Emergency Plumbing Response Campaign";
+    const serviceName = "Emergency Plumbing";
+    const opportunityType: OpportunityType = "COMPETITOR_INACTIVE";
+
     return {
+      opportunityKey: buildSyntheticOpportunityKey({
+        serviceName,
+        opportunityType,
+        bestMove,
+      }),
       title: "Emergency Plumbing Response Opportunity",
-      serviceName: "Emergency Plumbing",
-      opportunityType: "COMPETITOR_INACTIVE",
-      bestMove: "Emergency Plumbing Response Campaign",
+      serviceName,
+      opportunityType,
+      bestMove,
       recommendedCampaignType: "EMERGENCY_SERVICE",
       jobsLow: 1,
       jobsHigh: 3,
@@ -414,7 +450,7 @@ function buildSyntheticOpportunity(params: {
         "This is more relevant than borrowing a non-emergency opportunity.",
       ],
       whyThisMatters:
-        `An emergency-service action is the strongest direct match to the prompt and should feel more trustworthy than forcing an unrelated opportunity.`,
+        "An emergency-service action is the strongest direct match to the prompt and should feel more trustworthy than forcing an unrelated opportunity.",
       sourceTags: ["Demand", "Competitor"],
       source: "generated",
       fitScore: 91,
@@ -422,11 +458,20 @@ function buildSyntheticOpportunity(params: {
   }
 
   if (routedIntent.lane === "WATER_HEATER") {
+    const bestMove = "Water Heater Upgrade Push";
+    const serviceName = "Water Heater Replacement";
+    const opportunityType: OpportunityType = "HIGH_VALUE_SERVICE";
+
     return {
+      opportunityKey: buildSyntheticOpportunityKey({
+        serviceName,
+        opportunityType,
+        bestMove,
+      }),
       title: "Water Heater Install Opportunity",
-      serviceName: "Water Heater Replacement",
-      opportunityType: "HIGH_VALUE_SERVICE",
-      bestMove: "Water Heater Upgrade Push",
+      serviceName,
+      opportunityType,
+      bestMove,
       recommendedCampaignType: "WATER_HEATER",
       jobsLow: 1,
       jobsHigh: 3,
@@ -448,11 +493,20 @@ function buildSyntheticOpportunity(params: {
   }
 
   if (routedIntent.lane === "CAPACITY_FILL") {
+    const bestMove = "Plumbing Maintenance Checkup";
+    const serviceName = "Preventative Plumbing Maintenance";
+    const opportunityType: OpportunityType = "CAPACITY_GAP";
+
     return {
+      opportunityKey: buildSyntheticOpportunityKey({
+        serviceName,
+        opportunityType,
+        bestMove,
+      }),
       title: "Schedule-Fill Maintenance Opportunity",
-      serviceName: "Preventative Plumbing Maintenance",
-      opportunityType: "CAPACITY_GAP",
-      bestMove: "Plumbing Maintenance Checkup",
+      serviceName,
+      opportunityType,
+      bestMove,
       recommendedCampaignType: "MAINTENANCE_PUSH",
       jobsLow: 2,
       jobsHigh: 5,
@@ -474,11 +528,20 @@ function buildSyntheticOpportunity(params: {
   }
 
   if (routedIntent.lane === "AEO_SEO") {
+    const bestMove = "AI Answer Visibility FAQs";
+    const serviceName = "AI Search Visibility";
+    const opportunityType: OpportunityType = "AI_SEARCH_VISIBILITY";
+
     return {
+      opportunityKey: buildSyntheticOpportunityKey({
+        serviceName,
+        opportunityType,
+        bestMove,
+      }),
       title: "AI Search Visibility Opportunity",
-      serviceName: "AI Search Visibility",
-      opportunityType: "AI_SEARCH_VISIBILITY",
-      bestMove: "AI Answer Visibility FAQs",
+      serviceName,
+      opportunityType,
+      bestMove,
       recommendedCampaignType: "AEO_FAQ",
       jobsLow: 1,
       jobsHigh: 2,
@@ -504,11 +567,20 @@ function buildSyntheticOpportunity(params: {
   }
 
   if (routedIntent.lane === "REVIEWS") {
+    const bestMove = "Review Recovery Push";
+    const serviceName = "Review Generation";
+    const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
+
     return {
+      opportunityKey: buildSyntheticOpportunityKey({
+        serviceName,
+        opportunityType,
+        bestMove,
+      }),
       title: "Review Recovery Opportunity",
-      serviceName: "Review Generation",
-      opportunityType: "REVIEW_SENTIMENT_SHIFT",
-      bestMove: "Review Recovery Push",
+      serviceName,
+      opportunityType,
+      bestMove,
       recommendedCampaignType: "REVIEW_GENERATION",
       jobsLow: 1,
       jobsHigh: 2,
@@ -529,11 +601,22 @@ function buildSyntheticOpportunity(params: {
     };
   }
 
+  const bestMove = "Custom Revenue Opportunity";
+  const serviceName = lowerPrompt.includes("plumb")
+    ? "General Plumbing"
+    : "Local Service Demand";
+  const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
+
   return {
+    opportunityKey: buildSyntheticOpportunityKey({
+      serviceName,
+      opportunityType,
+      bestMove,
+    }),
     title: "Prompt-Aligned Revenue Opportunity",
-    serviceName: lowerPrompt.includes("plumb") ? "General Plumbing" : "Local Service Demand",
-    opportunityType: "LOCAL_SEARCH_SPIKE",
-    bestMove: "Custom Revenue Opportunity",
+    serviceName,
+    opportunityType,
+    bestMove,
     recommendedCampaignType: "CUSTOM",
     jobsLow: 1,
     jobsHigh: 3,
@@ -553,6 +636,7 @@ function buildSyntheticOpportunity(params: {
     fitScore: 80,
   };
 }
+
 function buildFallbackCampaignDraft(params: {
   actionTitle: string;
   actionSummary: string;
@@ -622,6 +706,7 @@ function buildFallbackCampaignDraft(params: {
     },
   };
 }
+
 function buildFallbackCampaignFromResolvedOpportunity(
   resolvedOpportunity: ResolvedOpportunity,
   profile: {
@@ -650,122 +735,127 @@ function buildFallbackCampaignFromResolvedOpportunity(
 export async function createCampaignFromPrompt(
   prompt: string
 ): Promise<CreateCampaignResult> {
-    const cleanedPrompt = prompt.trim();
+  const cleanedPrompt = prompt.trim();
 
-    if (cleanedPrompt.length < 10) {
-      return {
-        success: false,
-        error: "Please enter a more specific request.",
-      };
-    }
+  if (cleanedPrompt.length < 10) {
+    return {
+      success: false,
+      error: "Please enter a more specific request.",
+    };
+  }
 
-    const { userId: clerkUserId } = await auth();
+  const { userId: clerkUserId } = await auth();
 
-    if (!clerkUserId) {
-      return {
-        success: false,
-        error: "You must be signed in.",
-      };
-    }
+  if (!clerkUserId) {
+    return {
+      success: false,
+      error: "You must be signed in.",
+    };
+  }
 
-    const appUser = await prisma.user.findUnique({
-      where: { clerkUserId },
-      include: {
-        workspaces: {
-          include: {
-            workspace: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
+  const appUser = await prisma.user.findUnique({
+    where: { clerkUserId },
+    include: {
+      workspaces: {
+        include: {
+          workspace: true,
+        },
+        orderBy: {
+          createdAt: "asc",
         },
       },
-    });
+    },
+  });
 
-    const workspace = appUser?.workspaces[0]?.workspace;
+  const workspace = appUser?.workspaces[0]?.workspace;
 
-    if (!workspace || !workspace.onboardingCompletedAt) {
-      return {
-        success: false,
-        error: "Complete onboarding before generating execution plans.",
-      };
-    }
+  if (!workspace || !workspace.onboardingCompletedAt) {
+    return {
+      success: false,
+      error: "Complete onboarding before generating execution plans.",
+    };
+  }
 
-    const profile = await prisma.businessProfile.findUnique({
+  const profile = await prisma.businessProfile.findUnique({
+    where: { workspaceId: workspace.id },
+  });
+
+  if (!profile) {
+    return {
+      success: false,
+      error: "Business profile not found.",
+    };
+  }
+
+  const [competitors, performanceSignals] = await Promise.all([
+    prisma.competitor.findMany({
       where: { workspaceId: workspace.id },
-    });
+      orderBy: { createdAt: "asc" },
+    }),
+    getCampaignPerformanceSignals(workspace.id),
+  ]);
 
-    if (!profile) {
-      return {
-        success: false,
-        error: "Business profile not found.",
-      };
-    }
+  const engine = await buildRevenueOpportunityEngine({
+    profile,
+    competitors,
+    performanceSignals,
+  });
 
-    const [competitors, performanceSignals] = await Promise.all([
-      prisma.competitor.findMany({
-        where: { workspaceId: workspace.id },
-        orderBy: { createdAt: "asc" },
-      }),
-      getCampaignPerformanceSignals(workspace.id),
-    ]);
+  const routedIntent = routePromptIntent(cleanedPrompt);
 
-    const engine = buildRevenueOpportunityEngine({
-      profile,
-      competitors,
-      performanceSignals,
-    });
-
-    const routedIntent = routePromptIntent(cleanedPrompt);
-
-    const scoredExistingMatches = engine.rankedOpportunities
-      .map((opportunity) => ({
+  const scoredExistingMatches = engine.rankedOpportunities
+    .map((opportunity) => ({
+      opportunity,
+      fitScore: scoreExistingOpportunityFit(
+        cleanedPrompt,
         opportunity,
-        fitScore: scoreExistingOpportunityFit(
-          cleanedPrompt,
-          opportunity,
-          routedIntent
-        ),
-      }))
-      .sort((a, b) => b.fitScore - a.fitScore || b.opportunity.rawOpportunityScore - a.opportunity.rawOpportunityScore);
+        routedIntent
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        b.fitScore - a.fitScore ||
+        b.opportunity.rawOpportunityScore - a.opportunity.rawOpportunityScore
+    );
 
-    const bestExistingMatch = scoredExistingMatches[0] ?? null;
-    const strongMatchThreshold = getStrongMatchThreshold(routedIntent.lane);
+  const bestExistingMatch = scoredExistingMatches[0] ?? null;
+  const strongMatchThreshold = getStrongMatchThreshold(routedIntent.lane);
 
-    const resolvedOpportunity: ResolvedOpportunity =
-      bestExistingMatch && bestExistingMatch.fitScore >= strongMatchThreshold
-        ? {
-            title: bestExistingMatch.opportunity.title,
-            serviceName: bestExistingMatch.opportunity.serviceName,
-            opportunityType: bestExistingMatch.opportunity.opportunityType,
-            bestMove: bestExistingMatch.opportunity.bestMove,
-            recommendedCampaignType:
-              bestExistingMatch.opportunity.recommendedCampaignType,
-            jobsLow: bestExistingMatch.opportunity.jobsLow,
-            jobsHigh: bestExistingMatch.opportunity.jobsHigh,
-            revenueLow: bestExistingMatch.opportunity.revenueLow,
-            revenueHigh: bestExistingMatch.opportunity.revenueHigh,
-            confidenceLabel: bestExistingMatch.opportunity.confidenceLabel,
-            confidenceScore: bestExistingMatch.opportunity.confidenceScore,
-            whyNowBullets: bestExistingMatch.opportunity.whyNowBullets,
-            whyThisMatters: bestExistingMatch.opportunity.whyThisMatters,
-            sourceTags: bestExistingMatch.opportunity.sourceTags,
-            source: "existing",
-            fitScore: bestExistingMatch.fitScore,
-          }
-        : buildSyntheticOpportunity({
-            prompt: cleanedPrompt,
-            routedIntent,
-            profile: {
-              businessName: profile.businessName,
-              serviceArea: profile.serviceArea,
-              averageJobValue: profile.averageJobValue,
-              hasFaqContent: profile.hasFaqContent,
-              servicePageUrls: profile.servicePageUrls,
-            },
-          });
+  const resolvedOpportunity: ResolvedOpportunity =
+    bestExistingMatch && bestExistingMatch.fitScore >= strongMatchThreshold
+      ? {
+          opportunityKey: bestExistingMatch.opportunity.opportunityKey,
+          title: bestExistingMatch.opportunity.title,
+          serviceName: bestExistingMatch.opportunity.serviceName,
+          opportunityType: bestExistingMatch.opportunity.opportunityType,
+          bestMove: bestExistingMatch.opportunity.bestMove,
+          recommendedCampaignType:
+            bestExistingMatch.opportunity.recommendedCampaignType,
+          jobsLow: bestExistingMatch.opportunity.jobsLow,
+          jobsHigh: bestExistingMatch.opportunity.jobsHigh,
+          revenueLow: bestExistingMatch.opportunity.revenueLow,
+          revenueHigh: bestExistingMatch.opportunity.revenueHigh,
+          confidenceLabel: bestExistingMatch.opportunity.confidenceLabel,
+          confidenceScore: bestExistingMatch.opportunity.confidenceScore,
+          whyNowBullets: bestExistingMatch.opportunity.whyNowBullets,
+          whyThisMatters: bestExistingMatch.opportunity.whyThisMatters,
+          sourceTags: bestExistingMatch.opportunity.sourceTags,
+          source: "existing",
+          fitScore: bestExistingMatch.fitScore,
+        }
+      : buildSyntheticOpportunity({
+          prompt: cleanedPrompt,
+          routedIntent,
+          profile: {
+            businessName: profile.businessName,
+            serviceArea: profile.serviceArea,
+            averageJobValue: profile.averageJobValue,
+            hasFaqContent: profile.hasFaqContent,
+            servicePageUrls: profile.servicePageUrls,
+          },
+        });
 
-    const systemPrompt = `
+  const systemPrompt = `
 You are the MarketForge next-best-action planner for local home-service businesses.
 
 Your job is to:
@@ -790,7 +880,7 @@ Output rules:
 - matchedOpportunityTitle should align to the resolved opportunity title.
 `.trim();
 
-    const userPrompt = `
+  const userPrompt = `
 Business:
 ${profile.businessName}
 Website: ${profile.website ?? "unknown"}
@@ -827,169 +917,172 @@ Why This Matters: ${resolvedOpportunity.whyThisMatters}
 Return a single structured next-best-action plan.
 `.trim();
 
-    const completion = await openai.chat.completions.parse({
-      model: "gpt-4o-2024-08-06",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: zodResponseFormat(
-        nlCampaignSchema,
-        "marketforge_nl_campaign"
-      ),
-    });
+  const completion = await openai.chat.completions.parse({
+    model: "gpt-4o-2024-08-06",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: zodResponseFormat(
+      nlCampaignSchema,
+      "marketforge_nl_campaign"
+    ),
+  });
 
-    const parsed = completion.choices[0]?.message.parsed;
+  const parsed = completion.choices[0]?.message.parsed;
 
-    if (!parsed) {
-      return {
-        success: false,
-        error: "The AI response could not be parsed into an execution plan.",
-      };
-    }
-
-    const effectiveExecutionMode =
-      routedIntent.mode === "CAMPAIGN"
-        ? "CAMPAIGN"
-        : routedIntent.mode === "ACTION_PACK"
-          ? "ACTION_PACK"
-          : parsed.nextBestAction.executionMode;
-
-    const effectiveActionType =
-      routedIntent.preferredActionType ?? parsed.nextBestAction.actionType;
-
-    const campaignDraft =
-      parsed.campaign ??
-      buildFallbackCampaignFromResolvedOpportunity(
-        resolvedOpportunity,
-        { serviceArea: profile.serviceArea },
-        parsed.nextBestAction.title,
-        parsed.nextBestAction.summary,
-        effectiveActionType
-      );
-
-    const estimatedRevenue = midpoint(
-      resolvedOpportunity.revenueLow,
-      resolvedOpportunity.revenueHigh
-    );
-
-    const estimatedBookedJobs = midpoint(
-      resolvedOpportunity.jobsLow,
-      resolvedOpportunity.jobsHigh
-    );
-
-    const estimatedLeads =
-      estimatedBookedJobs != null
-        ? Math.max(estimatedBookedJobs * 2, estimatedBookedJobs + 2)
-        : null;
-
-    const campaign = await prisma.campaign.create({
-      data: {
-        workspaceId: workspace.id,
-        recommendationId: null,
-        revenueOpportunityId: null,
-        name: campaignDraft.title,
-        campaignType: campaignDraft.campaignType,
-        objective: campaignDraft.objective,
-        targetService: campaignDraft.targetService,
-        offer: campaignDraft.offer,
-        audience: campaignDraft.audience,
-        serviceArea: profile.serviceArea,
-        estimatedLeads,
-        estimatedBookedJobs,
-        estimatedRevenue,
-        status: "READY",
-        qualityReviewStatus: "PENDING",
-        briefJson: {
-          userPrompt: cleanedPrompt,
-          parsedIntent: parsed.parsedIntent,
-          opportunityCheck: {
-            ...parsed.opportunityCheck,
-            matchedOpportunityTitle: resolvedOpportunity.title,
-          },
-          nextBestAction: {
-            ...parsed.nextBestAction,
-            executionMode: effectiveExecutionMode,
-            actionType: effectiveActionType,
-          },
-          actionPack: parsed.actionPack,
-          campaignDraft,
-          creativeGuidance: campaignDraft.creativeGuidance,
-          matchedOpportunityTitle: resolvedOpportunity.title,
-          matchedOpportunitySource: resolvedOpportunity.source,
-          matchedOpportunityFitScore: resolvedOpportunity.fitScore,
-          routedIntent: routedIntent.label,
-          routedLane: routedIntent.lane,
-          generatedAt: new Date().toISOString(),
-        },
-      },
-    });
-
-    await prisma.campaignAsset.createMany({
-      data: [
-        {
-          campaignId: campaign.id,
-          assetType: "GOOGLE_BUSINESS",
-          title:
-            effectiveExecutionMode === "ACTION_PACK"
-              ? "Google Business Action Draft"
-              : "Google Business Post",
-          content: parsed.assets.googleBusinessPost,
-        },
-        {
-          campaignId: campaign.id,
-          assetType: "META",
-          title:
-            effectiveExecutionMode === "ACTION_PACK"
-              ? "Meta Action Draft"
-              : "Meta Ad Copy",
-          content: parsed.assets.metaAdCopy,
-        },
-        {
-          campaignId: campaign.id,
-          assetType: "GOOGLE_ADS",
-          title: "Google Ads Copy",
-          content: formatGoogleAds(parsed.assets.googleAds),
-        },
-        {
-          campaignId: campaign.id,
-          assetType: "YELP",
-          title: "Yelp Ad Copy",
-          content: formatYelp(parsed.assets.yelpAd),
-        },
-        {
-          campaignId: campaign.id,
-          assetType: "EMAIL",
-          title: parsed.assets.emailCampaign.subjectLine,
-          content: parsed.assets.emailCampaign.body,
-        },
-        {
-          campaignId: campaign.id,
-          assetType: "BLOG",
-          title:
-            effectiveExecutionMode === "ACTION_PACK"
-              ? parsed.actionPack.actionTitle
-              : "Blog Outline",
-          content: parsed.assets.blogOutline,
-        },
-        {
-          campaignId: campaign.id,
-          assetType: "AEO_FAQ",
-          title: "AEO FAQ",
-          content: formatFaq(parsed.assets.aeoFaq),
-        },
-        {
-          campaignId: campaign.id,
-          assetType: "ANSWER_SNIPPET",
-          title: "Answer Snippet",
-          content: parsed.assets.answerSnippet,
-        },
-      ],
-    });
-
+  if (!parsed) {
     return {
-      success: true,
-      campaignId: campaign.id,
-      campaignName: campaign.name,
+      success: false,
+      error: "The AI response could not be parsed into an execution plan.",
     };
+  }
+
+  const effectiveExecutionMode =
+    routedIntent.mode === "CAMPAIGN"
+      ? "CAMPAIGN"
+      : routedIntent.mode === "ACTION_PACK"
+        ? "ACTION_PACK"
+        : parsed.nextBestAction.executionMode;
+
+  const effectiveActionType =
+    routedIntent.preferredActionType ?? parsed.nextBestAction.actionType;
+
+  const campaignDraft =
+    parsed.campaign ??
+    buildFallbackCampaignFromResolvedOpportunity(
+      resolvedOpportunity,
+      { serviceArea: profile.serviceArea },
+      parsed.nextBestAction.title,
+      parsed.nextBestAction.summary,
+      effectiveActionType
+    );
+
+  const estimatedRevenue = midpoint(
+    resolvedOpportunity.revenueLow,
+    resolvedOpportunity.revenueHigh
+  );
+
+  const estimatedBookedJobs = midpoint(
+    resolvedOpportunity.jobsLow,
+    resolvedOpportunity.jobsHigh
+  );
+
+  const estimatedLeads =
+    estimatedBookedJobs != null
+      ? Math.max(estimatedBookedJobs * 2, estimatedBookedJobs + 2)
+      : null;
+
+  const campaign = await prisma.campaign.create({
+    data: {
+      workspaceId: workspace.id,
+      recommendationId: null,
+      revenueOpportunityId: null,
+      name: campaignDraft.title,
+      campaignType: campaignDraft.campaignType,
+      objective: campaignDraft.objective,
+      targetService: campaignDraft.targetService,
+      offer: campaignDraft.offer,
+      audience: campaignDraft.audience,
+      serviceArea: profile.serviceArea,
+      estimatedLeads,
+      estimatedBookedJobs,
+      estimatedRevenue,
+      status: "READY",
+      qualityReviewStatus: "PENDING",
+      briefJson: {
+        userPrompt: cleanedPrompt,
+        parsedIntent: parsed.parsedIntent,
+        opportunityCheck: {
+          ...parsed.opportunityCheck,
+          matchedOpportunityTitle: resolvedOpportunity.title,
+        },
+        nextBestAction: {
+          ...parsed.nextBestAction,
+          executionMode: effectiveExecutionMode,
+          actionType: effectiveActionType,
+        },
+        actionPack: parsed.actionPack,
+        campaignDraft,
+        creativeGuidance: campaignDraft.creativeGuidance,
+        matchedOpportunityKey: resolvedOpportunity.opportunityKey,
+        matchedOpportunityTitle: resolvedOpportunity.title,
+        matchedOpportunitySource: resolvedOpportunity.source,
+        matchedOpportunityFitScore: resolvedOpportunity.fitScore,
+        routedIntent: routedIntent.label,
+        routedLane: routedIntent.lane,
+        generatedAt: new Date().toISOString(),
+      },
+    },
+  });
+
+  await prisma.campaignAsset.createMany({
+    data: [
+      {
+        campaignId: campaign.id,
+        assetType: "GOOGLE_BUSINESS",
+        title:
+          effectiveExecutionMode === "ACTION_PACK"
+            ? "Google Business Action Draft"
+            : "Google Business Post",
+        content: parsed.assets.googleBusinessPost,
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "META",
+        title:
+          effectiveExecutionMode === "ACTION_PACK"
+            ? "Meta Action Draft"
+            : "Meta Ad Copy",
+        content: parsed.assets.metaAdCopy,
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "GOOGLE_ADS",
+        title: "Google Ads Copy",
+        content: formatGoogleAds(parsed.assets.googleAds),
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "YELP",
+        title: "Yelp Ad Copy",
+        content: formatYelp(parsed.assets.yelpAd),
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "EMAIL",
+        title: parsed.assets.emailCampaign.subjectLine,
+        content: parsed.assets.emailCampaign.body,
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "BLOG",
+        title:
+          effectiveExecutionMode === "ACTION_PACK"
+            ? parsed.actionPack.actionTitle
+            : "Blog Outline",
+        content: parsed.assets.blogOutline,
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "AEO_FAQ",
+        title: "AEO FAQ",
+        content: formatFaq(parsed.assets.aeoFaq),
+      },
+      {
+        campaignId: campaign.id,
+        assetType: "ANSWER_SNIPPET",
+        title: "Answer Snippet",
+        content: parsed.assets.answerSnippet,
+      },
+    ],
+  });
+
+  await invalidateWorkspaceOpportunitySnapshot(workspace.id);
+
+  return {
+    success: true,
+    campaignId: campaign.id,
+    campaignName: campaign.name,
+  };
 }

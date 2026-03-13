@@ -20,27 +20,14 @@ type HeroCampaignData = {
   }[];
 } | null;
 
-type RecommendationCardData = {
-  id: string;
-  title: string;
-  description: string | null;
-  score: number;
-  estimatedRevenueMin: number;
-  estimatedRevenueMax: number;
-  estimatedBookedJobsMin: number | null;
-  estimatedBookedJobsMax: number | null;
-  linkedCampaignId: string | null;
-};
-
 type MetricsData = {
   jobsAvailableLow: number;
   jobsAvailableHigh: number;
   revenueOpportunityLow: number;
   revenueOpportunityHigh: number;
+  topActionRevenueLow: number;
+  topActionRevenueHigh: number;
   revenueCapturedYtd: number;
-  roi: number;
-  activeOpportunities: number;
-  queuedForLaunch: number;
   attributedJobs: number;
   leadToJobRate: number;
 };
@@ -66,7 +53,6 @@ type Props = {
   workspaceLogoUrl?: string | null;
   hero: RevenueOpportunityHero;
   heroCampaign: HeroCampaignData;
-  recommendations: RecommendationCardData[];
   metrics: MetricsData;
   revenueCaptured: RevenueCapturedData;
 };
@@ -78,23 +64,88 @@ function formatMaybeDate(value?: string | Date) {
   return date.toLocaleDateString();
 }
 
+function formatCurrency(value: number) {
+  return `$${value.toLocaleString()}`;
+}
+
+function formatStatusLabel(status?: string | null) {
+  if (!status) return "Not Generated";
+
+  switch (status) {
+    case "DRAFT":
+      return "Draft Ready";
+    case "APPROVED":
+      return "Approved";
+    case "SCHEDULED":
+      return "Queued";
+    case "LAUNCHED":
+      return "Launched";
+    case "COMPLETED":
+      return "Completed";
+    default:
+      return status;
+  }
+}
+
+function getActionReadinessSummary(heroCampaign: HeroCampaignData) {
+  if (!heroCampaign) {
+    return {
+      label: "Not Generated",
+      detail: "No execution package exists yet. Generate this action to prepare the launch materials.",
+    };
+  }
+
+  switch (heroCampaign.status) {
+    case "DRAFT":
+      return {
+        label: "Draft Ready",
+        detail: "Execution assets are prepared and ready for review.",
+      };
+    case "APPROVED":
+      return {
+        label: "Approved",
+        detail: "This action is approved and ready to move into execution.",
+      };
+    case "SCHEDULED":
+      return {
+        label: "Queued",
+        detail: "This action is already queued for launch.",
+      };
+    case "LAUNCHED":
+      return {
+        label: "Launched",
+        detail: "This action is live and now being tracked.",
+      };
+    case "COMPLETED":
+      return {
+        label: "Completed",
+        detail: "This action has completed execution.",
+      };
+    default:
+      return {
+        label: formatStatusLabel(heroCampaign.status),
+        detail: "Execution materials are attached and available.",
+      };
+  }
+}
+
 export function DashboardShell({
   workspaceName,
   workspaceLogoUrl,
   hero,
   heroCampaign,
-  recommendations,
   metrics,
   revenueCaptured,
 }: Props) {
   const recentEntries = revenueCaptured.entries.slice(0, 3);
+  const actionReadiness = getActionReadinessSummary(heroCampaign);
 
   return (
-    <div className="mf-page-shell min-h-screen px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-6 lg:flex-row">
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
-        <main className="min-w-0 flex-1 space-y-6">
+        <main className="min-w-0 flex-1 space-y-5">
           <DashboardHeader
             workspaceName={workspaceName}
             logoUrl={workspaceLogoUrl}
@@ -105,150 +156,89 @@ export function DashboardShell({
             jobsHigh={metrics.jobsAvailableHigh}
             revenueOpportunityLow={metrics.revenueOpportunityLow}
             revenueOpportunityHigh={metrics.revenueOpportunityHigh}
+            topActionRevenueLow={metrics.topActionRevenueLow}
+            topActionRevenueHigh={metrics.topActionRevenueHigh}
             revenueCapturedYtd={metrics.revenueCapturedYtd}
-            roi={metrics.roi}
-            activeOpportunities={metrics.activeOpportunities}
-            queuedForLaunch={metrics.queuedForLaunch}
             attributedJobs={metrics.attributedJobs}
             leadToJobRate={metrics.leadToJobRate}
           />
 
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
             <div className="min-w-0">
-              <TopCommandBand
-                hero={hero}
-                heroCampaign={heroCampaign}
-                recommendations={recommendations}
-              />
+              <TopCommandBand hero={hero} heroCampaign={heroCampaign} />
             </div>
 
-            <aside className="space-y-6">
-              <section className="mf-card mf-card-success rounded-3xl p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">
-                  Revenue Captured by MarketForge
+            <aside className="space-y-5">
+              <section className="mf-card rounded-3xl p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                  Action Readiness
                 </p>
 
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <p className="text-3xl font-bold tracking-tight text-gray-900">
-                      ${revenueCaptured.totalRevenue.toLocaleString()}
+                <div className="mt-3 space-y-2.5">
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                      Status
                     </p>
-                    <p className="mt-1 text-sm text-gray-600">
-                      Captured revenue tied to launched campaigns
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {actionReadiness.label}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-gray-50 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        Jobs Booked
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {revenueCaptured.bookedJobs}
-                      </p>
-                    </div>
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                      Package
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {heroCampaign?.assets.length ?? 0} assets prepared
+                    </p>
+                  </div>
 
-                    <div className="rounded-2xl bg-gray-50 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        Win Rate
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {revenueCaptured.winRate}%
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-gray-50 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        Campaigns Launched
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {revenueCaptured.campaignsLaunched}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-gray-50 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        Active Opportunities
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {metrics.activeOpportunities}
-                      </p>
-                    </div>
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                      Summary
+                    </p>
+                    <p className="mt-1 text-sm leading-5 text-gray-700">
+                      {actionReadiness.detail}
+                    </p>
                   </div>
                 </div>
               </section>
 
-              <section className="mf-card rounded-3xl p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">
+              <section className="mf-card rounded-3xl p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                   Recent Revenue Proof
                 </p>
 
                 {recentEntries.length === 0 ? (
-                  <p className="mt-4 text-sm leading-6 text-gray-600">
-                    Revenue proof will appear here as campaigns generate booked
-                    jobs and attributed revenue.
+                  <p className="mt-3 text-sm leading-5 text-gray-600">
+                    Revenue proof will appear once launched actions produce booked jobs and attributed revenue.
                   </p>
                 ) : (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 space-y-2.5">
                     {recentEntries.map((entry, index) => (
                       <div
                         key={entry.id ?? `${entry.campaignName ?? "entry"}-${index}`}
-                        className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                        className="rounded-2xl border border-gray-200 bg-gray-50 p-3"
                       >
                         <p className="text-sm font-semibold text-gray-900">
-                          {entry.campaignName ?? "Campaign Revenue Entry"}
+                          {entry.campaignName ?? "Revenue Entry"}
                         </p>
 
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-gray-600">
                           <span>
-                            ${Number(entry.revenue ?? 0).toLocaleString()} revenue
+                            {formatCurrency(Number(entry.revenue ?? 0))} revenue
                           </span>
                           <span>•</span>
                           <span>{entry.bookedJobs ?? 0} booked jobs</span>
                         </div>
 
-                        <p className="mt-2 text-xs text-gray-500">
+                        <p className="mt-1.5 text-xs text-gray-500">
                           {formatMaybeDate(entry.createdAt)}
                         </p>
                       </div>
                     ))}
                   </div>
                 )}
-              </section>
-
-              <section className="mf-card rounded-3xl p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-500">
-                  Operator View
-                </p>
-
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl bg-gray-50 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      Best Move
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {hero.bestMove}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-gray-50 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      Capacity Fit
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {hero.capacityFit}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-gray-50 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      Source Signals
-                    </p>
-                    <p className="mt-1 text-sm text-gray-700">
-                      {hero.sourceTags.join(" • ")}
-                    </p>
-                  </div>
-                </div>
               </section>
             </aside>
           </div>

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { prisma } from "@/lib/prisma";
 import { CampaignDetailHeader } from "@/components/campaigns/campaign-detail-header";
 import { CampaignStatusActions } from "@/components/campaigns/campaign-status-actions";
@@ -98,53 +99,72 @@ export default async function CampaignDetailPage({ params }: Props) {
         : estimatedFallbackRevenue;
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <CampaignDetailHeader
-          campaign={{
-            id: campaign.id,
-            name: campaign.name,
-            status: campaign.status,
-            estimatedLeads: campaign.estimatedLeads,
-            estimatedBookedJobs: campaign.estimatedBookedJobs,
-            estimatedRevenue: Number(campaign.estimatedRevenue ?? 0),
-            targetService: campaign.targetService,
-            recommendationTitle: campaign.recommendation?.title ?? null,
-            opportunityTitle: campaign.revenueOpportunity?.title ?? null,
-            opportunityType: campaign.revenueOpportunity?.opportunityType ?? null,
-            userPrompt: parsedBrief?.userPrompt ?? null,
-            matchedOpportunityTitle: parsedBrief?.matchedOpportunityTitle ?? null,
-            nextBestActionTitle: parsedBrief?.nextBestAction?.title ?? null,
-            nextBestActionType: parsedBrief?.nextBestAction?.actionType ?? null,
-            executionMode: parsedBrief?.nextBestAction?.executionMode ?? null,
-          }}
-          results={{
-            totalLeads,
-            bookedJobs,
-            revenueSoFar,
-          }}
-        />
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
+        <DashboardSidebar />
 
-        <CampaignStatusActions
-          campaignId={campaign.id}
-          status={campaign.status}
-        />
+        <main className="min-w-0 flex-1 space-y-5">
+          <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
+              Action Detail
+            </p>
 
-        <CampaignBriefPanel
-          campaignId={campaign.id}
-          status={campaign.status}
-          campaignName={campaign.name}
-          targetService={campaign.targetService}
-          offer={campaign.offer}
-          audience={campaign.audience}
-          briefJson={campaign.briefJson}
-        />
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              Review and prepare this action for execution
+            </h1>
 
-        <CampaignAssetsReview
-          campaignId={campaign.id}
-          status={campaign.status}
-          assets={campaign.assets}
-        />
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
+              Review the generated action, confirm the execution package, and
+              move it into queue when it is ready.
+            </p>
+          </section>
+
+          <CampaignDetailHeader
+            campaign={{
+              id: campaign.id,
+              name: campaign.name,
+              status: campaign.status,
+              estimatedLeads: campaign.estimatedLeads,
+              estimatedBookedJobs: campaign.estimatedBookedJobs,
+              estimatedRevenue: Number(campaign.estimatedRevenue ?? 0),
+              targetService: campaign.targetService,
+              recommendationTitle: campaign.recommendation?.title ?? null,
+              opportunityTitle: campaign.revenueOpportunity?.title ?? null,
+              opportunityType: campaign.revenueOpportunity?.opportunityType ?? null,
+              userPrompt: parsedBrief?.userPrompt ?? null,
+              matchedOpportunityTitle: parsedBrief?.matchedOpportunityTitle ?? null,
+              nextBestActionTitle: parsedBrief?.nextBestAction?.title ?? null,
+              nextBestActionType: parsedBrief?.nextBestAction?.actionType ?? null,
+              executionMode: parsedBrief?.nextBestAction?.executionMode ?? null,
+            }}
+            results={{
+              totalLeads,
+              bookedJobs,
+              revenueSoFar,
+            }}
+          />
+
+          <CampaignStatusActions
+            campaignId={campaign.id}
+            status={campaign.status}
+          />
+
+          <CampaignBriefPanel
+            campaignId={campaign.id}
+            status={campaign.status}
+            campaignName={campaign.name}
+            targetService={campaign.targetService}
+            offer={campaign.offer}
+            audience={campaign.audience}
+            briefJson={campaign.briefJson}
+          />
+
+          <CampaignAssetsReview
+            campaignId={campaign.id}
+            status={campaign.status}
+            assets={campaign.assets}
+          />
+        </main>
       </div>
     </div>
   );

@@ -16,7 +16,7 @@ export async function getCurrentWorkspace() {
           workspace: true,
         },
         orderBy: {
-          createdAt: "asc",
+          createdAt: "desc",
         },
       },
     },
@@ -24,6 +24,14 @@ export async function getCurrentWorkspace() {
 
   if (!user || user.workspaces.length === 0) {
     return null;
+  }
+
+  const completedWorkspaceMembership = user.workspaces.find(
+    (membership) => membership.workspace.onboardingCompletedAt
+  );
+
+  if (completedWorkspaceMembership) {
+    return completedWorkspaceMembership.workspace;
   }
 
   return user.workspaces[0].workspace;

@@ -24,50 +24,69 @@ export default async function LeadsPage() {
 
   const bookedCount = leads.filter((lead) => lead.status === "BOOKED").length;
   const newCount = leads.filter((lead) => lead.status === "NEW").length;
+  const contactedCount = leads.filter(
+    (lead) =>
+      lead.status === "CONTACTED" || lead.status === "ESTIMATE_SCHEDULED"
+  ).length;
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
-        <main className="flex-1 space-y-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+        <main className="min-w-0 flex-1 space-y-5">
+          <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
               Leads
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">
-              Lead to Booked Job Workflow
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              Lead to booked job workflow
             </h1>
 
-            <p className="mt-2 text-gray-600">
-              Track incoming leads from MarketForge campaigns and move them
-              through the booking pipeline.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
+              Track incoming leads from MarketForge actions, move them through
+              the booking pipeline, and record booked revenue as work closes.
             </p>
-          </div>
+          </section>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs text-gray-600">Total Leads</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
+          <section className="grid gap-4 md:grid-cols-3">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                Total Leads
+              </p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {leads.length}
               </p>
+              <p className="mt-1 text-sm text-gray-600">
+                All leads currently tracked in the workspace
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs text-gray-600">New Leads</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                New Leads
+              </p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
                 {newCount}
               </p>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs text-gray-600">Booked Jobs</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">
-                {bookedCount}
+              <p className="mt-1 text-sm text-gray-600">
+                Waiting for first follow-up
               </p>
             </div>
-          </div>
+
+            <div className="mf-card rounded-2xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                Booked Jobs
+              </p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
+                {bookedCount}
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                {contactedCount} actively being worked
+              </p>
+            </div>
+          </section>
 
           <LeadsTable leads={leads} />
         </main>

@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
-import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
-import { CampaignsGrid } from "@/components/campaigns/campaigns-grid";
 import { NlCampaignPanel } from "@/components/campaigns/nl-campaign-panel";
 
 export default async function CampaignsPage() {
@@ -12,56 +10,29 @@ export default async function CampaignsPage() {
     redirect("/onboarding");
   }
 
-  const [campaigns, profile] = await Promise.all([
-    prisma.campaign.findMany({
-      where: { workspaceId: workspace.id },
-      include: {
-        assets: true,
-        attributions: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    }),
-    prisma.businessProfile.findUnique({
-      where: { workspaceId: workspace.id },
-    }),
-  ]);
-
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-6 md:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
-        <main className="flex-1 space-y-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-              Campaigns
+        <main className="min-w-0 flex-1 space-y-5">
+          <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
+              AI Action Prompt
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">
-              Campaign Builder
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              Generate a new revenue action
             </h1>
 
-            <p className="mt-2 text-gray-600">
-              Generate draft-ready campaigns tied to real revenue opportunities,
-              review the creative direction, and move them through managed launch.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
+              Describe the business goal in plain English. MarketForge will
+              evaluate the best next action from current revenue intelligence and
+              generate a launch-ready action package.
             </p>
-          </div>
+          </section>
 
           <NlCampaignPanel />
-
-          {campaigns.length === 0 ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <p className="text-gray-600">No campaigns found.</p>
-            </div>
-          ) : (
-            <CampaignsGrid
-              campaigns={campaigns}
-              businessLogoUrl={profile?.logoUrl ?? null}
-              businessName={profile?.businessName ?? workspace.name}
-            />
-          )}
         </main>
       </div>
     </div>

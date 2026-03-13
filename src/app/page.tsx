@@ -29,13 +29,13 @@ export default async function Home() {
 
           <div className="flex items-center gap-4">
             <Show when="signed-out">
-              <SignInButton mode="modal" fallbackRedirectUrl="/onboarding">
+              <SignInButton mode="redirect" forceRedirectUrl="/">
                 <button className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 hover:bg-gray-50">
                   Sign In
                 </button>
               </SignInButton>
 
-              <SignUpButton mode="modal" fallbackRedirectUrl="/onboarding">
+              <SignUpButton mode="redirect" forceRedirectUrl="/">
                 <button className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">
                   Sign Up
                 </button>
@@ -62,13 +62,13 @@ export default async function Home() {
           </p>
 
           <div className="mt-8 flex flex-wrap gap-4">
-            <SignUpButton mode="modal" fallbackRedirectUrl="/onboarding">
+            <SignUpButton mode="redirect" forceRedirectUrl="/">
               <button className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700">
                 Create Account
               </button>
             </SignUpButton>
 
-            <SignInButton mode="modal" fallbackRedirectUrl="/onboarding">
+            <SignInButton mode="redirect" forceRedirectUrl="/">
               <button className="rounded-lg border border-gray-300 bg-white px-5 py-3 font-medium text-gray-700 hover:bg-gray-50">
                 Sign In
               </button>
