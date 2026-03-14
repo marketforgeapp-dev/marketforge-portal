@@ -3,6 +3,7 @@ import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { LeadsTable } from "@/components/leads/leads-table";
+import { LeadIntakePanel } from "@/components/leads/lead-intake-panel";
 
 export default async function LeadsPage() {
   const workspace = await getCurrentWorkspace();
@@ -11,16 +12,28 @@ export default async function LeadsPage() {
     redirect("/onboarding");
   }
 
-  const leads = await prisma.lead.findMany({
-    where: { workspaceId: workspace.id },
-    include: {
-      campaign: true,
-      revenueOpportunity: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  const [leads, campaigns] = await Promise.all([
+    prisma.lead.findMany({
+      where: { workspaceId: workspace.id },
+      include: {
+        campaign: true,
+        revenueOpportunity: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+    prisma.campaign.findMany({
+      where: { workspaceId: workspace.id },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+  ]);
 
   const bookedCount = leads.filter((lead) => lead.status === "BOOKED").length;
   const newCount = leads.filter((lead) => lead.status === "NEW").length;
@@ -87,6 +100,11 @@ export default async function LeadsPage() {
               </p>
             </div>
           </section>
+
+          <LeadIntakePanel
+            campaigns={campaigns}
+            workspaceId={workspace.id}
+          />
 
           <LeadsTable leads={leads} />
         </main>

@@ -56,6 +56,12 @@ export default async function SettingsPage() {
     preferredServices: profile.preferredServices ?? [],
     primaryServices: profile.preferredServices ?? [],
     deprioritizedServices: profile.deprioritizedServices ?? [],
+    servicePricing: Array.isArray(profile.servicePricingJson)
+  ? (profile.servicePricingJson as {
+      serviceName: string;
+      averageRevenue: number | "";
+    }[])
+  : [],
 
     averageJobValue: toFormNumber(
       profile.averageJobValue ? Number(profile.averageJobValue) : null

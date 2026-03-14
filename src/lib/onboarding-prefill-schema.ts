@@ -5,7 +5,8 @@ export const onboardingPrefillSchema = z.object({
   website: z.string(),
   logoUrl: z.string().nullable(),
   phone: z.string().nullable(),
-
+  googleBusinessUrl: z.string().nullable(),
+  googleBusinessProfileUrl: z.string().nullable(),
   city: z.string().nullable(),
   state: z.string().nullable(),
   serviceArea: z.string().nullable(),

@@ -25,6 +25,10 @@ export type OnboardingFormData = {
   deprioritizedServices: string[];
 
   averageJobValue: number | "";
+  servicePricing?: {
+  serviceName: string;
+  averageRevenue: number | "";
+  }[];
   highestMarginService: string;
   lowestPriorityService: string;
 

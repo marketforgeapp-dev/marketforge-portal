@@ -12,11 +12,7 @@ type HeaderCampaign = {
   recommendationTitle: string | null;
   opportunityTitle: string | null;
   opportunityType: OpportunityType | null;
-  userPrompt?: string | null;
-  matchedOpportunityTitle?: string | null;
-  nextBestActionTitle?: string | null;
-  nextBestActionType?: string | null;
-  executionMode?: string | null;
+  briefJson?: unknown;
 };
 
 type HeaderResults = {
@@ -28,6 +24,30 @@ type HeaderResults = {
 type Props = {
   campaign: HeaderCampaign;
   results: HeaderResults;
+};
+
+type ParsedBrief = {
+  userPrompt?: string;
+  matchedOpportunityTitle?: string | null;
+  nextBestAction?: {
+    title?: string;
+    actionType?: string;
+    executionMode?: string;
+  };
+  actionThesis?: {
+    title?: string;
+    summary?: string;
+  };
+  displayMoveLabel?: string;
+  opportunityCheck?: {
+    matchedRecommendationTitle?: string | null;
+  };
+  estimatedRange?: {
+    jobsLow?: number;
+    jobsHigh?: number;
+    revenueLow?: number;
+    revenueHigh?: number;
+  };
 };
 
 const STATUS_LABELS: Record<CampaignStatus, string> = {
@@ -49,6 +69,11 @@ const OPPORTUNITY_TYPE_LABELS: Record<OpportunityType, string> = {
   LOCAL_SEARCH_SPIKE: "Local Demand",
 };
 
+function parseBriefJson(value: unknown): ParsedBrief | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as ParsedBrief;
+}
+
 function formatActionType(value?: string | null) {
   if (!value) return "Not recorded";
 
@@ -60,12 +85,23 @@ function formatActionType(value?: string | null) {
 
 function formatExecutionMode(value?: string | null) {
   if (!value) return "Not recorded";
-
   return value === "ACTION_PACK" ? "Action Pack" : "Campaign Launch";
 }
 
 export function CampaignDetailHeader({ campaign, results }: Props) {
   const estimatedRevenue = Number(campaign.estimatedRevenue ?? 0);
+  const brief = parseBriefJson(campaign.briefJson);
+
+  const jobsLow = brief?.estimatedRange?.jobsLow;
+  const jobsHigh = brief?.estimatedRange?.jobsHigh;
+  const revenueLow = brief?.estimatedRange?.revenueLow;
+  const revenueHigh = brief?.estimatedRange?.revenueHigh;
+
+  const visibleActionTitle =
+    brief?.actionThesis?.title ??
+    brief?.displayMoveLabel ??
+    brief?.nextBestAction?.title ??
+    campaign.name;
 
   return (
     <section className="mf-card rounded-3xl p-5">
@@ -76,7 +112,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
           </p>
 
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
-            {campaign.name}
+            {visibleActionTitle}
           </h1>
 
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -112,7 +148,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
               </p>
               <p className="mt-1 text-sm font-semibold text-gray-900">
                 {campaign.opportunityTitle ??
-                  campaign.matchedOpportunityTitle ??
+                  brief?.matchedOpportunityTitle ??
                   "Not linked"}
               </p>
               <p className="mt-1 text-xs text-gray-600">
@@ -127,9 +163,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
                 Recommended Action
               </p>
               <p className="mt-1 text-sm font-semibold text-gray-900">
-                {campaign.nextBestActionTitle ??
-                  campaign.recommendationTitle ??
-                  campaign.name}
+                {visibleActionTitle}
               </p>
               <p className="mt-1 text-xs text-gray-600">
                 {campaign.targetService ?? "General service action"}
@@ -165,7 +199,9 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
               Estimated Jobs
             </p>
             <p className="mt-1 text-base font-semibold text-gray-900">
-              {campaign.estimatedBookedJobs ?? 0}
+              {jobsLow != null && jobsHigh != null
+                ? `${jobsLow}–${jobsHigh}`
+                : (campaign.estimatedBookedJobs ?? 0)}
             </p>
           </div>
 
@@ -174,7 +210,11 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
               Estimated Revenue
             </p>
             <p className="mt-1 text-base font-semibold text-gray-900">
-              ${estimatedRevenue.toLocaleString()}
+              $
+              {(revenueLow != null && revenueHigh != null
+                ? revenueHigh
+                : estimatedRevenue
+              ).toLocaleString()}
             </p>
           </div>
 
@@ -200,7 +240,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
               Execution Mode
             </p>
             <p className="mt-1 text-sm font-semibold text-gray-900">
-              {formatExecutionMode(campaign.executionMode)}
+              {formatExecutionMode(brief?.nextBestAction?.executionMode)}
             </p>
           </div>
 
@@ -209,7 +249,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
               Action Type
             </p>
             <p className="mt-1 text-sm font-semibold text-gray-900">
-              {formatActionType(campaign.nextBestActionType)}
+              {formatActionType(brief?.nextBestAction?.actionType)}
             </p>
           </div>
 
@@ -218,7 +258,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
               Action Title
             </p>
             <p className="mt-1 text-sm font-semibold text-gray-900">
-              {campaign.nextBestActionTitle ?? "Not recorded"}
+              {visibleActionTitle}
             </p>
           </div>
 
@@ -227,7 +267,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
               Matched Opportunity
             </p>
             <p className="mt-1 text-sm font-semibold text-gray-900">
-              {campaign.matchedOpportunityTitle ?? "Not recorded"}
+              {brief?.matchedOpportunityTitle ?? "Not recorded"}
             </p>
           </div>
         </div>
@@ -237,7 +277,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
             Original Prompt
           </p>
           <p className="mt-1 text-sm text-gray-800">
-            {campaign.userPrompt ?? "Not recorded"}
+            {brief?.userPrompt ?? "Not recorded"}
           </p>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { CampaignStatus, CampaignType, OpportunityType } from "@/generated/prisma";
+import { CampaignStatus, CampaignType } from "@/generated/prisma";
 import {
   RankedOpportunity,
   RevenueOpportunityHero,
@@ -137,12 +137,7 @@ function isDirectResponseOpportunity(opportunity: SelectedOpportunity): boolean 
     opportunity.recommendedCampaignType === "EMERGENCY_SERVICE" ||
     opportunity.recommendedCampaignType === "WATER_HEATER" ||
     opportunity.recommendedCampaignType === "MAINTENANCE_PUSH" ||
-    opportunity.recommendedCampaignType === "CUSTOM" ||
-    opportunity.opportunityType === "SEASONAL_DEMAND" ||
-    opportunity.opportunityType === "COMPETITOR_INACTIVE" ||
-    opportunity.opportunityType === "HIGH_VALUE_SERVICE" ||
-    opportunity.opportunityType === "LOCAL_SEARCH_SPIKE" ||
-    opportunity.opportunityType === "CAPACITY_GAP"
+    opportunity.recommendedCampaignType === "CUSTOM"
   );
 }
 
@@ -223,12 +218,12 @@ export function selectRevenueOpportunities(params: {
   const topOpportunity = chooseHeroOpportunity(rankedSelection);
 
   const backlogOpportunities = rankedSelection
-    .filter(
-      (opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey
-    )
+    .filter((opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey)
+    .filter((opportunity) => opportunity.familyKey !== topOpportunity.familyKey)
     .filter((opportunity) => !opportunity.isInExecution)
     .filter((opportunity) => opportunity.eligibleForBacklog)
-    .filter((opportunity) => opportunity.adjustedScore >= 62);
+    .filter((opportunity) => opportunity.adjustedScore >= 62)
+    .slice(0, 5);
 
   const hero = buildRevenueOpportunityHero({
     opportunity: topOpportunity,

@@ -28,10 +28,7 @@ const campaignObjectiveSchema = z.enum([
   "CAPTURE_SEASONAL_DEMAND",
 ]);
 
-const executionModeSchema = z.enum([
-  "CAMPAIGN",
-  "ACTION_PACK",
-]);
+const executionModeSchema = z.enum(["CAMPAIGN", "ACTION_PACK"]);
 
 const actionTypeSchema = z.enum([
   "CAMPAIGN_LAUNCH",
@@ -43,6 +40,8 @@ const actionTypeSchema = z.enum([
   "HIGH_VALUE_SERVICE_PUSH",
   "CUSTOM",
 ]);
+
+const imageModeSchema = z.enum(["SERVICE_IMAGE", "LOGO"]);
 
 export const nlCampaignSchema = z.object({
   parsedIntent: z.object({
@@ -72,6 +71,20 @@ export const nlCampaignSchema = z.object({
     whyThisMatters: z.string(),
   }),
 
+  actionThesis: z.object({
+    familyKey: z.string(),
+    primaryService: z.string(),
+    angle: z.string(),
+    title: z.string(),
+    summary: z.string(),
+    audience: z.string(),
+    offerHint: z.string(),
+    ctaHint: z.string(),
+    imageKey: z.string(),
+    imageMode: imageModeSchema,
+    whyThisActionBullets: z.array(z.string()).min(3).max(5),
+  }),
+
   nextBestAction: z.object({
     executionMode: executionModeSchema,
     actionType: actionTypeSchema,
@@ -82,21 +95,23 @@ export const nlCampaignSchema = z.object({
     whyThisIsTheBestMoveNow: z.string(),
   }),
 
-  campaign: z.object({
-    title: z.string(),
-    description: z.string(),
-    campaignType: campaignTypeSchema,
-    objective: campaignObjectiveSchema,
-    targetService: z.string(),
-    offer: z.string(),
-    audience: z.string(),
-    cta: z.string(),
-    landingIntent: z.string(),
-    creativeGuidance: z.object({
-      recommendedImage: z.string(),
-      avoidImagery: z.string(),
-    }),
-  }).nullable(),
+  campaign: z
+    .object({
+      title: z.string(),
+      description: z.string(),
+      campaignType: campaignTypeSchema,
+      objective: campaignObjectiveSchema,
+      targetService: z.string(),
+      offer: z.string(),
+      audience: z.string(),
+      cta: z.string(),
+      landingIntent: z.string(),
+      creativeGuidance: z.object({
+        recommendedImage: z.string(),
+        avoidImagery: z.string(),
+      }),
+    })
+    .nullable(),
 
   actionPack: z.object({
     actionTitle: z.string(),
@@ -133,12 +148,15 @@ export const nlCampaignSchema = z.object({
       body: z.string(),
     }),
     blogOutline: z.string(),
-    aeoFaq: z.array(
-      z.object({
-        question: z.string(),
-        answer: z.string(),
-      })
-    ).min(3).max(5),
+    aeoFaq: z
+      .array(
+        z.object({
+          question: z.string(),
+          answer: z.string(),
+        })
+      )
+      .min(3)
+      .max(5),
     answerSnippet: z.string(),
   }),
 });

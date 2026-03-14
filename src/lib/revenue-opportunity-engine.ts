@@ -23,13 +23,33 @@ export type OpportunitySourceTag =
   | "AEO";
 
 export type OpportunityConfidenceLabel = "Low" | "Medium" | "High";
+export type OpportunityImageMode = "SERVICE_IMAGE" | "LOGO";
+
+export type ActionThesis = {
+  familyKey: string;
+  primaryService: string;
+  angle: string;
+  title: string;
+  summary: string;
+  audience: string;
+  offerHint: string;
+  ctaHint: string;
+  imageKey: string;
+  imageMode: OpportunityImageMode;
+};
 
 export type RankedOpportunity = {
   opportunityKey: string;
+  familyKey: string;
   title: string;
   serviceName: string;
   opportunityType: OpportunityType;
   bestMove: string;
+  displayMoveLabel: string;
+  displaySummary: string;
+  imageKey: string;
+  imageMode: OpportunityImageMode;
+  actionThesis: ActionThesis;
   recommendedCampaignType: CampaignType;
   jobsLow: number;
   jobsHigh: number;
@@ -60,13 +80,20 @@ export type RevenueOpportunityHero = {
   title: string;
   opportunityTitle: string;
   opportunityType: OpportunityType;
+  familyKey: string;
   jobsLow: number;
   jobsHigh: number;
   revenueLow: number;
   revenueHigh: number;
+  rawOpportunityScore: number;
   headlineJobsText: string;
   headlineRevenueText: string;
   bestMove: string;
+  displayMoveLabel: string;
+  displaySummary: string;
+  imageKey: string;
+  imageMode: OpportunityImageMode;
+  actionThesis: ActionThesis;
   recommendedCampaignType: CampaignType;
   whyNowBullets: string[];
   whyThisMatters: string;
@@ -139,6 +166,11 @@ type OpportunityCandidate = {
   serviceName: string;
   opportunityType: OpportunityType;
   bestMove: string;
+  displayMoveLabel: string;
+  displaySummary: string;
+  imageKey: string;
+  imageMode: OpportunityImageMode;
+  actionThesis: ActionThesis;
   recommendedCampaignType: CampaignType;
   sourceTags: OpportunitySourceTag[];
   whyNowBullets: string[];
@@ -154,6 +186,147 @@ type OpportunityCandidate = {
   actionFramingReason: string;
   eligibleForBacklog: boolean;
 };
+
+type ServicePricingRow = {
+  serviceName: string;
+  averageRevenue: number | null;
+};
+
+function normalizePricingKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function parseServicePricing(profile: BusinessProfile): ServicePricingRow[] {
+  const raw = (profile as BusinessProfile & { servicePricingJson?: unknown })
+    .servicePricingJson;
+
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+  .filter((item) => typeof item === "object" && item !== null && !Array.isArray(item))
+  .map((item) => {
+    const record = item as Record<string, unknown>;
+
+    return {
+      serviceName:
+        typeof record.serviceName === "string" ? record.serviceName.trim() : "",
+      averageRevenue:
+        typeof record.averageRevenue === "number" &&
+        Number.isFinite(record.averageRevenue)
+          ? record.averageRevenue
+          : null,
+    };
+  })
+  .filter((item) => item.serviceName.length > 0);
+}
+
+function getServiceLevelJobValue(params: {
+  profile: BusinessProfile;
+  candidate: OpportunityCandidate;
+}): number | null {
+  const pricingRows = parseServicePricing(params.profile);
+  if (pricingRows.length === 0) return null;
+
+  const candidateFamilyKey = params.candidate.familyKey;
+  const candidateKeys = new Set(
+    [
+      params.candidate.serviceName,
+      params.candidate.actionThesis.primaryService,
+      params.candidate.familyKey,
+      ...(params.candidate.familyKey === "drain-cleaning"
+        ? ["drain cleaning", "drain service", "clog removal", "rooter service"]
+        : []),
+      ...(params.candidate.familyKey === "leak-repair"
+        ? ["leak repair", "leak detection", "water leak repair"]
+        : []),
+      ...(params.candidate.familyKey === "emergency-plumbing"
+        ? ["emergency plumbing", "emergency plumber", "after hours plumbing"]
+        : []),
+      ...(params.candidate.familyKey === "water-heater"
+        ? [
+            "water heater",
+            "water heater service",
+            "water heater install",
+            "water heater replacement",
+            "tankless water heater",
+          ]
+        : []),
+      ...(params.candidate.familyKey === "maintenance"
+        ? [
+            "service checkup",
+            "maintenance",
+            "plumbing maintenance",
+            "inspection",
+            "tune up",
+          ]
+        : []),
+      ...(params.candidate.familyKey === "general-plumbing"
+        ? ["general plumbing", "plumbing service"]
+        : []),
+      ...(params.candidate.familyKey === "toilet-repair"
+        ? ["toilet repair", "toilet service"]
+        : []),
+      ...(params.candidate.familyKey === "sump-pump"
+        ? ["sump pump", "sump pump repair"]
+        : []),
+      ...(params.candidate.familyKey === "long-cycle-specialty"
+        ? [
+            "sewer line replacement",
+            "line replacement",
+            "trenchless sewer",
+            "repipe",
+          ]
+        : []),
+    ].map(normalizePricingKey)
+  );
+
+  for (const row of pricingRows) {
+    if (!row.averageRevenue) continue;
+
+    const rowKey = normalizePricingKey(row.serviceName);
+    const rowFamilyKey = getServiceFamilyKey(row.serviceName);
+
+    const directMatch =
+      candidateKeys.has(rowKey) ||
+      Array.from(candidateKeys).some(
+        (candidateKey) =>
+          candidateKey.includes(rowKey) || rowKey.includes(candidateKey)
+      );
+
+    const familyMatch = rowFamilyKey === candidateFamilyKey;
+
+    if (directMatch || familyMatch) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[MarketForge pricing] using service-level pricing", {
+          candidateFamilyKey,
+          candidateServiceName: params.candidate.serviceName,
+          matchedPricingService: row.serviceName,
+          rowFamilyKey,
+          averageRevenue: row.averageRevenue,
+          matchType: directMatch ? "direct" : "family",
+        });
+      }
+
+      return row.averageRevenue;
+    }
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[MarketForge pricing] falling back to default avg job value", {
+      candidateFamilyKey,
+      candidateServiceName: params.candidate.serviceName,
+      pricingRows: pricingRows.map((row) => ({
+        serviceName: row.serviceName,
+        averageRevenue: row.averageRevenue,
+        familyKey: getServiceFamilyKey(row.serviceName),
+      })),
+    });
+  }
+
+  return null;
+}
 
 const BASELINE_SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
   {
@@ -206,11 +379,11 @@ const BASELINE_SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
   },
   {
     familyKey: "water-heater",
-    serviceName: "Water heater replacement",
+    serviceName: "Water heater service",
     title: "Water Heater Revenue Opportunity",
     defaultOpportunityType: "HIGH_VALUE_SERVICE",
     defaultCampaignType: "WATER_HEATER",
-    defaultBestMove: "Promote Water Heater Replacement",
+    defaultBestMove: "Promote Water Heater Service",
     defaultActionFraming: "PAID_CAMPAIGN",
     demandBias: 12,
     valueBias: 12,
@@ -222,11 +395,11 @@ const BASELINE_SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
   },
   {
     familyKey: "maintenance",
-    serviceName: "Plumbing maintenance",
+    serviceName: "Service checkup",
     title: "Open Capacity Revenue Opportunity",
     defaultOpportunityType: "CAPACITY_GAP",
     defaultCampaignType: "MAINTENANCE_PUSH",
-    defaultBestMove: "Fill Schedule with Maintenance Checkups",
+    defaultBestMove: "Fill Schedule with Service Checkups",
     defaultActionFraming: "SCHEDULE_FILL",
     demandBias: 8,
     valueBias: 2,
@@ -380,16 +553,14 @@ function getServiceFamilyKey(serviceName: string): string {
     return "leak-repair";
   }
 
-  if (
-    normalized.includes("emergency") ||
-    normalized.includes("after hours")
-  ) {
+  if (normalized.includes("emergency") || normalized.includes("after hours")) {
     return "emergency-plumbing";
   }
 
   if (
     normalized.includes("water heater") ||
-    normalized.includes("hot water")
+    normalized.includes("hot water") ||
+    normalized.includes("tankless")
   ) {
     return "water-heater";
   }
@@ -397,7 +568,8 @@ function getServiceFamilyKey(serviceName: string): string {
   if (
     normalized.includes("maintenance") ||
     normalized.includes("checkup") ||
-    normalized.includes("inspection")
+    normalized.includes("inspection") ||
+    normalized.includes("tune-up")
   ) {
     return "maintenance";
   }
@@ -463,7 +635,9 @@ function buildServiceUniverse(
     familyKeys.add(getServiceFamilyKey(profile.highestMarginService));
   }
 
-  for (const focus of competitors.flatMap((competitor) => competitor.serviceFocus ?? [])) {
+  for (const focus of competitors.flatMap(
+    (competitor) => competitor.serviceFocus ?? []
+  )) {
     familyKeys.add(getServiceFamilyKey(focus));
   }
 
@@ -505,7 +679,10 @@ function inferCapacity(profile: BusinessProfile): {
 
   let availableJobsEstimate = 0;
 
-  if (typeof targetBookedJobs === "number" && Number.isFinite(targetBookedJobs)) {
+  if (
+    typeof targetBookedJobs === "number" &&
+    Number.isFinite(targetBookedJobs)
+  ) {
     availableJobsEstimate = Math.max(weeklyCapacity - targetBookedJobs, 0);
   } else {
     availableJobsEstimate = Math.max(Math.round(weeklyCapacity * 0.18), 2);
@@ -614,7 +791,9 @@ function getExplicitPreferenceBoost(
   profile: BusinessProfile
 ): number {
   const preferred = (profile.preferredServices ?? []).map(normalizeServiceName);
-  const deprioritized = (profile.deprioritizedServices ?? []).map(normalizeServiceName);
+  const deprioritized = (profile.deprioritizedServices ?? []).map(
+    normalizeServiceName
+  );
   const normalized = normalizeServiceName(blueprint.serviceName);
 
   if (preferred.includes(normalized)) return 20;
@@ -678,13 +857,16 @@ function inferOpportunityType(params: {
   };
   capacityFit: CapacityFit;
 }): OpportunityType {
-  const { blueprint, enrichment, capacityFit } = params;
+  const { blueprint, enrichment } = params;
 
   if (blueprint.familyKey === "ai-search-visibility") {
     return "AI_SEARCH_VISIBILITY";
   }
 
-  if (blueprint.familyKey === "maintenance" || enrichment.actionFraming === "SCHEDULE_FILL") {
+  if (
+    blueprint.familyKey === "maintenance" ||
+    enrichment.actionFraming === "SCHEDULE_FILL"
+  ) {
     return "CAPACITY_GAP";
   }
 
@@ -724,7 +906,7 @@ function buildActionFromSignals(params: {
   if (blueprint.familyKey === "ai-search-visibility") {
     return {
       campaignType: "AEO_FAQ",
-      bestMove: "Publish AI Answer Visibility FAQs",
+      bestMove: "Improve AI Search Visibility",
       actionFraming: "AEO_CONTENT",
     };
   }
@@ -732,7 +914,7 @@ function buildActionFromSignals(params: {
   if (blueprint.familyKey === "maintenance") {
     return {
       campaignType: "MAINTENANCE_PUSH",
-      bestMove: "Fill Schedule with Maintenance Checkups",
+      bestMove: "Fill This Week’s Schedule with Checkups",
       actionFraming: "SCHEDULE_FILL",
     };
   }
@@ -740,7 +922,7 @@ function buildActionFromSignals(params: {
   if (blueprint.familyKey === "drain-cleaning") {
     return {
       campaignType: "DRAIN_SPECIAL",
-      bestMove: "Launch Drain Cleaning Special",
+      bestMove: "Promote Drain Cleaning Service",
       actionFraming: "PAID_CAMPAIGN",
     };
   }
@@ -748,7 +930,7 @@ function buildActionFromSignals(params: {
   if (blueprint.familyKey === "water-heater") {
     return {
       campaignType: "WATER_HEATER",
-      bestMove: "Promote Water Heater Replacement",
+      bestMove: "Promote Water Heater Install Jobs",
       actionFraming: "PAID_CAMPAIGN",
     };
   }
@@ -756,7 +938,7 @@ function buildActionFromSignals(params: {
   if (blueprint.familyKey === "emergency-plumbing") {
     return {
       campaignType: "EMERGENCY_SERVICE",
-      bestMove: "Activate Emergency Plumbing Response",
+      bestMove: "Push Emergency Plumbing Response",
       actionFraming: "PAID_CAMPAIGN",
     };
   }
@@ -772,7 +954,7 @@ function buildActionFromSignals(params: {
   if (blueprint.familyKey === "general-plumbing") {
     return {
       campaignType: "CUSTOM",
-      bestMove: "Promote General Plumbing Services",
+      bestMove: "Promote Core Plumbing Services",
       actionFraming: "PAID_CAMPAIGN",
     };
   }
@@ -796,7 +978,7 @@ function buildActionFromSignals(params: {
   if (opportunityType === "AI_SEARCH_VISIBILITY") {
     return {
       campaignType: "AEO_FAQ",
-      bestMove: `Strengthen ${prettyName} AI Search Visibility`,
+      bestMove: `Improve ${prettyName} AI Search Visibility`,
       actionFraming: "AEO_CONTENT",
     };
   }
@@ -814,7 +996,12 @@ function inferBacklogEligibility(params: {
   urgencyRelevance: InferredSignalLevel;
   performanceSignal: CampaignPerformanceSignal | null;
 }): boolean {
-  const { blueprint, homeownerIntentStrength, urgencyRelevance, performanceSignal } = params;
+  const {
+    blueprint,
+    homeownerIntentStrength,
+    urgencyRelevance,
+    performanceSignal,
+  } = params;
 
   if (!blueprint.nicheLongCycle) {
     return true;
@@ -825,6 +1012,340 @@ function inferBacklogEligibility(params: {
     (urgencyRelevance === "HIGH" ||
       performanceSignal?.performanceLabel === "Strong")
   );
+}
+
+function buildDisplayContract(params: {
+  familyKey: string;
+  serviceName: string;
+  bestMove: string;
+  actionFraming: ActionFraming;
+  serviceArea?: string | null;
+}): {
+  displayMoveLabel: string;
+  displaySummary: string;
+  imageKey: string;
+  imageMode: OpportunityImageMode;
+  actionThesis: ActionThesis;
+} {
+  const { familyKey, serviceName, bestMove, actionFraming, serviceArea } = params;
+
+  const area = serviceArea?.trim() || "your service area";
+  const prettyService = prettyServiceName(serviceName);
+
+  if (familyKey === "ai-search-visibility" || actionFraming === "AEO_CONTENT") {
+    const title = "Improve AI Search Visibility";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Strengthen local answer-engine visibility for high-intent service searches in ${area}.`,
+      imageKey: "company-logo",
+      imageMode: "LOGO",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "AI search visibility",
+        title,
+        summary: `Improve discoverability through FAQ, GBP, and service-page upgrades for ${area}.`,
+        audience: `Homeowners searching for local service help in ${area}`,
+        offerHint: "Clear answers and stronger local visibility",
+        ctaHint: "Improve visibility",
+        imageKey: "company-logo",
+        imageMode: "LOGO",
+      },
+    };
+  }
+
+  if (familyKey === "water-heater") {
+    const title = "Promote Water Heater Install Jobs";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Capture high-value install and replacement demand in ${area}.`,
+      imageKey: "water-heater-install",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "install and replacement",
+        title,
+        summary: `Generate local water heater install and replacement jobs with a clear, high-intent offer.`,
+        audience: `Homeowners in ${area} evaluating water heater installation or replacement`,
+        offerHint: "Estimate-led installation offer",
+        ctaHint: "Schedule your estimate",
+        imageKey: "water-heater-install",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  if (familyKey === "drain-cleaning") {
+    const title = "Promote Drain Cleaning Service";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Capture urgent, high-intent drain demand in ${area}.`,
+      imageKey: "drain-cleaning",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "direct-response demand capture",
+        title,
+        summary: `Drive fast-turn drain cleaning bookings with a direct-response local push.`,
+        audience: `Homeowners in ${area} dealing with clogs, backups, or slow drains`,
+        offerHint: "Fast-response service offer",
+        ctaHint: "Book service now",
+        imageKey: "drain-cleaning",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  if (familyKey === "emergency-plumbing") {
+    const title = "Push Emergency Plumbing Response";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Capture urgent calls from homeowners who need immediate help in ${area}.`,
+      imageKey: "emergency-plumbing",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "urgent response",
+        title,
+        summary: `Capture urgent same-day demand with fast-response emergency positioning.`,
+        audience: `Homeowners in ${area} needing immediate plumbing help`,
+        offerHint: "Fast response and availability",
+        ctaHint: "Call now",
+        imageKey: "emergency-plumbing",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  if (familyKey === "maintenance") {
+    const title = "Fill This Week’s Schedule with Checkups";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Use lower-friction service work to turn open capacity into booked jobs.`,
+      imageKey: "service-checkup",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "schedule fill",
+        title,
+        summary: `Fill open technician capacity with easier-to-book preventative or checkup work.`,
+        audience: `Homeowners in ${area} open to proactive service and seasonal checkups`,
+        offerHint: "Simple entry offer",
+        ctaHint: "Book now",
+        imageKey: "service-checkup",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  if (familyKey === "sump-pump") {
+    const title = "Promote Sump Pump Repair Service";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Capture seasonal sump pump repair demand before water issues escalate.`,
+      imageKey: "sump-pump",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "seasonal protection",
+        title,
+        summary: `Generate sump pump repair demand with timely problem-prevention messaging.`,
+        audience: `Homeowners in ${area} worried about sump pump failure, drainage, or basement water issues`,
+        offerHint: "Inspection or repair-led offer",
+        ctaHint: "Schedule service",
+        imageKey: "sump-pump",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  if (familyKey === "leak-repair") {
+    const title = "Promote Leak Repair Service";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Capture local leak-repair demand before damage and water waste worsen.`,
+      imageKey: "leak-repair",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "fast local repair",
+        title,
+        summary: `Generate near-term leak repair bookings with direct local messaging.`,
+        audience: `Homeowners in ${area} dealing with visible leaks or unexplained water issues`,
+        offerHint: "Fast diagnosis and repair",
+        ctaHint: "Book repair",
+        imageKey: "leak-repair",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  if (familyKey === "toilet-repair") {
+    const title = "Promote Toilet Repair Service";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Capture common, easy-to-book repair demand from local homeowners.`,
+      imageKey: "toilet-repair",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "everyday repair demand",
+        title,
+        summary: `Drive everyday repair bookings with simple local service positioning.`,
+        audience: `Homeowners in ${area} dealing with toilet backups, leaks, or malfunction issues`,
+        offerHint: "Quick repair offer",
+        ctaHint: "Book service",
+        imageKey: "toilet-repair",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  if (familyKey === "general-plumbing") {
+    const title = "Promote Core Plumbing Services";
+    return {
+      displayMoveLabel: title,
+      displaySummary: `Capture broad local plumbing demand with a flexible direct-response action.`,
+      imageKey: "general-plumbing",
+      imageMode: "SERVICE_IMAGE",
+      actionThesis: {
+        familyKey,
+        primaryService: prettyService,
+        angle: "general demand capture",
+        title,
+        summary: `Generate more local plumbing demand with a broad but commercially credible action.`,
+        audience: `Homeowners in ${area}`,
+        offerHint: "Compelling local service offer",
+        ctaHint: "Book now",
+        imageKey: "general-plumbing",
+        imageMode: "SERVICE_IMAGE",
+      },
+    };
+  }
+
+  return {
+    displayMoveLabel: bestMove,
+    displaySummary: `Promote ${prettyService.toLowerCase()} demand in ${area} with a practical local action.`,
+    imageKey: "fallback",
+    imageMode: "SERVICE_IMAGE",
+    actionThesis: {
+      familyKey,
+      primaryService: prettyService,
+      angle: "local demand capture",
+      title: bestMove,
+      summary: `Generate more local demand for ${prettyService.toLowerCase()} with a clear next-best action.`,
+      audience: `Homeowners in ${area}`,
+      offerHint: "Compelling local service offer",
+      ctaHint: "Book now",
+      imageKey: "fallback",
+      imageMode: "SERVICE_IMAGE",
+    },
+  };
+}
+
+function buildWhyNowBullets(params: {
+  familyKey: string;
+  prettyName: string;
+  availableJobsEstimate: number;
+  competitorNarrative: string;
+  enrichment: SignalEnrichment;
+  profile: BusinessProfile;
+  performanceSignal: CampaignPerformanceSignal | null;
+}): string[] {
+  const {
+    familyKey,
+    prettyName,
+    availableJobsEstimate,
+    competitorNarrative,
+    enrichment,
+    profile,
+    performanceSignal,
+  } = params;
+
+  const bullets: string[] = [];
+
+  if (familyKey === "drain-cleaning") {
+    bullets.push("Drain issues usually trigger fast homeowner action when clogs, backups, or slow flow become visible.");
+    bullets.push(competitorNarrative);
+    bullets.push(
+      availableJobsEstimate >= 4
+        ? `Current capacity suggests room for roughly ${availableJobsEstimate} additional jobs this week.`
+        : "Even with tighter capacity, drain work can convert quickly and efficiently."
+    );
+  } else if (familyKey === "water-heater") {
+    bullets.push("Water heater jobs carry stronger ticket value than most everyday repair work.");
+    bullets.push(
+      enrichment.urgencyRelevance === "HIGH"
+        ? "Loss of hot water can push homeowners toward near-term booking behavior."
+        : "Install and replacement intent is commercially meaningful even when demand is not purely emergency-driven."
+    );
+    bullets.push(competitorNarrative);
+  } else if (familyKey === "maintenance") {
+    bullets.push(`Current capacity suggests room for roughly ${availableJobsEstimate} additional jobs this week.`);
+    bullets.push("Lower-friction checkup offers are one of the fastest ways to convert open schedule into booked work.");
+    bullets.push(
+      performanceSignal?.performanceLabel === "Strong"
+        ? performanceSignal.performanceDetail
+        : "This is a practical schedule-fill move when premium jobs are not the only priority."
+    );
+  } else if (familyKey === "emergency-plumbing") {
+    bullets.push("Emergency service intent is usually close to immediate booking behavior.");
+    bullets.push(competitorNarrative);
+    bullets.push(
+      availableJobsEstimate >= 3
+        ? "Fast-response positioning is easier to monetize when there is real room in the schedule."
+        : "Even with tighter capacity, emergency demand can justify premium prioritization."
+    );
+  } else if (familyKey === "ai-search-visibility") {
+    bullets.push(
+      !profile.hasFaqContent
+        ? "Your website still lacks structured FAQ coverage for strong answer-engine visibility."
+        : "Your current answer-ready content still looks thinner than it should for stronger AI/local discovery."
+    );
+    bullets.push(
+      profile.servicePageUrls.length < 3
+        ? "Service-page coverage is limited, which weakens topic depth and answer relevance."
+        : "Service-page depth can still be improved to strengthen local answer visibility."
+    );
+    bullets.push(
+      (profile.aeoReadinessScore ?? 0) < 70
+        ? "Current AEO readiness appears below where it should be for a polished local leader."
+        : "There is still room to improve discoverability even from a decent baseline."
+    );
+  } else if (familyKey === "sump-pump") {
+    bullets.push("Sump pump problems become more urgent when homeowners worry about water intrusion or basement damage.");
+    bullets.push(
+      enrichment.seasonalityRelevance === "HIGH"
+        ? "This service has stronger seasonal relevance than a generic plumbing promotion."
+        : "This service can still be commercially relevant even outside peak weather windows."
+    );
+    bullets.push(competitorNarrative);
+  } else if (familyKey === "leak-repair") {
+    bullets.push("Visible leaks and water waste usually create near-term repair intent.");
+    bullets.push(competitorNarrative);
+    bullets.push(
+      availableJobsEstimate >= 3
+        ? `There appears to be enough capacity to absorb additional repair demand this week.`
+        : "This is still a practical repair lane even if capacity is somewhat tighter."
+    );
+  } else if (familyKey === "toilet-repair") {
+    bullets.push("Toilet issues are common homeowner pain points and often easy to approve quickly.");
+    bullets.push(competitorNarrative);
+    bullets.push("This is a believable everyday service lane rather than a speculative specialty push.");
+  } else {
+    bullets.push(`${prettyName} is commercially relevant based on your current service mix and market context.`);
+    bullets.push(competitorNarrative);
+    bullets.push(enrichment.urgencyReason);
+  }
+
+  return bullets.slice(0, 4);
 }
 
 function buildSignalDrivenCandidates(params: {
@@ -912,29 +1433,23 @@ function buildSignalDrivenCandidates(params: {
 
     const prettyName = prettyServiceName(serviceProfile.serviceName);
 
-    const whyNowBullets: string[] = [
-      `${prettyName} is commercially relevant based on your current service mix and market context`,
-      serviceProfile.competitorNarrative,
-      enrichment.urgencyReason,
-    ];
+    const whyNowBullets = buildWhyNowBullets({
+      familyKey: serviceProfile.blueprint.familyKey,
+      prettyName,
+      availableJobsEstimate,
+      competitorNarrative: serviceProfile.competitorNarrative,
+      enrichment,
+      profile,
+      performanceSignal,
+    });
 
-    if (serviceProfile.blueprint.familyKey === "maintenance") {
-      whyNowBullets.push(
-        `Current capacity suggests room for roughly ${availableJobsEstimate} additional jobs this week`
-      );
-    } else if (serviceProfile.blueprint.familyKey === "ai-search-visibility") {
-      whyNowBullets.push(
-        !profile.hasFaqContent
-          ? "Your website still lacks structured FAQ content"
-          : "Your answer-ready content footprint still looks thin"
-      );
-    } else {
-      whyNowBullets.push(
-        availableJobsEstimate >= 3
-          ? `Current capacity suggests room for roughly ${availableJobsEstimate} additional jobs this week`
-          : "Capacity is tighter, so higher-conversion work matters more"
-      );
-    }
+    const displayContract = buildDisplayContract({
+      familyKey: serviceProfile.blueprint.familyKey,
+      serviceName: serviceProfile.serviceName,
+      bestMove: action.bestMove,
+      actionFraming: action.actionFraming,
+      serviceArea: profile.serviceArea,
+    });
 
     candidates.push({
       canonicalKey: `${serviceProfile.blueprint.familyKey}::primary`,
@@ -943,12 +1458,21 @@ function buildSignalDrivenCandidates(params: {
       serviceName: serviceProfile.serviceName,
       opportunityType,
       bestMove: action.bestMove,
+      displayMoveLabel: displayContract.displayMoveLabel,
+      displaySummary: displayContract.displaySummary,
+      imageKey: displayContract.imageKey,
+      imageMode: displayContract.imageMode,
+      actionThesis: displayContract.actionThesis,
       recommendedCampaignType: action.campaignType,
       rawOpportunityScore: score,
       sourceTags: uniqueTags([
         "Demand",
         "Competitor",
-        "Capacity",
+        ...(serviceProfile.blueprint.familyKey === "maintenance"
+          ? (["Capacity"] as OpportunitySourceTag[])
+          : capacityFit !== "LOW"
+            ? (["Capacity"] as OpportunitySourceTag[])
+            : []),
         ...(serviceProfile.blueprint.familyKey === "ai-search-visibility" ||
         action.actionFraming === "AEO_CONTENT"
           ? (["AEO"] as OpportunitySourceTag[])
@@ -993,19 +1517,30 @@ function collapseDuplicateCandidates(
 }
 
 function ensureMinimumCrediblePortfolio(
-  candidates: OpportunityCandidate[]
+  candidates: OpportunityCandidate[],
+  profile: BusinessProfile
 ): OpportunityCandidate[] {
   const familyKeys = new Set(candidates.map((candidate) => candidate.familyKey));
   const output = [...candidates];
 
   const guaranteedFamilies = [
-    "drain-cleaning",
-    "leak-repair",
-    "emergency-plumbing",
-    "water-heater",
-    "maintenance",
-    "ai-search-visibility",
-  ];
+  "drain-cleaning",
+  "leak-repair",
+  "emergency-plumbing",
+  "water-heater",
+  "maintenance",
+];
+
+const shouldIncludeAeo =
+  !profile.hasFaqContent ||
+  !profile.hasServicePages ||
+  !profile.hasGoogleBusinessPage ||
+  (profile.aeoReadinessScore ?? 0) < 70 ||
+  profile.servicePageUrls.length < 3;
+
+if (shouldIncludeAeo) {
+  guaranteedFamilies.push("ai-search-visibility");
+}
 
   for (const familyKey of guaranteedFamilies) {
     if (familyKeys.has(familyKey)) {
@@ -1013,6 +1548,13 @@ function ensureMinimumCrediblePortfolio(
     }
 
     const blueprint = getBlueprintForFamily(familyKey);
+    const displayContract = buildDisplayContract({
+      familyKey,
+      serviceName: blueprint.serviceName,
+      bestMove: blueprint.defaultBestMove,
+      actionFraming: blueprint.defaultActionFraming,
+      serviceArea: profile.serviceArea,
+    });
 
     output.push({
       canonicalKey: `${familyKey}::guaranteed`,
@@ -1021,13 +1563,20 @@ function ensureMinimumCrediblePortfolio(
       serviceName: blueprint.serviceName,
       opportunityType: blueprint.defaultOpportunityType,
       bestMove: blueprint.defaultBestMove,
+      displayMoveLabel: displayContract.displayMoveLabel,
+      displaySummary: displayContract.displaySummary,
+      imageKey: displayContract.imageKey,
+      imageMode: displayContract.imageMode,
+      actionThesis: displayContract.actionThesis,
       recommendedCampaignType: blueprint.defaultCampaignType,
       rawOpportunityScore:
         familyKey === "maintenance"
-          ? 70
+          ? 68
           : familyKey === "ai-search-visibility"
-            ? 66
-            : 72,
+            ? 64
+            : familyKey === "water-heater"
+              ? 74
+              : 70,
       sourceTags: uniqueTags([
         "Demand",
         ...(familyKey === "maintenance" ? (["Capacity"] as OpportunitySourceTag[]) : []),
@@ -1040,32 +1589,44 @@ function ensureMinimumCrediblePortfolio(
       whyNowBullets:
         familyKey === "maintenance"
           ? [
-              "Open schedule capacity can be turned into booked work quickly",
-              "This is a practical fill-the-calendar action",
-              "A schedule-fill move is often one of the fastest ways to create near-term revenue",
+              "Open schedule capacity can be turned into booked work quickly.",
+              "This is a practical fill-the-calendar action.",
+              "A schedule-fill move is often one of the fastest ways to create near-term revenue.",
             ]
           : familyKey === "ai-search-visibility"
             ? [
-                "Your site still shows answer-readiness gaps",
-                "Improving FAQ and service-page coverage can support future discovery",
-                "AEO work compounds over time and strengthens organic lead capture",
+                "Your site still shows answer-readiness gaps.",
+                "Improving FAQ and service-page coverage can support future discovery.",
+                "AEO work compounds over time and strengthens organic lead capture.",
               ]
-            : [
-                `${prettyServiceName(blueprint.serviceName)} remains a practical revenue lane for a local service business`,
-                "This is a believable near-term action, not a speculative specialty play",
-                "MarketForge includes it so your opportunity set stays commercially complete",
-              ],
+            : familyKey === "water-heater"
+              ? [
+                  "Water heater jobs remain one of the stronger-ticket service lanes for many plumbing businesses.",
+                  "Replacement and install intent can turn into meaningful booked revenue quickly.",
+                  "MarketForge keeps this lane visible because it is commercially credible.",
+                ]
+              : [
+                  `${prettyServiceName(blueprint.serviceName)} remains a practical revenue lane for a local service business.`,
+                  "This is a believable near-term action, not a speculative specialty play.",
+                  "MarketForge includes it so your opportunity set stays commercially complete.",
+                ],
       whyThisMatters:
         familyKey === "ai-search-visibility"
           ? "Improving AI search visibility can strengthen organic discovery and future demand capture."
           : `${prettyServiceName(blueprint.serviceName)} is included as a credible baseline opportunity so the workspace always reflects realistic next-best actions.`,
-      seasonalityRelevance: familyKey === "drain-cleaning" ? "MEDIUM" : "LOW",
+      seasonalityRelevance: familyKey === "drain-cleaning" || familyKey === "sump-pump" ? "MEDIUM" : "LOW",
       seasonalityReason:
         familyKey === "drain-cleaning"
           ? "Drain-related demand can strengthen during certain periods but remains commercially relevant year-round."
-          : "This opportunity does not depend on a strong seasonal spike to be commercially valid.",
+          : familyKey === "sump-pump"
+            ? "Sump pump demand can strengthen around weather-driven water concerns."
+            : "This opportunity does not depend on a strong seasonal spike to be commercially valid.",
       urgencyRelevance:
-        familyKey === "emergency-plumbing" ? "HIGH" : familyKey === "maintenance" ? "MEDIUM" : "MEDIUM",
+        familyKey === "emergency-plumbing"
+          ? "HIGH"
+          : familyKey === "maintenance"
+            ? "MEDIUM"
+            : "MEDIUM",
       urgencyReason:
         familyKey === "emergency-plumbing"
           ? "Emergency needs create fast-response demand when customers need help immediately."
@@ -1123,6 +1684,7 @@ function buildDiversifiedPortfolio(
 
   return selected;
 }
+
 function getPerformanceSignal(
   performanceSignals: CampaignPerformanceSignalMap | undefined,
   campaignType: CampaignType
@@ -1190,22 +1752,50 @@ function buildCompetitorSignal(
 
   return signals.slice(0, 3);
 }
+
+function getFamilyRangeProfile(familyKey: string) {
+  switch (familyKey) {
+    case "drain-cleaning":
+      return { minHigh: 2, maxHigh: 5, conversionFloor: 0.95 };
+    case "emergency-plumbing":
+      return { minHigh: 1, maxHigh: 4, conversionFloor: 0.92 };
+    case "water-heater":
+      return { minHigh: 1, maxHigh: 3, conversionFloor: 0.9 };
+    case "maintenance":
+      return { minHigh: 3, maxHigh: 6, conversionFloor: 0.88 };
+    case "ai-search-visibility":
+      return { minHigh: 1, maxHigh: 2, conversionFloor: 0.8 };
+    case "sump-pump":
+      return { minHigh: 1, maxHigh: 3, conversionFloor: 0.9 };
+    case "leak-repair":
+    case "toilet-repair":
+      return { minHigh: 2, maxHigh: 4, conversionFloor: 0.9 };
+    default:
+      return { minHigh: 1, maxHigh: 4, conversionFloor: 0.88 };
+  }
+}
+
 function buildRankedOpportunity(params: {
   candidate: OpportunityCandidate;
-  avgJobValue: number;
+  profile: BusinessProfile;
+  defaultAvgJobValue: number;
   availableJobsEstimate: number;
   baseConfidenceScore: number;
   capacityFit: CapacityFit;
   performanceSignal: CampaignPerformanceSignal | null;
 }): RankedOpportunity {
   const {
-    candidate,
-    avgJobValue,
-    availableJobsEstimate,
-    baseConfidenceScore,
-    capacityFit,
-    performanceSignal,
-  } = params;
+  candidate,
+  profile,
+  defaultAvgJobValue,
+  availableJobsEstimate,
+  baseConfidenceScore,
+  capacityFit,
+  performanceSignal,
+} = params;
+
+const avgJobValue =
+  getServiceLevelJobValue({ profile, candidate }) ?? defaultAvgJobValue;
 
   const adjustedConfidenceScore = clamp(
     baseConfidenceScore + (performanceSignal?.confidenceBoost ?? 0),
@@ -1215,27 +1805,34 @@ function buildRankedOpportunity(params: {
 
   const adjustedConfidenceLabel = confidenceLabelFromScore(adjustedConfidenceScore);
 
+  const rangeProfile = getFamilyRangeProfile(candidate.familyKey);
+
+  let scoreDrivenHigh = 2;
+  if (candidate.rawOpportunityScore >= 82) scoreDrivenHigh = rangeProfile.maxHigh;
+  else if (candidate.rawOpportunityScore >= 74)
+    scoreDrivenHigh = Math.max(rangeProfile.minHigh + 1, rangeProfile.minHigh);
+  else if (candidate.rawOpportunityScore >= 66)
+    scoreDrivenHigh = rangeProfile.minHigh;
+  else scoreDrivenHigh = Math.max(1, rangeProfile.minHigh - 1);
+
+  const jobsHigh = clamp(
+    Math.min(Math.max(availableJobsEstimate, 1), scoreDrivenHigh),
+    1,
+    rangeProfile.maxHigh
+  );
+
+  const jobsLow = clamp(
+    Math.max(1, jobsHigh - (candidate.familyKey === "maintenance" ? 2 : 1)),
+    1,
+    jobsHigh
+  );
+
   const confidenceAdjustment =
     adjustedConfidenceLabel === "High"
       ? 1
       : adjustedConfidenceLabel === "Medium"
-        ? 0.9
-        : 0.78;
-
-  const baseRangeCap =
-    candidate.rawOpportunityScore >= 80
-      ? 5
-      : candidate.rawOpportunityScore >= 68
-        ? 4
-        : 3;
-
-  const jobsHigh = clamp(
-    Math.min(Math.max(availableJobsEstimate, 1), baseRangeCap),
-    1,
-    6
-  );
-
-  const jobsLow = clamp(Math.max(1, jobsHigh - 1), 1, jobsHigh);
+        ? rangeProfile.conversionFloor
+        : Math.max(0.76, rangeProfile.conversionFloor - 0.1);
 
   const revenueLow = Math.round(jobsLow * avgJobValue * confidenceAdjustment);
   const revenueHigh = Math.round(jobsHigh * avgJobValue * confidenceAdjustment);
@@ -1246,10 +1843,16 @@ function buildRankedOpportunity(params: {
       opportunityType: candidate.opportunityType,
       bestMove: candidate.bestMove,
     }),
+    familyKey: candidate.familyKey,
     title: candidate.title,
     serviceName: prettyServiceName(candidate.serviceName),
     opportunityType: candidate.opportunityType,
     bestMove: candidate.bestMove,
+    displayMoveLabel: candidate.displayMoveLabel,
+    displaySummary: candidate.displaySummary,
+    imageKey: candidate.imageKey,
+    imageMode: candidate.imageMode,
+    actionThesis: candidate.actionThesis,
     recommendedCampaignType: candidate.recommendedCampaignType,
     jobsLow,
     jobsHigh,
@@ -1290,13 +1893,20 @@ export function buildRevenueOpportunityHero(params: {
     title: "Jobs You Can Capture This Week",
     opportunityTitle: opportunity.title,
     opportunityType: opportunity.opportunityType,
+    familyKey: opportunity.familyKey,
     jobsLow: opportunity.jobsLow,
     jobsHigh: opportunity.jobsHigh,
     revenueLow: opportunity.revenueLow,
     revenueHigh: opportunity.revenueHigh,
+    rawOpportunityScore: opportunity.rawOpportunityScore,
     headlineJobsText: `${opportunity.jobsLow}–${opportunity.jobsHigh} jobs`,
     headlineRevenueText: `$${opportunity.revenueLow.toLocaleString()}–$${opportunity.revenueHigh.toLocaleString()}`,
     bestMove: opportunity.bestMove,
+    displayMoveLabel: opportunity.displayMoveLabel,
+    displaySummary: opportunity.displaySummary,
+    imageKey: opportunity.imageKey,
+    imageMode: opportunity.imageMode,
+    actionThesis: opportunity.actionThesis,
     recommendedCampaignType: opportunity.recommendedCampaignType,
     whyNowBullets: opportunity.whyNowBullets,
     whyThisMatters: opportunity.whyThisMatters,
@@ -1377,27 +1987,31 @@ export async function buildRevenueOpportunityEngine(params: {
     enrichmentMap,
   });
 
-  const credibleCandidates = ensureMinimumCrediblePortfolio(generatedCandidates);
+  const credibleCandidates = ensureMinimumCrediblePortfolio(
+    generatedCandidates,
+    profile
+  );
   const collapsedCandidates = collapseDuplicateCandidates(credibleCandidates);
   const portfolio = buildDiversifiedPortfolio(collapsedCandidates, 6);
 
-  const avgJobValue = Number(profile.averageJobValue ?? 450);
+  const defaultAvgJobValue = Number(profile.averageJobValue ?? 450);
 
-  const rankedOpportunities = portfolio
-    .sort((a, b) => b.rawOpportunityScore - a.rawOpportunityScore)
-    .map((candidate) =>
-      buildRankedOpportunity({
-        candidate,
-        avgJobValue,
-        availableJobsEstimate,
-        baseConfidenceScore,
-        capacityFit,
-        performanceSignal: getPerformanceSignal(
-          performanceSignals,
-          candidate.recommendedCampaignType
-        ),
-      })
-    );
+const rankedOpportunities = portfolio
+  .sort((a, b) => b.rawOpportunityScore - a.rawOpportunityScore)
+  .map((candidate) =>
+    buildRankedOpportunity({
+      candidate,
+      profile,
+      defaultAvgJobValue,
+      availableJobsEstimate,
+      baseConfidenceScore,
+      capacityFit,
+      performanceSignal: getPerformanceSignal(
+        performanceSignals,
+        candidate.recommendedCampaignType
+      ),
+    })
+  );
 
   const top = rankedOpportunities[0];
 

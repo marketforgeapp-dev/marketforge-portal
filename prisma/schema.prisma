@@ -102,6 +102,7 @@ model BusinessProfile {
   averageJobValue       Decimal? @db.Decimal(10, 2)
   highestMarginService  String?
   lowestPriorityService String?
+  servicePricingJson    Json?
 
   technicians             Int?
   jobsPerTechnicianPerDay Int?

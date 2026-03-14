@@ -16,8 +16,8 @@ export function LeadsTable({ leads }: Props) {
       <div className="mf-card rounded-3xl p-5">
         <p className="text-lg font-semibold text-gray-900">No leads yet</p>
         <p className="mt-2 text-sm text-gray-600">
-          Once MarketForge actions begin generating responses, leads will appear
-          here.
+          Use the Add Phone Lead workflow above to log incoming calls, website
+          forms, and manually captured opportunities.
         </p>
       </div>
     );
@@ -42,10 +42,10 @@ export function LeadsTable({ leads }: Props) {
                 Contact
               </th>
               <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
-                Action Source
+                Source
               </th>
               <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
-                Opportunity
+                Linked Action
               </th>
               <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                 Status
@@ -75,11 +75,11 @@ export function LeadsTable({ leads }: Props) {
                 </td>
 
                 <td className="px-5 py-4 text-sm text-gray-700">
-                  {lead.campaign?.name ?? lead.source ?? "—"}
+                  {lead.source ?? "—"}
                 </td>
 
                 <td className="px-5 py-4 text-sm text-gray-700">
-                  {lead.revenueOpportunity?.title ?? "—"}
+                  {lead.campaign?.name ?? "—"}
                 </td>
 
                 <td className="px-5 py-4">

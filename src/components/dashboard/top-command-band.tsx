@@ -1,5 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { RevenueOpportunityHero } from "@/lib/revenue-opportunity-engine";
+import { getActionImage } from "@/lib/action-imagery";
+import { ActionLaunchButton } from "@/components/campaigns/action-launch-button";
 
 type HeroCampaignData = {
   id: string;
@@ -20,6 +23,7 @@ type HeroCampaignData = {
 type Props = {
   hero: RevenueOpportunityHero;
   heroCampaign: HeroCampaignData;
+  logoUrl?: string | null;
 };
 
 type CampaignBriefData = {
@@ -29,40 +33,20 @@ type CampaignBriefData = {
     audience?: string;
     cta?: string;
   };
+  actionThesis?: {
+    title?: string;
+    summary?: string;
+    audience?: string;
+    offerHint?: string;
+    ctaHint?: string;
+    imageKey?: string;
+    imageMode?: "SERVICE_IMAGE" | "LOGO";
+  };
 };
 
 function getBriefData(raw: unknown): CampaignBriefData | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   return raw as CampaignBriefData;
-}
-
-function getPreviewAsset(
-  assets: { assetType: string; title: string | null; content: string }[]
-) {
-  const preferredOrder = [
-    "GOOGLE_BUSINESS",
-    "META",
-    "GOOGLE_ADS",
-    "YELP",
-    "EMAIL",
-    "BLOG",
-    "FAQ",
-  ];
-
-  for (const type of preferredOrder) {
-    const found = assets.find((asset) => asset.assetType === type);
-    if (found) return found;
-  }
-
-  return assets[0] ?? null;
-}
-
-function extractPreviewLines(content: string) {
-  return content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 3);
 }
 
 function formatCurrencyRange(low: number, high: number) {
@@ -76,88 +60,48 @@ function formatActionFraming(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function getActionStatusMeta(heroCampaign: HeroCampaignData) {
-  if (!heroCampaign) {
-    return {
-      badge: "Not Generated",
-      summary: "Generate this action to create the execution package.",
-      ctaLabel: "Generate Action",
-      href: "/campaigns",
-    };
-  }
+function getStatusLabel(heroCampaign: HeroCampaignData) {
+  if (!heroCampaign) return "Not Generated";
 
   switch (heroCampaign.status) {
     case "DRAFT":
-      return {
-        badge: "Draft Ready",
-        summary: "Assets are prepared and ready for review.",
-        ctaLabel: "Review Action",
-        href: `/campaigns/${heroCampaign.id}`,
-      };
+      return "Draft Ready";
     case "APPROVED":
-      return {
-        badge: "Approved",
-        summary: "Approved and ready for execution.",
-        ctaLabel: "Open Action",
-        href: `/campaigns/${heroCampaign.id}`,
-      };
+      return "Approved";
     case "SCHEDULED":
-      return {
-        badge: "Queued",
-        summary: "Queued for launch.",
-        ctaLabel: "Open Execution",
-        href: `/campaigns/${heroCampaign.id}`,
-      };
+      return "Queued";
     case "LAUNCHED":
-      return {
-        badge: "Launched",
-        summary: "Live and being tracked.",
-        ctaLabel: "Open Execution",
-        href: `/campaigns/${heroCampaign.id}`,
-      };
+      return "Launched";
     case "COMPLETED":
-      return {
-        badge: "Completed",
-        summary: "Execution completed.",
-        ctaLabel: "View Details",
-        href: `/campaigns/${heroCampaign.id}`,
-      };
+      return "Completed";
     default:
-      return {
-        badge: heroCampaign.status,
-        summary: "Execution materials are attached.",
-        ctaLabel: "Open Action",
-        href: `/campaigns/${heroCampaign.id}`,
-      };
+      return heroCampaign.status;
   }
 }
 
-export function TopCommandBand({ hero, heroCampaign }: Props) {
+export function TopCommandBand({ hero, heroCampaign, logoUrl }: Props) {
   const brief = getBriefData(heroCampaign?.briefJson);
-  const previewAsset = heroCampaign ? getPreviewAsset(heroCampaign.assets) : null;
-  const statusMeta = getActionStatusMeta(heroCampaign);
-
-  const preparedAssets = heroCampaign?.assets ?? [];
-
-  const previewLines = previewAsset
-    ? extractPreviewLines(previewAsset.content)
-    : [
-        "Top-priority action identified",
-        "Execution package ready to generate",
-        "Prepared work will move into launch",
-      ];
 
   const offerText =
     heroCampaign?.offer ??
     brief?.campaignDraft?.offer ??
+    brief?.actionThesis?.offerHint ??
     "Offer will populate when the action package is generated.";
 
   const audienceText =
     heroCampaign?.audience ??
     brief?.campaignDraft?.audience ??
+    brief?.actionThesis?.audience ??
     "Audience guidance will populate when the action package is generated.";
 
-  const ctaText = brief?.campaignDraft?.cta ?? "Book now";
+  const ctaText =
+    brief?.campaignDraft?.cta ?? brief?.actionThesis?.ctaHint ?? "Book now";
+
+  const image = getActionImage({
+    imageKey: brief?.actionThesis?.imageKey ?? hero.imageKey,
+    imageMode: brief?.actionThesis?.imageMode ?? hero.imageMode,
+    logoUrl,
+  });
 
   return (
     <section className="mf-card mf-card-highlight rounded-3xl p-4 md:p-5">
@@ -169,21 +113,21 @@ export function TopCommandBand({ hero, heroCampaign }: Props) {
             </p>
 
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-              {hero.confidenceScore}% {hero.confidenceLabel}
+            MarketForge Action Score {hero.rawOpportunityScore}
             </span>
 
             <span className="rounded-full bg-white/70 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
-              {statusMeta.badge}
+              {getStatusLabel(heroCampaign)}
             </span>
           </div>
 
           <div>
             <p className="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
-              {hero.opportunityTitle}
+              {hero.displayMoveLabel}
             </p>
 
-            <p className="mt-1.5 text-base font-semibold text-gray-800 md:text-lg">
-              {hero.bestMove}
+            <p className="mt-1.5 text-base text-gray-700 md:text-lg">
+              {hero.displaySummary}
             </p>
 
             <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -242,50 +186,20 @@ export function TopCommandBand({ hero, heroCampaign }: Props) {
 
             <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                Open Capacity
+                Action Type
               </p>
               <p className="mt-1 text-sm font-semibold text-gray-900">
-                ~{hero.availableJobsEstimate}/week
+                {formatActionFraming(hero.actionFraming)}
               </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                  Action Type
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {formatActionFraming(hero.actionFraming)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                  Signals
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {hero.sourceTags.join(" • ")}
-                </p>
-              </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              href={statusMeta.href}
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              {statusMeta.ctaLabel}
-            </Link>
-
-            <Link
-              href="/execution"
-              className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Open Execution
-            </Link>
+            <ActionLaunchButton
+              opportunityKey={hero.opportunityKey}
+              linkedCampaignId={heroCampaign?.id}
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            />
           </div>
         </div>
 
@@ -297,39 +211,32 @@ export function TopCommandBand({ hero, heroCampaign }: Props) {
               </p>
 
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
-                {preparedAssets.length} assets
+                {heroCampaign?.assets.length ?? 0} assets
               </span>
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-sm">
-              <div className="relative aspect-[4/3] p-4 text-white">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.24),transparent_40%)]" />
-
-                <div className="relative flex h-full flex-col justify-between">
-                  <div>
-                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
-                      Launch-Ready
+            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="relative aspect-[4/3]">
+  {image.src.startsWith("http") ? (
+    <img src={image.src} alt={image.alt} className="h-full w-full object-cover" />
+  ) : (
+    <Image src={image.src} alt={image.alt} fill className="object-cover" />
+  )}
+  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+  <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                  <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
+                    Launch-Ready
+                  </span>
+                  <p className="mt-3 max-w-[16rem] text-lg font-semibold leading-tight">
+                    {hero.displayMoveLabel}
+                  </p>
+                  <p className="mt-2 max-w-[17rem] text-sm leading-5 text-white/90">
+                    {brief?.actionThesis?.summary ?? hero.displaySummary}
+                  </p>
+                  <div className="pt-3">
+                    <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
+                      {heroCampaign ? ctaText : "Ready to Generate"}
                     </span>
-                    <p className="mt-3 max-w-[16rem] text-lg font-semibold leading-tight">
-                      {heroCampaign?.name ?? hero.bestMove}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {previewLines.map((line) => (
-                      <p
-                        key={line}
-                        className="max-w-[17rem] text-sm leading-5 text-white/85"
-                      >
-                        {line}
-                      </p>
-                    ))}
-
-                    <div className="pt-1">
-                      <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
-                        {heroCampaign ? ctaText : "Ready to Generate"}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -354,15 +261,6 @@ export function TopCommandBand({ hero, heroCampaign }: Props) {
                 </p>
               </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3.5 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-              Action Readiness
-            </p>
-            <p className="mt-1.5 text-sm leading-5 text-gray-700">
-              {statusMeta.summary}
-            </p>
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3.5 shadow-sm">

@@ -40,7 +40,7 @@ export function CampaignStatusActions({ campaignId, status }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const canApprove = status === "READY";
+  const canApprove = status === "DRAFT" || status === "READY";
   const canQueue = status === "APPROVED";
   const canLaunch = status === "SCHEDULED";
   const canComplete = status === "LAUNCHED";
@@ -146,59 +146,6 @@ export function CampaignStatusActions({ campaignId, status }: Props) {
             {isPending ? "Updating..." : "Send Back to Review"}
           </button>
         )}
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-          Managed Execution Flow
-        </p>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-5">
-          <div className="rounded-xl bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-              Draft Ready
-            </p>
-            <p className="mt-1 text-sm leading-5 text-gray-700">
-              Review and edit the action package.
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-              Approved
-            </p>
-            <p className="mt-1 text-sm leading-5 text-gray-700">
-              Confirmed and ready to move into queue.
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-              Queued
-            </p>
-            <p className="mt-1 text-sm leading-5 text-gray-700">
-              Prepared for launch through execution.
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-              Launched
-            </p>
-            <p className="mt-1 text-sm leading-5 text-gray-700">
-              Live and now being tracked for results.
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-              Completed
-            </p>
-            <p className="mt-1 text-sm leading-5 text-gray-700">
-              Execution closed and performance retained.
-            </p>
-          </div>
-        </div>
       </div>
     </section>
   );

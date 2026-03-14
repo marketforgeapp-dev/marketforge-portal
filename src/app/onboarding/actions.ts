@@ -5,6 +5,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
 import { onboardingSchema } from "@/lib/onboarding-schema";
+import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 
 function toNullableString(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -277,18 +278,20 @@ export async function saveOnboarding(input: unknown) {
     }));
 
   if (competitors.length > 0) {
-    await prisma.competitor.createMany({
-      data: competitors,
-    });
-  }
+  await prisma.competitor.createMany({
+    data: competitors,
+  });
+}
 
-  revalidatePath("/onboarding");
-  revalidatePath("/dashboard");
-  revalidatePath("/competitors");
-  revalidatePath("/campaigns");
-  revalidatePath("/execution");
-  revalidatePath("/settings");
-  revalidatePath("/reports");
+await invalidateWorkspaceOpportunitySnapshot(workspace.id);
+
+revalidatePath("/onboarding");
+revalidatePath("/dashboard");
+revalidatePath("/competitors");
+revalidatePath("/campaigns");
+revalidatePath("/execution");
+revalidatePath("/settings");
+revalidatePath("/reports");
 
   return {
     success: true,

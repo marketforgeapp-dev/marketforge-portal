@@ -44,7 +44,10 @@ export default async function OpportunitiesPage() {
             </p>
           </section>
 
-          <OpportunitiesGrid opportunities={snapshot.backlogOpportunities} />
+          <OpportunitiesGrid
+            opportunities={snapshot.backlogOpportunities}
+            logoUrl={profile.logoUrl}
+          />
         </main>
       </div>
     </div>

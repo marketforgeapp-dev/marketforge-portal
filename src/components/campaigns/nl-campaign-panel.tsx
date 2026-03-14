@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createCampaignFromPrompt } from "@/app/campaigns/actions";
 
 const SUGGESTIONS = [
-  "What is the best next action for this plumbing business right now?",
+  "What is the best next action for my business right now?",
   "Slow week, help fill the schedule",
   "Should we focus on AEO / FAQ improvements first?",
   "Promote drain cleaning this week",

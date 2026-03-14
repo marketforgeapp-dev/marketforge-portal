@@ -206,8 +206,9 @@ Return best-effort onboarding suggestions for MarketForge.
       website;
 
     const fallbackLogo =
-      websiteContext?.logoCandidates[0] ??
-      faviconFromWebsite(normalizedWebsite);
+      websiteContext?.logoCandidates?.[0] ??
+      faviconFromWebsite(normalizedWebsite) ??
+    null;
 
     const mergedServicePageUrls = uniqueStrings([
       ...(parsed.servicePageUrls ?? []),
@@ -262,6 +263,8 @@ Return best-effort onboarding suggestions for MarketForge.
       website: normalizedWebsite,
       logoUrl: cleanString(parsed.logoUrl) ?? fallbackLogo ?? null,
       phone: cleanString(parsed.phone) ?? websiteContext?.phone ?? null,
+      googleBusinessProfileUrl:
+      cleanString(parsed.googleBusinessProfileUrl) ?? null,
       city: cleanString(parsed.city) ?? websiteContext?.city ?? null,
       state: cleanString(parsed.state) ?? websiteContext?.state ?? null,
       serviceArea: cleanString(parsed.serviceArea),

@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CampaignStatus } from "@/generated/prisma";
 import { saveCampaignBriefEdits } from "@/app/campaigns/[campaignId]/actions";
+import { getActionImage } from "@/lib/action-imagery";
 
 type CampaignBriefData = {
   userPrompt?: string;
@@ -22,6 +24,16 @@ type CampaignBriefData = {
     whyNowBullets?: string[];
     whyThisMatters?: string;
     rationale?: string;
+  };
+  actionThesis?: {
+    title?: string;
+    summary?: string;
+    audience?: string;
+    offerHint?: string;
+    ctaHint?: string;
+    imageKey?: string;
+    imageMode?: "SERVICE_IMAGE" | "LOGO";
+    whyThisActionBullets?: string[];
   };
   campaignDraft?: {
     description?: string;
@@ -43,6 +55,7 @@ type Props = {
   offer: string | null;
   audience: string | null;
   briefJson: unknown;
+  logoUrl?: string | null;
 };
 
 function parseBriefJson(value: unknown): CampaignBriefData | null {
@@ -51,18 +64,6 @@ function parseBriefJson(value: unknown): CampaignBriefData | null {
   }
 
   return value as CampaignBriefData;
-}
-
-function buildCreativePreviewLines(params: {
-  description: string;
-  offer: string;
-  cta: string;
-}) {
-  const lines = [params.description, params.offer, params.cta]
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  return lines.slice(0, 3);
 }
 
 function formatIntent(value?: string) {
@@ -77,11 +78,13 @@ export function CampaignBriefPanel({
   offer,
   audience,
   briefJson,
+  logoUrl,
 }: Props) {
   const parsed = parseBriefJson(briefJson);
 
   const parsedIntent = parsed?.parsedIntent;
   const opportunityCheck = parsed?.opportunityCheck;
+  const actionThesis = parsed?.actionThesis;
   const campaignDraft = parsed?.campaignDraft;
   const creativeGuidance = parsed?.creativeGuidance;
 
@@ -109,9 +112,11 @@ export function CampaignBriefPanel({
     campaignDraft?.audience ?? audience ?? ""
   );
   const [draftDescription, setDraftDescription] = useState(
-    campaignDraft?.description ?? ""
+    campaignDraft?.description ?? actionThesis?.summary ?? ""
   );
-  const [draftCta, setDraftCta] = useState(campaignDraft?.cta ?? "");
+  const [draftCta, setDraftCta] = useState(
+    campaignDraft?.cta ?? actionThesis?.ctaHint ?? ""
+  );
   const [draftRecommendedImage, setDraftRecommendedImage] = useState(
     creativeGuidance?.recommendedImage ?? ""
   );
@@ -119,12 +124,16 @@ export function CampaignBriefPanel({
     creativeGuidance?.avoidImagery ?? ""
   );
 
-  const creativePreviewLines = buildCreativePreviewLines({
-    description: isEditing ? draftDescription : campaignDraft?.description ?? "",
-    offer: isEditing ? draftOffer : campaignDraft?.offer ?? offer ?? "",
-    cta: isEditing ? draftCta : campaignDraft?.cta ?? "",
-  });
+  const image = getActionImage({
+  imageKey: actionThesis?.imageKey,
+  imageMode: actionThesis?.imageMode,
+  logoUrl,
+});
 
+  const whyBullets =
+    actionThesis?.whyThisActionBullets?.length
+      ? actionThesis.whyThisActionBullets
+      : opportunityCheck?.whyNowBullets ?? [];
   return (
     <section className="mf-card rounded-3xl p-5">
       <div className="flex items-center justify-between gap-4">
@@ -292,15 +301,15 @@ export function CampaignBriefPanel({
             </p>
 
             <p className="mt-2 text-sm font-semibold text-gray-900">
-              {opportunityCheck?.matchedOpportunityTitle ??
-                opportunityCheck?.matchedRecommendationTitle ??
+              {opportunityCheck?.matchedRecommendationTitle ??
+                actionThesis?.title ??
                 "No strong opportunity match"}
             </p>
 
             <p className="mt-2 text-sm leading-5 text-gray-600">
-              Based on your request to promote{" "}
-              {parsedIntent?.serviceCategory ?? "a service"}{" "}
-              {parsedIntent?.timeframe ?? ""}.
+              {opportunityCheck?.matchedOpportunityTitle
+                ? `Built from ${opportunityCheck.matchedOpportunityTitle}.`
+                : "Built directly from your request."}
             </p>
           </div>
 
@@ -310,13 +319,12 @@ export function CampaignBriefPanel({
             </p>
 
             <p className="mt-2 text-sm font-semibold text-gray-900">
-              {confidenceLabel}
-              {confidence ? ` (${confidence}%)` : ""}
+              MarketForge Action Score
+              {typeof confidence === "number" ? ` ${Math.round(confidence)}` : " —"}
             </p>
 
             <p className="mt-2 text-sm leading-5 text-gray-600">
-              Signals were evaluated across demand, competitor activity, service
-              prioritization, and available capacity.
+              This score reflects how strongly MarketForge believes this action fits the current demand, competitive context, and execution opportunity.
             </p>
           </div>
 
@@ -351,41 +359,37 @@ export function CampaignBriefPanel({
               Visual Preview
             </p>
 
-            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-sm">
-              <div className="relative aspect-[4/3] p-4 text-white">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.24),transparent_40%)]" />
-
-                <div className="relative flex h-full flex-col justify-between">
-                  <div>
-                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
-                      Action Preview
+            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="relative aspect-[4/3]">
+  {image.src.startsWith("http") ? (
+    <img src={image.src} alt={image.alt} className="h-full w-full object-cover" />
+  ) : (
+    <Image
+      src={image.src}
+      alt={image.alt}
+      fill
+      className="object-cover"
+    />
+  )}
+  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
+  <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                  <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
+                    Action Preview
+                  </span>
+                  <p className="mt-3 max-w-[18rem] text-xl font-semibold leading-tight">
+                    {actionThesis?.title ?? campaignName}
+                  </p>
+                  <p className="mt-2 max-w-[18rem] text-sm leading-5 text-white/90">
+                    {actionThesis?.summary ??
+                      campaignDraft?.description ??
+                      "Action messaging will appear here once the brief is fully defined."}
+                  </p>
+                  <div className="pt-3">
+                    <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
+                      {(isEditing ? draftCta : campaignDraft?.cta) ||
+                        actionThesis?.ctaHint ||
+                        "Book now"}
                     </span>
-                    <p className="mt-3 max-w-[16rem] text-xl font-semibold leading-tight">
-                      {campaignName}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {creativePreviewLines.length > 0 ? (
-                      creativePreviewLines.map((line) => (
-                        <p
-                          key={line}
-                          className="max-w-[17rem] text-sm leading-5 text-white/85"
-                        >
-                          {line}
-                        </p>
-                      ))
-                    ) : (
-                      <p className="max-w-[17rem] text-sm leading-5 text-white/85">
-                        Action messaging will appear here once the brief is fully defined.
-                      </p>
-                    )}
-
-                    <div className="pt-2">
-                      <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
-                        {(isEditing ? draftCta : campaignDraft?.cta) || "Book now"}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -400,9 +404,7 @@ export function CampaignBriefPanel({
                 : creativeGuidance?.recommendedImage) || "—"}
             </p>
 
-            <p className="mt-3 text-sm font-semibold text-gray-900">
-              Avoid
-            </p>
+            <p className="mt-3 text-sm font-semibold text-gray-900">Avoid</p>
             <p className="mt-1 text-sm leading-6 text-gray-700">
               {(isEditing ? draftAvoidImagery : creativeGuidance?.avoidImagery) || "—"}
             </p>
@@ -414,10 +416,30 @@ export function CampaignBriefPanel({
             </p>
 
             <div className="mt-2 space-y-2 text-sm text-gray-900">
-              <p>Description: {(isEditing ? draftDescription : campaignDraft?.description) || "—"}</p>
-              <p>Offer: {(isEditing ? draftOffer : campaignDraft?.offer) || "—"}</p>
-              <p>Audience: {(isEditing ? draftAudience : campaignDraft?.audience) || "—"}</p>
-              <p>CTA: {(isEditing ? draftCta : campaignDraft?.cta) || "—"}</p>
+              <p>
+                Description:{" "}
+                {(isEditing ? draftDescription : campaignDraft?.description) ||
+                  actionThesis?.summary ||
+                  "—"}
+              </p>
+              <p>
+                Offer:{" "}
+                {(isEditing ? draftOffer : campaignDraft?.offer) ||
+                  actionThesis?.offerHint ||
+                  "—"}
+              </p>
+              <p>
+                Audience:{" "}
+                {(isEditing ? draftAudience : campaignDraft?.audience) ||
+                  actionThesis?.audience ||
+                  "—"}
+              </p>
+              <p>
+                CTA:{" "}
+                {(isEditing ? draftCta : campaignDraft?.cta) ||
+                  actionThesis?.ctaHint ||
+                  "—"}
+              </p>
             </div>
           </div>
 
@@ -427,11 +449,8 @@ export function CampaignBriefPanel({
             </p>
 
             <ul className="mt-2 space-y-2 text-sm text-gray-900">
-              {Array.isArray(opportunityCheck?.whyNowBullets) &&
-              opportunityCheck.whyNowBullets.length > 0 ? (
-                opportunityCheck.whyNowBullets.map((bullet) => (
-                  <li key={bullet}>• {bullet}</li>
-                ))
+              {whyBullets.length > 0 ? (
+                whyBullets.map((bullet) => <li key={bullet}>• {bullet}</li>)
               ) : (
                 <li>• No explanation stored</li>
               )}

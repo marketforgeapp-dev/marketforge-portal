@@ -165,7 +165,11 @@ export function DashboardShell({
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
             <div className="min-w-0">
-              <TopCommandBand hero={hero} heroCampaign={heroCampaign} />
+              <TopCommandBand
+                hero={hero}
+                heroCampaign={heroCampaign}
+                logoUrl={workspaceLogoUrl}
+              />
             </div>
 
             <aside className="space-y-5">

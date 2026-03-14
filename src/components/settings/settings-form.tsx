@@ -11,12 +11,19 @@ type Props = {
   primaryEmail: string | null;
 };
 
+type ServicePricingRow = {
+  serviceName: string;
+  averageRevenue: number | "";
+};
+
 function Field({
   label,
   children,
+  helpText,
 }: {
   label: string;
   children: React.ReactNode;
+  helpText?: string;
 }) {
   return (
     <label className="block">
@@ -24,6 +31,9 @@ function Field({
         {label}
       </span>
       {children}
+      {helpText ? (
+        <p className="mt-2 text-xs leading-5 text-gray-500">{helpText}</p>
+      ) : null}
     </label>
   );
 }
@@ -39,13 +49,76 @@ function arrayToCommaSeparated(value: string[]): string {
   return value.join(", ");
 }
 
+function formatPhone(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function normalizeServicePricingRows(
+  preferredServices: string[],
+  existingRows: ServicePricingRow[] | undefined
+): ServicePricingRow[] {
+  const rows: ServicePricingRow[] = Array.isArray(existingRows) ? existingRows : [];
+
+  const byService = new Map(
+    rows
+      .filter((row) => row?.serviceName?.trim())
+      .map((row) => [
+        row.serviceName.trim().toLowerCase(),
+        {
+          serviceName: row.serviceName.trim(),
+          averageRevenue: row.averageRevenue,
+        } as ServicePricingRow,
+      ])
+  );
+
+  const normalizedPreferred = preferredServices
+    .map((service) => service.trim())
+    .filter(Boolean);
+
+  const merged: ServicePricingRow[] = normalizedPreferred.map((service) => {
+    const existing = byService.get(service.toLowerCase());
+    return (
+      existing ?? {
+        serviceName: service,
+        averageRevenue: "" as const,
+      }
+    );
+  });
+
+  const extras: ServicePricingRow[] = rows.filter(
+    (row) =>
+      row?.serviceName?.trim() &&
+      !normalizedPreferred.some(
+        (service) =>
+          service.trim().toLowerCase() === row.serviceName.trim().toLowerCase()
+      )
+  );
+
+  return [...merged, ...extras];
+}
+
 export function SettingsForm({
   workspaceName,
   isDemo,
   initialData,
   primaryEmail,
 }: Props) {
-  const [formData, setFormData] = useState<OnboardingFormData>(initialData);
+  const [formData, setFormData] = useState<OnboardingFormData>(() => ({
+    ...initialData,
+    servicePricing: normalizeServicePricingRows(
+      initialData.preferredServices ?? [],
+      initialData.servicePricing ?? []
+    ),
+  }));
+
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -59,10 +132,21 @@ export function SettingsForm({
     key: K,
     value: OnboardingFormData[K]
   ) {
-    setFormData((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+      };
+
+      if (key === "preferredServices") {
+        next.servicePricing = normalizeServicePricingRows(
+          value as string[],
+          prev.servicePricing ?? []
+        );
+      }
+
+      return next;
+    });
   }
 
   function addCompetitor() {
@@ -116,13 +200,66 @@ export function SettingsForm({
     }));
   }
 
+  function updateServicePricing(
+    index: number,
+    field: keyof ServicePricingRow,
+    value: string | number | ""
+  ) {
+    setFormData((prev) => {
+      const currentRows = Array.isArray(prev.servicePricing)
+        ? [...prev.servicePricing]
+        : [];
+
+      currentRows[index] = {
+        ...currentRows[index],
+        [field]: value,
+      };
+
+      return {
+        ...prev,
+        servicePricing: currentRows,
+      };
+    });
+  }
+
+  function addServicePricingRow() {
+    setFormData((prev) => ({
+      ...prev,
+      servicePricing: [
+        ...(prev.servicePricing ?? []),
+        {
+          serviceName: "",
+          averageRevenue: "",
+        },
+      ],
+    }));
+  }
+
+  function removeServicePricingRow(index: number) {
+    setFormData((prev) => ({
+      ...prev,
+      servicePricing: (prev.servicePricing ?? []).filter((_, i) => i !== index),
+    }));
+  }
+
   function handleSave() {
     setSaveMessage(null);
     setSaveError(null);
 
     startTransition(async () => {
       try {
-        const result = await saveSettings(formData);
+        const result = await saveSettings({
+          ...formData,
+          servicePricing: (formData.servicePricing ?? [])
+            .map((row) => ({
+              serviceName: row.serviceName.trim(),
+              averageRevenue:
+                row.averageRevenue === ""
+                  ? null
+                  : Number(row.averageRevenue),
+            }))
+            .filter((row) => row.serviceName.length > 0),
+        });
 
         if (!result?.success) {
           setSaveError("Something went wrong while saving settings.");
@@ -204,23 +341,25 @@ export function SettingsForm({
           </div>
         </div>
       </section>
+
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-  <h2 className="text-xl font-bold text-gray-900">Account</h2>
+        <h2 className="text-xl font-bold text-gray-900">Account</h2>
 
-  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-    <Field label="Primary Email">
-      <input
-        disabled
-        className="w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700"
-        value={primaryEmail ?? ""}
-      />
-    </Field>
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label="Primary Email">
+            <input
+              disabled
+              className="w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700"
+              value={primaryEmail ?? ""}
+            />
+          </Field>
 
-    <div className="text-sm text-gray-600 flex items-end">
-      This email is used for login and notifications.
-    </div>
-  </div>
-</section>
+          <div className="flex items-end text-sm text-gray-600">
+            This email is used for login and notifications.
+          </div>
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Business Profile</h2>
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -260,7 +399,7 @@ export function SettingsForm({
             <input
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
               value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
+              onChange={(e) => updateField("phone", formatPhone(e.target.value))}
             />
           </Field>
 
@@ -325,7 +464,10 @@ export function SettingsForm({
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Capacity and Goals</h2>
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Average Job Value">
+          <Field
+            label="Average Job Value"
+            helpText="MarketForge uses this as the default value estimate until service-level pricing is available for a specific opportunity."
+          >
             <input
               type="number"
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
@@ -432,11 +574,85 @@ export function SettingsForm({
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Service Pricing</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Set average revenue by service so MarketForge can calculate more
+              credible opportunity value and avoid overstating revenue impact.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={addServicePricingRow}
+            className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 font-medium text-blue-700 hover:bg-blue-100"
+          >
+            Add Service Price
+          </button>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {(formData.servicePricing ?? []).length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+              No service-level pricing added yet. MarketForge will fall back to
+              your average job value until these are filled in.
+            </div>
+          ) : null}
+
+          {(formData.servicePricing ?? []).map((row, index) => (
+            <div
+              key={`${row.serviceName || "service"}-${index}`}
+              className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[minmax(0,1fr)_220px_auto]"
+            >
+              <Field label="Service Name">
+                <input
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+                  value={row.serviceName}
+                  onChange={(e) =>
+                    updateServicePricing(index, "serviceName", e.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Average Revenue">
+                <input
+                  type="number"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+                  value={row.averageRevenue}
+                  onChange={(e) =>
+                    updateServicePricing(
+                      index,
+                      "averageRevenue",
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
+                />
+              </Field>
+
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => removeServicePricingRow(index)}
+                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-100"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">
           Services and Seasonality
         </h2>
         <div className="mt-6 grid grid-cols-1 gap-4">
-          <Field label="Preferred Services (comma separated)">
+          <Field
+            label="Preferred Services (comma separated)"
+            helpText="These services also drive the default rows in Service Pricing."
+          >
             <input
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
               value={arrayToCommaSeparated(formData.preferredServices)}
@@ -495,7 +711,10 @@ export function SettingsForm({
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Web Presence</h2>
         <div className="mt-6 grid grid-cols-1 gap-4">
-          <Field label="Google Business Profile URL">
+          <Field
+            label="Google Business Profile URL"
+            helpText="This helps MarketForge improve local visibility analysis and future lead attribution."
+          >
             <input
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
               value={formData.googleBusinessProfileUrl}
@@ -548,8 +767,8 @@ export function SettingsForm({
           <div>
             <h2 className="text-xl font-bold text-gray-900">Competitors</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Keep your saved competitor list accurate so MarketForge has a
-              realistic market context.
+              Refine the competitor list detected during onboarding so
+              MarketForge has accurate local market context.
             </p>
           </div>
 
@@ -651,7 +870,9 @@ export function SettingsForm({
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-bold text-gray-900">Billing and Subscription</h2>
+        <h2 className="text-xl font-bold text-gray-900">
+          Billing and Subscription
+        </h2>
         <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
           <p className="font-medium text-gray-900">Coming soon</p>
           <p className="mt-1 text-sm text-gray-600">

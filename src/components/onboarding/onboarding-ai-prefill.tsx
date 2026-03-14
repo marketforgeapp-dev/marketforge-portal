@@ -91,13 +91,12 @@ export function OnboardingAiPrefill({ onApply }: Props) {
       </p>
 
       <h2 className="mt-2 text-2xl font-bold text-gray-900">
-        Start with company name and website
+          Let MarketForge prepare your workspace
       </h2>
 
       <p className="mt-2 text-sm leading-6 text-gray-600">
-        MarketForge analyzes the company website, suggests business details,
-        likely services, and local competitors, then applies those suggestions
-        to the onboarding form for review.
+        MarketForge analyzes the website and automatically prepares your
+        business profile, services, and local competitive landscape.
       </p>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -198,7 +197,8 @@ export function OnboardingAiPrefill({ onApply }: Props) {
                   Suggested Competitors
                 </p>
                 <p className="mt-1 text-sm text-gray-600">
-                  Review and edit these in onboarding if anything looks off.
+                    MarketForge detected nearby competitors automatically.  
+                    You can refine or replace these later in Settings.
                 </p>
               </div>
 

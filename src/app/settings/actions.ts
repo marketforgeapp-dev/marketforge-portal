@@ -29,6 +29,7 @@ type RawSettingsInput = {
   preferredServices?: unknown;
   primaryServices?: unknown;
   deprioritizedServices?: unknown;
+  servicePricing?: unknown;
 
   averageJobValue?: unknown;
   highestMarginService?: unknown;
@@ -178,7 +179,24 @@ function normalizeCompetitors(value: unknown) {
     isPrimaryCompetitor: index === 0,
   }));
 }
+function normalizeServicePricing(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
 
+  return value
+    .filter((item): item is Record<string, unknown> => isRecord(item))
+    .map((item) => {
+      const serviceName = toTrimmedString(item.serviceName);
+      const averageRevenue = toNumberOrNull(item.averageRevenue);
+
+      return {
+        serviceName,
+        averageRevenue,
+      };
+    })
+    .filter((item) => item.serviceName.length > 0);
+}
 function normalizeSettingsInput(input: unknown) {
   const raw: RawSettingsInput = isRecord(input) ? input : {};
 
@@ -207,6 +225,7 @@ function normalizeSettingsInput(input: unknown) {
     preferredServices: toStringArray(raw.preferredServices),
     primaryServices: toStringArray(raw.primaryServices),
     deprioritizedServices: toStringArray(raw.deprioritizedServices),
+    servicePricing: normalizeServicePricing(raw.servicePricing),
 
     averageJobValue: toNumberOrNull(raw.averageJobValue),
     highestMarginService: toNullableString(raw.highestMarginService),
@@ -326,6 +345,7 @@ export async function saveSettings(input: unknown) {
 
     highestMarginService: values.highestMarginService,
     lowestPriorityService: values.lowestPriorityService,
+    servicePricingJson: values.servicePricing,
 
     busySeason,
     slowSeason,
