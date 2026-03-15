@@ -6,22 +6,6 @@ type Props = {
 };
 
 export function CompetitorsStep({ formData, setFormData }: Props) {
-  const addCompetitor = () => {
-    setFormData((prev) => ({
-      ...prev,
-      competitors: [
-        ...prev.competitors,
-        {
-          name: "",
-          websiteUrl: "",
-          googleBusinessUrl: "",
-          logoUrl: "",
-          isPrimaryCompetitor: false,
-        },
-      ],
-    }));
-  };
-
   const updateCompetitor = (
     index: number,
     field:
@@ -50,7 +34,17 @@ export function CompetitorsStep({ formData, setFormData }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+  <div className="space-y-4">
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <p className="text-sm font-medium text-gray-900">
+        Review competitor suggestions
+      </p>
+      <p className="mt-2 text-sm leading-6 text-gray-600">
+        MarketForge can suggest nearby competitors automatically during
+        onboarding. You can refine or replace competitors later in Settings, so
+        this list does not need to be perfect right now.
+      </p>
+    </div>
       {formData.competitors.map((competitor, index) => (
         <div
           key={index}
@@ -100,14 +94,6 @@ export function CompetitorsStep({ formData, setFormData }: Props) {
           </div>
         </div>
       ))}
-
-      <button
-        type="button"
-        onClick={addCompetitor}
-        className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-3 font-medium text-blue-700 hover:bg-blue-100"
-      >
-        Add Competitor
-      </button>
     </div>
   );
 }

@@ -8,6 +8,13 @@ import {
 } from "@/lib/onboarding-prefill-schema";
 import { getWebsitePrefillContext } from "@/lib/website-prefill-context";
 import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
+import {
+  inferGoogleVisibilitySignals,
+  inferIndustryFromBusinessContext,
+  inferServicesFromLinks,
+} from "@/lib/industry-onboarding";
+import { mergeAndDedupeServicesForIndustry } from "@/lib/service-normalization";
+import type { SupportedIndustry } from "@/lib/industry-service-map";
 
 type PrefillResponse =
   | {
@@ -19,27 +26,22 @@ type PrefillResponse =
       error: string;
     };
 
+type GooglePlacesBusinessLookupResponse = {
+  places?: Array<{
+    id?: string;
+    displayName?: { text?: string };
+    websiteUri?: string;
+    googleMapsUri?: string;
+  }>;
+};
+
 function normalizeWebsite(input: string): string | null {
   const trimmed = input.trim();
-
   if (!trimmed) return null;
-
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     return trimmed;
   }
-
   return `https://${trimmed}`;
-}
-
-function faviconFromWebsite(website: string | null): string | null {
-  if (!website) return null;
-
-  try {
-    const url = new URL(website);
-    return `${url.origin}/favicon.ico`;
-  } catch {
-    return null;
-  }
 }
 
 function cleanString(value: string | null | undefined): string | null {
@@ -58,26 +60,76 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
   );
 }
 
-function inferIndustryFromCompanyName(companyName: string) {
-  const lower = companyName.toLowerCase();
+function normalizeDomain(url: string | null | undefined): string | null {
+  if (!url) return null;
 
-  if (
-    lower.includes("hvac") ||
-    lower.includes("heating") ||
-    lower.includes("cooling")
-  ) {
-    return "HVAC" as const;
+  try {
+    const normalized =
+      url.startsWith("http://") || url.startsWith("https://")
+        ? url
+        : `https://${url}`;
+
+    return new URL(normalized).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+async function lookupBusinessGoogleBusinessProfile(input: {
+  companyName: string;
+  website: string;
+  city?: string | null;
+  state?: string | null;
+}): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return null;
+
+  const location = [input.city, input.state].filter(Boolean).join(", ").trim();
+  const query = location ? `${input.companyName} ${location}` : input.companyName;
+
+  const response = await fetch(
+    "https://places.googleapis.com/v1/places:searchText",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask":
+          "places.id,places.displayName,places.websiteUri,places.googleMapsUri",
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        pageSize: 5,
+        languageCode: "en",
+        regionCode: "US",
+      }),
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    return null;
   }
 
-  if (lower.includes("septic")) {
-    return "SEPTIC" as const;
-  }
+  const data = (await response.json()) as GooglePlacesBusinessLookupResponse;
+  const places = data.places ?? [];
+  const businessDomain = normalizeDomain(input.website);
 
-  if (lower.includes("tree")) {
-    return "TREE_SERVICE" as const;
-  }
+  const matchingPlace =
+    places.find((place) => {
+      const placeDomain = normalizeDomain(place.websiteUri ?? null);
 
-  return "PLUMBING" as const;
+      if (businessDomain && placeDomain && businessDomain === placeDomain) {
+        return true;
+      }
+
+      const placeName = place.displayName?.text?.trim().toLowerCase() ?? "";
+      const companyName = input.companyName.trim().toLowerCase();
+
+      return placeName === companyName;
+    }) ?? null;
+
+  return cleanString(matchingPlace?.googleMapsUri) ?? null;
 }
 
 export async function generateOnboardingPrefill(input: {
@@ -96,7 +148,15 @@ export async function generateOnboardingPrefill(input: {
 
   try {
     const websiteContext = await getWebsitePrefillContext(website);
-    const inferredIndustry = inferIndustryFromCompanyName(companyName);
+
+    const inferredIndustry: SupportedIndustry = inferIndustryFromBusinessContext({
+      companyName,
+      websiteText:
+        `${websiteContext?.visibleTextExcerpt ?? ""} ${websiteContext?.fetchedPages
+          .map((page) => page.visibleTextExcerpt)
+          .join(" ") ?? ""}`.trim(),
+      linkTexts: websiteContext?.internalLinks ?? [],
+    });
 
     const competitorCandidates = await discoverLocalCompetitors({
       companyName,
@@ -105,6 +165,13 @@ export async function generateOnboardingPrefill(input: {
       state: websiteContext?.state ?? null,
       serviceArea: websiteContext?.address ?? null,
       website,
+    });
+
+    const googleBusinessProfileUrl = await lookupBusinessGoogleBusinessProfile({
+      companyName,
+      website,
+      city: websiteContext?.city ?? null,
+      state: websiteContext?.state ?? null,
     });
 
     const completion = await openai.chat.completions.parse({
@@ -123,6 +190,7 @@ Your job:
 - suggest logo URLs if possible
 - if uncertain, return null rather than inventing specifics
 - use the supplied website context first, and only infer conservatively beyond it
+- support plumbing, septic, tree service, and HVAC businesses
 
 Important:
 - return plain strings for URLs
@@ -141,6 +209,7 @@ Return structured output only.
           content: `
 Company name: ${companyName}
 Website: ${website}
+Detected industry: ${inferredIndustry}
 
 Grounded website context:
 ${JSON.stringify(
@@ -205,11 +274,6 @@ Return best-effort onboarding suggestions for MarketForge.
       websiteContext?.normalizedWebsite ??
       website;
 
-    const fallbackLogo =
-      websiteContext?.logoCandidates?.[0] ??
-      faviconFromWebsite(normalizedWebsite) ??
-    null;
-
     const mergedServicePageUrls = uniqueStrings([
       ...(parsed.servicePageUrls ?? []),
       ...(websiteContext?.internalLinks
@@ -217,15 +281,49 @@ Return best-effort onboarding suggestions for MarketForge.
           const combined = `${link.text} ${link.href}`.toLowerCase();
           return (
             combined.includes("service") ||
-            combined.includes("drain") ||
             combined.includes("repair") ||
-            combined.includes("water-heater") ||
-            combined.includes("water heater") ||
-            combined.includes("plumb")
+            combined.includes("install") ||
+            combined.includes("replacement") ||
+            combined.includes("replace") ||
+            combined.includes("drain") ||
+            combined.includes("heater") ||
+            combined.includes("water") ||
+            combined.includes("faucet") ||
+            combined.includes("fixture") ||
+            combined.includes("pipe") ||
+            combined.includes("sewer") ||
+            combined.includes("toilet") ||
+            combined.includes("leak") ||
+            combined.includes("gas") ||
+            combined.includes("camera") ||
+            combined.includes("jet") ||
+            combined.includes("repipe") ||
+            combined.includes("septic") ||
+            combined.includes("drain field") ||
+            combined.includes("leach field") ||
+            combined.includes("grease trap") ||
+            combined.includes("riser") ||
+            combined.includes("lift pump") ||
+            combined.includes("tree") ||
+            combined.includes("stump") ||
+            combined.includes("arborist") ||
+            combined.includes("storm") ||
+            combined.includes("pruning") ||
+            combined.includes("trimming") ||
+            combined.includes("lot clearing") ||
+            combined.includes("hvac") ||
+            combined.includes("furnace") ||
+            combined.includes("cooling") ||
+            combined.includes("air conditioning")
           );
         })
         .map((link) => link.href) ?? []),
-    ]).slice(0, 10);
+    ]).slice(0, 20);
+
+    const inferredServices = inferServicesFromLinks({
+      industry: inferredIndustry,
+      links: websiteContext?.internalLinks ?? [],
+    });
 
     const mergedCompetitors =
       competitorCandidates.length > 0
@@ -233,49 +331,60 @@ Return best-effort onboarding suggestions for MarketForge.
             name: candidate.name,
             websiteUrl: candidate.websiteUrl,
             googleBusinessUrl: candidate.googleBusinessUrl,
-            logoUrl:
-              candidate.logoUrl ??
-              faviconFromWebsite(candidate.websiteUrl) ??
-              null,
+            logoUrl: candidate.logoUrl ?? null,
             whyItMatters: candidate.whyItMatters,
             serviceFocus: candidate.serviceFocus.slice(0, 6),
           }))
-        : (parsed.competitors ?? []).map((competitor) => {
-            const competitorWebsite = cleanString(competitor.websiteUrl);
+        : (parsed.competitors ?? []).map((competitor) => ({
+            name: competitor.name,
+            websiteUrl: cleanString(competitor.websiteUrl),
+            googleBusinessUrl: cleanString(competitor.googleBusinessUrl),
+            logoUrl: cleanString(competitor.logoUrl),
+            whyItMatters: competitor.whyItMatters,
+            serviceFocus: uniqueStrings(competitor.serviceFocus ?? []).slice(0, 6),
+          }));
 
-            return {
-              ...competitor,
-              websiteUrl: competitorWebsite,
-              googleBusinessUrl: cleanString(competitor.googleBusinessUrl),
-              logoUrl:
-                cleanString(competitor.logoUrl) ??
-                faviconFromWebsite(competitorWebsite) ??
-                null,
-              serviceFocus: uniqueStrings(competitor.serviceFocus ?? []).slice(
-                0,
-                6
-              ),
-            };
-          });
+    const visibilitySignals = inferGoogleVisibilitySignals({
+      servicePageUrls: mergedServicePageUrls,
+      visibleText: websiteContext?.visibleTextExcerpt ?? "",
+      fetchedPagesText:
+        websiteContext?.fetchedPages.map((page) => page.visibleTextExcerpt).join(" ") ??
+        "",
+    });
+
+    const finalPreferredServices = mergeAndDedupeServicesForIndustry({
+      industry: inferredIndustry,
+      groups: [parsed.preferredServices ?? [], inferredServices],
+      max: 20,
+    });
 
     const data: OnboardingPrefillResult = {
       ...parsed,
       website: normalizedWebsite,
-      logoUrl: cleanString(parsed.logoUrl) ?? fallbackLogo ?? null,
+      logoUrl: cleanString(parsed.logoUrl) ?? websiteContext?.logoCandidates?.[0] ?? null,
       phone: cleanString(parsed.phone) ?? websiteContext?.phone ?? null,
       googleBusinessProfileUrl:
-      cleanString(parsed.googleBusinessProfileUrl) ?? null,
+        cleanString(parsed.googleBusinessProfileUrl) ??
+        cleanString(parsed.googleBusinessUrl) ??
+        googleBusinessProfileUrl ??
+        null,
       city: cleanString(parsed.city) ?? websiteContext?.city ?? null,
       state: cleanString(parsed.state) ?? websiteContext?.state ?? null,
       serviceArea: cleanString(parsed.serviceArea),
-      busySeason: cleanString(parsed.busySeason),
-      slowSeason: cleanString(parsed.slowSeason),
-      industry: parsed.industry ?? inferredIndustry,
-      preferredServices: uniqueStrings(parsed.preferredServices ?? []).slice(
-        0,
-        8
-      ),
+      industry: inferredIndustry,
+      preferredServices: finalPreferredServices,
       servicePageUrls: mergedServicePageUrls,
+      hasFaqContent: parsed.hasFaqContent || visibilitySignals.hasFaqContent,
+      hasBlog: visibilitySignals.hasBlog,
+      hasGoogleBusinessPage:
+        visibilitySignals.hasGoogleBusinessPage ||
+        Boolean(
+          cleanString(parsed.googleBusinessProfileUrl) ||
+            cleanString(parsed.googleBusinessUrl) ||
+            googleBusinessProfileUrl
+        ),
+      hasServicePages:
+        visibilitySignals.hasServicePages || mergedServicePageUrls.length > 0,
       competitors: mergedCompetitors,
     };
 

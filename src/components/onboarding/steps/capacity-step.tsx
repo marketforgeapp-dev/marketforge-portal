@@ -26,7 +26,7 @@ export function CapacityStep({ formData, setFormData }: Props) {
       <Field label="Technicians">
         <input
           type="number"
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
           value={formData.technicians}
           onChange={(e) =>
             setFormData((prev) => {
@@ -59,7 +59,7 @@ export function CapacityStep({ formData, setFormData }: Props) {
       <Field label="Jobs per Technician per Day">
         <input
           type="number"
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
           value={formData.jobsPerTechnicianPerDay}
           onChange={(e) =>
             setFormData((prev) => {
@@ -92,7 +92,7 @@ export function CapacityStep({ formData, setFormData }: Props) {
       <Field label="Weekly Capacity">
         <input
           type="number"
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
           value={formData.weeklyCapacity}
           onChange={(e) =>
             setFormData((prev) => ({
@@ -102,15 +102,17 @@ export function CapacityStep({ formData, setFormData }: Props) {
           }
         />
         <p className="mt-2 text-xs text-gray-500">
-          Defaults to technicians × jobs per technician per day × 5 days per week.
-          You can override this if the real weekly capacity is different.
-        </p>
+  MarketForge uses capacity to determine whether the business needs more demand,
+  easier-to-book jobs, or higher-value work. This defaults to technicians × jobs
+  per technician per day × 5 days per week, but you can override it if your real
+  weekly capacity is different.
+</p>
       </Field>
 
       <Field label="Target Weekly Revenue">
         <input
           type="number"
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
           value={formData.targetWeeklyRevenue}
           onChange={(e) =>
             setFormData((prev) => ({

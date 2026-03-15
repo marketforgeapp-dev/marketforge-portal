@@ -14,6 +14,11 @@ import { OnboardingAiPrefill } from "@/components/onboarding/onboarding-ai-prefi
 import type { OnboardingPrefillResult } from "@/lib/onboarding-prefill-schema";
 import { saveOnboarding } from "@/app/onboarding/actions";
 import { OnboardingTopbar } from "@/components/onboarding/onboarding-topbar";
+import {
+  dedupeServicesForIndustry,
+  mergeAndDedupeServicesForIndustry,
+} from "@/lib/service-normalization";
+import type { SupportedIndustry } from "@/lib/industry-service-map";
 
 const STEP_LABELS = [
   "Business Info",
@@ -67,6 +72,22 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   seasonalityNotes: "",
 };
 
+function resolveSupportedIndustry(
+  industry: OnboardingFormData["industry"]
+): SupportedIndustry {
+  if (industry === "SEPTIC") return "SEPTIC";
+  if (industry === "TREE_SERVICE") return "TREE_SERVICE";
+  if (industry === "HVAC") return "HVAC";
+  return "PLUMBING";
+}
+
+function getIndustryLabel(industry: OnboardingFormData["industry"]): string {
+  if (industry === "SEPTIC") return "Septic";
+  if (industry === "TREE_SERVICE") return "Tree Service";
+  if (industry === "HVAC") return "HVAC";
+  return "Plumbing";
+}
+
 export function OnboardingFlow() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
@@ -79,108 +100,132 @@ export function OnboardingFlow() {
   const isLastStep = currentStep === totalSteps - 1;
 
   function applyAiPrefill(prefill: OnboardingPrefillResult) {
-    setFormData((current) => ({
-      ...current,
-      businessName: prefill.businessName || current.businessName,
-      website: prefill.website || current.website,
-      logoUrl: prefill.logoUrl || current.logoUrl,
-      phone: prefill.phone || current.phone,
-      city: prefill.city || current.city,
-      state: prefill.state || current.state,
-      serviceArea: prefill.serviceArea || current.serviceArea,
-      industry: prefill.industry || current.industry,
-      industryLabel:
-        prefill.industry === "PLUMBING"
-          ? "Plumbing"
-          : prefill.industry === "HVAC"
-            ? "HVAC"
-            : prefill.industry === "SEPTIC"
-              ? "Septic"
-              : prefill.industry === "TREE_SERVICE"
-                ? "Tree Service"
-                : current.industryLabel,
+    setFormData((current) => {
+            const mergedServices = mergeAndDedupeServicesForIndustry({
+        industry: resolveSupportedIndustry(prefill.industry),
+        groups: [
+          current.primaryServices,
+          current.preferredServices,
+          prefill.preferredServices,
+        ],
+        max: 20,
+      });
 
-      preferredServices:
-        prefill.preferredServices.length > 0
-          ? prefill.preferredServices
-          : current.preferredServices,
+      return {
+        ...current,
+        businessName: prefill.businessName || current.businessName,
+        website: prefill.website || current.website,
+        logoUrl: prefill.logoUrl || current.logoUrl,
+        phone: prefill.phone || current.phone,
+        city: prefill.city || current.city,
+        state: prefill.state || current.state,
+        serviceArea: prefill.serviceArea || current.serviceArea,
+        googleBusinessProfileUrl:
+          prefill.googleBusinessProfileUrl || current.googleBusinessProfileUrl,
+        industry: prefill.industry || current.industry,
+        industryLabel: getIndustryLabel(prefill.industry || current.industry),
 
-      primaryServices:
-        prefill.preferredServices.length > 0
-          ? prefill.preferredServices
-          : current.primaryServices,
+        preferredServices: mergedServices,
+        primaryServices: mergedServices,
 
-      servicePageUrls:
-        prefill.servicePageUrls.length > 0
-          ? prefill.servicePageUrls
-          : current.servicePageUrls,
+        servicePageUrls:
+          prefill.servicePageUrls.length > 0
+            ? prefill.servicePageUrls
+            : current.servicePageUrls,
 
-      hasFaqContent: prefill.hasFaqContent,
-      hasFaqPage: prefill.hasFaqContent || current.hasFaqPage,
+        hasFaqContent: prefill.hasFaqContent || current.hasFaqContent,
+        hasFaqPage: prefill.hasFaqContent || current.hasFaqPage,
+        hasBlog: prefill.hasBlog || current.hasBlog,
+        hasGoogleBusinessPage:
+          prefill.hasGoogleBusinessPage || current.hasGoogleBusinessPage,
+        hasServicePages: prefill.hasServicePages || current.hasServicePages,
 
-      busySeason: prefill.busySeason || current.busySeason,
-      slowSeason: prefill.slowSeason || current.slowSeason,
+        busySeason: prefill.busySeason || current.busySeason,
+        slowSeason: prefill.slowSeason || current.slowSeason,
+        averageJobValue: prefill.averageJobValueHint ?? current.averageJobValue,
 
-      averageJobValue: prefill.averageJobValueHint ?? current.averageJobValue,
-
-      competitors:
-        prefill.competitors.length > 0
-          ? [...prefill.competitors]
-              .slice(0, 5)
-              .map((competitor, index) => ({
+        competitors:
+          prefill.competitors.length > 0
+            ? prefill.competitors.slice(0, 5).map((competitor, index) => ({
                 name: competitor.name,
                 websiteUrl: competitor.websiteUrl ?? "",
                 googleBusinessUrl: competitor.googleBusinessUrl ?? "",
                 logoUrl: competitor.logoUrl ?? "",
                 isPrimaryCompetitor: index === 0,
               }))
-              .concat(
-                Array.from({
-                  length: Math.max(0, 5 - prefill.competitors.length),
-                }).map((_, index) => ({
-                  name: "",
-                  websiteUrl: "",
-                  googleBusinessUrl: "",
-                  logoUrl: "",
-                  isPrimaryCompetitor:
-                    prefill.competitors.length === 0 && index === 0,
-                }))
-              )
-          : current.competitors.length > 0
-            ? current.competitors
-            : Array.from({ length: 5 }).map((_, index) => ({
-                name: "",
-                websiteUrl: "",
-                googleBusinessUrl: "",
-                logoUrl: "",
-                isPrimaryCompetitor: index === 0,
-              })),
-    }));
+            : current.competitors,
+      };
+    });
   }
+
+  const normalizedFormData = useMemo(() => {
+    return {
+      ...formData,
+            primaryServices: dedupeServicesForIndustry(
+        formData.primaryServices,
+        resolveSupportedIndustry(formData.industry)
+      ),
+            preferredServices: dedupeServicesForIndustry(
+        formData.preferredServices.length > 0
+          ? formData.preferredServices
+          : formData.primaryServices,
+        resolveSupportedIndustry(formData.industry)
+      ),
+            deprioritizedServices: dedupeServicesForIndustry(
+        formData.deprioritizedServices,
+        resolveSupportedIndustry(formData.industry)
+      ),
+    };
+  }, [formData]);
 
   const currentStepComponent = useMemo(() => {
     switch (currentStep) {
       case 0:
-        return <BusinessInfoStep formData={formData} setFormData={setFormData} />;
+        return (
+          <BusinessInfoStep
+            formData={normalizedFormData}
+            setFormData={setFormData}
+          />
+        );
       case 1:
-        return <ServicesStep formData={formData} setFormData={setFormData} />;
+        return (
+          <ServicesStep
+            formData={normalizedFormData}
+            setFormData={setFormData}
+          />
+        );
       case 2:
-        return <CapacityStep formData={formData} setFormData={setFormData} />;
+        return (
+          <CapacityStep
+            formData={normalizedFormData}
+            setFormData={setFormData}
+          />
+        );
       case 3:
-        return <CompetitorsStep formData={formData} setFormData={setFormData} />;
+        return (
+          <CompetitorsStep
+            formData={normalizedFormData}
+            setFormData={setFormData}
+          />
+        );
       case 4:
-        return <WebsiteSeoStep formData={formData} setFormData={setFormData} />;
+        return (
+          <WebsiteSeoStep
+            formData={normalizedFormData}
+            setFormData={setFormData}
+          />
+        );
       case 5:
         return (
           <MarketInitializationStep
-            formData={formData}
+            formData={normalizedFormData}
             setFormData={setFormData}
           />
         );
       default:
         return null;
     }
-  }, [currentStep, formData]);
+  }, [currentStep, normalizedFormData]);
 
   const handleNext = () => {
     if (!isLastStep) setCurrentStep((prev) => prev + 1);
@@ -195,7 +240,13 @@ export function OnboardingFlow() {
 
     startTransition(async () => {
       try {
-        const result = await saveOnboarding(formData);
+        const result = await saveOnboarding({
+          ...normalizedFormData,
+          preferredServices:
+            normalizedFormData.preferredServices.length > 0
+              ? normalizedFormData.preferredServices
+              : normalizedFormData.primaryServices,
+        });
 
         if (!result?.success) {
           setSubmitError("Something went wrong while saving onboarding.");
@@ -211,19 +262,21 @@ export function OnboardingFlow() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 px-6 py-10">
+    <div className="min-h-screen bg-slate-950 px-6 py-10">
       <div className="mx-auto max-w-5xl">
-          <OnboardingTopbar />
+        <OnboardingTopbar />
+
         <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-400">
             MarketForge Setup
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-gray-900">
+          <h1 className="mt-2 text-3xl font-bold text-white">
             Set up your business profile
           </h1>
-          <p className="mt-2 text-gray-600">
-            We’ll use this information to identify revenue opportunities, track
-            competitor activity, and generate recommended campaigns.
+          <p className="mt-2 max-w-3xl text-slate-400">
+            MarketForge uses your services, pricing, capacity, competitors, and local
+            visibility signals to identify the best revenue opportunities for your
+            business and generate actions designed to produce booked jobs.
           </p>
         </div>
 
@@ -231,26 +284,30 @@ export function OnboardingFlow() {
           <OnboardingAiPrefill onApply={applyAiPrefill} />
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
+        <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+          Review and refine anything before continuing. These inputs directly affect
+          opportunity ranking, revenue projections, and the actions MarketForge
+          recommends after onboarding.
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
           <OnboardingProgress
             currentStep={currentStep}
             totalSteps={totalSteps}
             stepLabels={STEP_LABELS}
           />
 
-          {formData.logoUrl ? (
-            <div className="mt-6 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          {normalizedFormData.logoUrl ? (
+            <div className="mt-6 flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={formData.logoUrl}
-                alt={`${formData.businessName || "Business"} logo`}
+                src={normalizedFormData.logoUrl}
+                alt={`${normalizedFormData.businessName || "Business"} logo`}
                 className="h-12 w-12 rounded-lg bg-white object-contain p-1"
               />
               <div>
-                <p className="text-sm font-semibold text-gray-900">
-                  Company logo loaded
-                </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-sm font-semibold text-white">Company logo loaded</p>
+                <p className="text-xs text-slate-400">
                   This logo will be stored for use throughout the MarketForge workspace.
                 </p>
               </div>

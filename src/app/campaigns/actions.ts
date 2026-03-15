@@ -5,17 +5,12 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { prisma } from "@/lib/prisma";
 import { openai } from "@/lib/openai";
 import { nlCampaignSchema } from "@/lib/nl-campaign-schema";
-import {
-  ActionThesis,
-  buildRevenueOpportunityEngine,
-} from "@/lib/revenue-opportunity-engine";
+import {ActionThesis,  buildRevenueOpportunityEngine,} from "@/lib/revenue-opportunity-engine";
 import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
-import type {
-  CampaignObjective,
-  CampaignType,
-  OpportunityType,
-} from "@/generated/prisma";
+import type { BusinessProfile } from "@/generated/prisma";
+import { resolveServiceJobValue } from "@/lib/service-pricing";
+import type {CampaignObjective, CampaignType, OpportunityType,} from "@/generated/prisma";
 
 type CreateCampaignResult =
   | { success: true; campaignId: string; campaignName: string }
@@ -97,6 +92,50 @@ function buildSyntheticOpportunityKey(params: {
     params.opportunityType,
     slugify(params.bestMove),
   ].join("::");
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .split(" ")
+    .map((part) =>
+      part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part
+    )
+    .join(" ");
+}
+
+function extractRequestedServiceLabel(prompt: string): string | null {
+  const normalizedPrompt = normalize(prompt);
+
+  const patterns = [
+    /get more (.+?) (jobs|leads|calls|bookings)/,
+    /i want to get more (.+?) (jobs|leads|calls|bookings)/,
+    /need more (.+?) (jobs|leads|calls|bookings)/,
+    /promote (.+?)( service| services| jobs| leads| calls| bookings|$)/,
+    /campaign for (.+?)( service| services| jobs| leads| calls| bookings|$)/,
+    /action for (.+?)( service| services| jobs| leads| calls| bookings|$)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalizedPrompt.match(pattern);
+    const raw = match?.[1]?.trim();
+
+    if (!raw) {
+      continue;
+    }
+
+    const cleaned = raw
+      .replace(/\bmore\b/g, "")
+      .replace(/\blocal\b/g, "")
+      .replace(/\bnew\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (cleaned.length >= 3) {
+      return toTitleCase(cleaned);
+    }
+  }
+
+  return null;
 }
 
 function formatFaq(faq: Array<{ question: string; answer: string }>): string {
@@ -516,22 +555,59 @@ function buildPromptRefinedActionThesis(params: {
   };
 }
 
+function resolveSyntheticJobValue(params: {
+  profile: {
+    averageJobValue: unknown;
+    servicePricingJson?: unknown;
+  };
+  familyKey: string;
+  serviceName: string;
+  primaryService?: string;
+}) {
+  const numericAverageJobValue =
+    typeof params.profile.averageJobValue === "number" &&
+    Number.isFinite(params.profile.averageJobValue)
+      ? params.profile.averageJobValue
+      : Number(params.profile.averageJobValue ?? 0);
+
+  const fallbackJobValue =
+    Number.isFinite(numericAverageJobValue) && numericAverageJobValue > 0
+      ? numericAverageJobValue
+      : 450;
+
+  return resolveServiceJobValue({
+    profile: params.profile as BusinessProfile,
+    candidate: {
+      familyKey: params.familyKey,
+      serviceName: params.serviceName,
+      actionThesisPrimaryService: params.primaryService ?? params.serviceName,
+    },
+    fallbackJobValue,
+  });
+}
+
 function buildSyntheticOpportunity(params: {
   prompt: string;
   routedIntent: RoutedIntent;
-  profile: {
+    profile: {
     businessName: string;
     serviceArea: string;
     averageJobValue: unknown;
+    servicePricingJson?: unknown;
     hasFaqContent: boolean;
     servicePageUrls: string[];
   };
 }): ResolvedOpportunity {
   const { prompt, routedIntent, profile } = params;
-  const averageJobValue = Number(profile.averageJobValue ?? 450);
-  const lowerPrompt = normalize(prompt);
+    const lowerPrompt = normalize(prompt);
 
   if (routedIntent.lane === "DRAIN") {
+    const resolvedJobValue = resolveSyntheticJobValue({
+  profile,
+  familyKey: "drain-cleaning",
+  serviceName: "Drain cleaning",
+  primaryService: "Drain cleaning",
+});
     const bestMove = "Promote Drain Cleaning Service";
     const serviceName = "Drain cleaning";
     const opportunityType: OpportunityType = "SEASONAL_DEMAND";
@@ -567,8 +643,8 @@ function buildSyntheticOpportunity(params: {
       recommendedCampaignType: "DRAIN_SPECIAL",
       jobsLow: 2,
       jobsHigh: 4,
-      revenueLow: Math.round(averageJobValue * 2),
-      revenueHigh: Math.round(averageJobValue * 4),
+      revenueLow: Math.round(resolvedJobValue * 2),
+      revenueHigh: Math.round(resolvedJobValue * 4),
       rawOpportunityScore: 78,
       confidenceLabel: "Medium",
       confidenceScore: 72,
@@ -588,7 +664,12 @@ function buildSyntheticOpportunity(params: {
     const bestMove = "Push Emergency Plumbing Response";
     const serviceName = "Emergency plumbing";
     const opportunityType: OpportunityType = "COMPETITOR_INACTIVE";
-
+    const resolvedJobValue = resolveSyntheticJobValue({
+  profile,
+  familyKey: "emergency-plumbing",
+  serviceName: "Emergency plumbing",
+  primaryService: "Emergency plumbing",
+});
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
@@ -620,8 +701,8 @@ function buildSyntheticOpportunity(params: {
       recommendedCampaignType: "EMERGENCY_SERVICE",
       jobsLow: 1,
       jobsHigh: 3,
-      revenueLow: Math.round(averageJobValue * 1.2),
-      revenueHigh: Math.round(averageJobValue * 3.2),
+      revenueLow: Math.round(resolvedJobValue * 1.2),
+      revenueHigh: Math.round(resolvedJobValue * 3.2),
       rawOpportunityScore: 76,
       confidenceLabel: "Medium",
       confidenceScore: 70,
@@ -672,7 +753,12 @@ function buildSyntheticOpportunity(params: {
           imageKey: "water-heater-install",
           imageMode: "SERVICE_IMAGE" as const,
         };
-
+      const resolvedJobValue = resolveSyntheticJobValue({
+  profile,
+  familyKey: "water-heater",
+  serviceName,
+  primaryService: thesis.primaryService,
+});
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
@@ -692,8 +778,8 @@ function buildSyntheticOpportunity(params: {
       recommendedCampaignType: "WATER_HEATER",
       jobsLow: 1,
       jobsHigh: 3,
-      revenueLow: Math.round(averageJobValue * 2.5),
-      revenueHigh: Math.round(averageJobValue * 5),
+      revenueLow: Math.round(resolvedJobValue * 2.5),
+      revenueHigh: Math.round(resolvedJobValue * 5),
       rawOpportunityScore: 82,
       confidenceLabel: "Medium",
       confidenceScore: 76,
@@ -714,7 +800,12 @@ function buildSyntheticOpportunity(params: {
     const bestMove = "Fill This Week’s Schedule with Checkups";
     const serviceName = "Service checkup";
     const opportunityType: OpportunityType = "CAPACITY_GAP";
-
+    const resolvedJobValue = resolveSyntheticJobValue({
+  profile,
+  familyKey: "maintenance",
+  serviceName: "Service checkup",
+  primaryService: "Service checkup",
+});
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
@@ -747,8 +838,8 @@ function buildSyntheticOpportunity(params: {
       recommendedCampaignType: "MAINTENANCE_PUSH",
       jobsLow: 2,
       jobsHigh: 5,
-      revenueLow: Math.round(averageJobValue * 1.5),
-      revenueHigh: Math.round(averageJobValue * 3.5),
+      revenueLow: Math.round(resolvedJobValue * 1.5),
+      revenueHigh: Math.round(resolvedJobValue * 3.5),
       rawOpportunityScore: 74,
       confidenceLabel: "Medium",
       confidenceScore: 74,
@@ -769,7 +860,10 @@ function buildSyntheticOpportunity(params: {
     const bestMove = "Improve AI Search Visibility";
     const serviceName = "AI search visibility";
     const opportunityType: OpportunityType = "AI_SEARCH_VISIBILITY";
-
+    const baseAverageJobValue =
+  typeof profile.averageJobValue === "number" && Number.isFinite(profile.averageJobValue)
+    ? profile.averageJobValue
+    : Number(profile.averageJobValue ?? 450);
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
@@ -801,8 +895,8 @@ function buildSyntheticOpportunity(params: {
       recommendedCampaignType: "AEO_FAQ",
       jobsLow: 1,
       jobsHigh: 2,
-      revenueLow: Math.round(averageJobValue * 1),
-      revenueHigh: Math.round(averageJobValue * 2),
+      revenueLow: Math.round(baseAverageJobValue * 1),
+      revenueHigh: Math.round(baseAverageJobValue * 2),
       rawOpportunityScore: 68,
       confidenceLabel: "Medium",
       confidenceScore: 78,
@@ -827,7 +921,10 @@ function buildSyntheticOpportunity(params: {
     const bestMove = "Improve Review Generation";
     const serviceName = "Review generation";
     const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
-
+    const baseAverageJobValue =
+  typeof profile.averageJobValue === "number" && Number.isFinite(profile.averageJobValue)
+    ? profile.averageJobValue
+    : Number(profile.averageJobValue ?? 450);
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
@@ -859,8 +956,8 @@ function buildSyntheticOpportunity(params: {
       recommendedCampaignType: "REVIEW_GENERATION",
       jobsLow: 1,
       jobsHigh: 2,
-      revenueLow: Math.round(averageJobValue * 1),
-      revenueHigh: Math.round(averageJobValue * 2),
+      revenueLow: Math.round(baseAverageJobValue * 1),
+      revenueHigh: Math.round(baseAverageJobValue * 2),
       rawOpportunityScore: 64,
       confidenceLabel: "Medium",
       confidenceScore: 68,
@@ -877,11 +974,29 @@ function buildSyntheticOpportunity(params: {
     };
   }
 
-  const bestMove = "Promote Local Service Demand";
-  const serviceName = lowerPrompt.includes("plumb")
-    ? "General plumbing"
-    : "Local service demand";
+    const requestedService = extractRequestedServiceLabel(prompt);
+
+  const bestMove = requestedService
+    ? `Promote ${requestedService} Demand`
+    : "Promote Local Service Demand";
+
+  const serviceName = requestedService
+    ? requestedService
+    : lowerPrompt.includes("plumb")
+      ? "General plumbing"
+      : "Local service demand";
+
+  const familyKey = requestedService
+    ? `custom-request:${slugify(requestedService)}`
+    : "general-plumbing";
+
   const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
+
+  const baseAverageJobValue =
+    typeof profile.averageJobValue === "number" &&
+    Number.isFinite(profile.averageJobValue)
+      ? profile.averageJobValue
+      : Number(profile.averageJobValue ?? 450);
 
   return {
     opportunityKey: buildSyntheticOpportunityKey({
@@ -889,22 +1004,31 @@ function buildSyntheticOpportunity(params: {
       opportunityType,
       bestMove,
     }),
-    familyKey: "general-plumbing",
-    title: "Prompt-Aligned Revenue Opportunity",
+    familyKey,
+    title: requestedService
+      ? `${requestedService} Revenue Opportunity`
+      : "Prompt-Aligned Revenue Opportunity",
     serviceName,
     opportunityType,
     bestMove,
-    displayMoveLabel: "Promote Local Service Demand",
-    displaySummary: `Build a prompt-aligned local action for ${profile.serviceArea}.`,
+    displayMoveLabel: requestedService
+      ? `Promote ${requestedService}`
+      : "Promote Local Service Demand",
+    displaySummary: requestedService
+      ? `Build a custom requested action for ${requestedService.toLowerCase()} demand in ${profile.serviceArea}.`
+      : `Build a prompt-aligned local action for ${profile.serviceArea}.`,
     imageKey: "general-plumbing",
     imageMode: "SERVICE_IMAGE",
     actionThesis: {
-      familyKey: "general-plumbing",
+      familyKey,
       primaryService: serviceName,
-      angle: "local demand capture",
-      title: "Promote Local Service Demand",
-      summary:
-        "Generate more local demand with a prompt-aligned action instead of forcing a weak category match.",
+      angle: requestedService ? "custom requested service demand" : "local demand capture",
+      title: requestedService
+        ? `Promote ${requestedService}`
+        : "Promote Local Service Demand",
+      summary: requestedService
+        ? `Generate more local demand for ${requestedService.toLowerCase()} based on the customer’s explicit request.`
+        : "Generate more local demand with a prompt-aligned action instead of forcing a weak category match.",
       audience: `Homeowners in ${profile.serviceArea}`,
       offerHint: "Compelling local service offer",
       ctaHint: "Book now",
@@ -914,21 +1038,28 @@ function buildSyntheticOpportunity(params: {
     recommendedCampaignType: "CUSTOM",
     jobsLow: 1,
     jobsHigh: 3,
-    revenueLow: Math.round(averageJobValue * 1),
-    revenueHigh: Math.round(averageJobValue * 3),
-    rawOpportunityScore: 60,
+    revenueLow: Math.round(baseAverageJobValue * 1),
+    revenueHigh: Math.round(baseAverageJobValue * 3),
+    rawOpportunityScore: requestedService ? 66 : 60,
     confidenceLabel: "Low",
-    confidenceScore: 60,
-    whyNowBullets: [
-      "No strong existing opportunity matched the prompt cleanly.",
-      "A prompt-aligned opportunity was synthesized to avoid a misleading pairing.",
-      "This keeps the execution plan grounded in the request instead of forcing a stale match.",
-    ],
-    whyThisMatters:
-      "When existing opportunities do not fit well enough, the system should build a better prompt-specific opportunity rather than guessing.",
+    confidenceScore: requestedService ? 66 : 60,
+    whyNowBullets: requestedService
+      ? [
+          "The request is explicitly asking for a service that is not currently surfaced in the default opportunity set.",
+          "MarketForge allows custom requested actions even when that service is not part of the standard Business Profile recommendation mix.",
+          "This keeps customer-requested action generation flexible without polluting the default ranked opportunities.",
+        ]
+      : [
+          "No strong existing opportunity matched the prompt cleanly.",
+          "A prompt-aligned opportunity was synthesized to avoid a misleading pairing.",
+          "This keeps the execution plan grounded in the request instead of forcing a stale match.",
+        ],
+    whyThisMatters: requestedService
+      ? "The customer explicitly requested this service, so MarketForge is allowing a custom action without making it part of the default recommendation engine."
+      : "When existing opportunities do not fit well enough, the system should build a better prompt-specific opportunity rather than guessing.",
     sourceTags: ["Demand"],
     source: "generated",
-    fitScore: 80,
+    fitScore: requestedService ? 90 : 80,
   };
 }
 

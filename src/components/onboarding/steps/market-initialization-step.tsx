@@ -52,7 +52,7 @@ export function MarketInitializationStep({ formData, setFormData }: Props) {
         </span>
         <textarea
           rows={4}
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
           value={formData.seasonalityNotes}
           onChange={(e) =>
             setFormData((prev) => ({

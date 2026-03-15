@@ -74,9 +74,7 @@ function normalizeDomain(url: string | null | undefined): string | null {
 }
 
 function slugifyComparable(value: string | null | undefined): string {
-  return (value ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function faviconFromWebsite(website: string | null): string | null {
@@ -90,15 +88,81 @@ function faviconFromWebsite(website: string | null): string | null {
   }
 }
 
-function inferServiceFocusFromTypes(types: string[] = []): string[] {
+async function extractHomepageLogoCandidate(
+  website: string | null
+): Promise<string | null> {
+  if (!website) return null;
+
+  try {
+    const response = await fetch(website, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; MarketForgeCompetitorBot/1.0; +https://marketforge.local)",
+      },
+      redirect: "follow",
+      cache: "no-store",
+    });
+
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    const matches = [
+      ...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi),
+      ...html.matchAll(/<img[^>]+data-src=["']([^"']+)["'][^>]*>/gi),
+    ];
+
+    for (const match of matches) {
+      const raw = match[1] ?? "";
+      const lower = raw.toLowerCase();
+
+      if (
+        lower.includes("logo") ||
+        lower.includes("brand") ||
+        lower.includes("header")
+      ) {
+        try {
+          return new URL(raw, website).toString();
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function inferServiceFocusFromTypes(
+  types: string[] = [],
+  industry: DiscoverCompetitorsInput["industry"]
+): string[] {
   const joined = types.join(" ").toLowerCase();
   const results: string[] = [];
 
-  if (joined.includes("plumber")) results.push("General plumbing");
-  if (joined.includes("drain")) results.push("Drain cleaning");
-  if (joined.includes("repair")) results.push("Repairs");
-  if (joined.includes("contractor")) results.push("Residential service");
-  if (joined.includes("point_of_interest") && results.length === 0) {
+  if (industry === "PLUMBING") {
+    if (joined.includes("plumber")) results.push("General plumbing");
+    if (joined.includes("drain")) results.push("Drain cleaning");
+    if (joined.includes("repair")) results.push("Repairs");
+  }
+
+  if (industry === "SEPTIC") {
+    results.push("Septic service");
+    if (joined.includes("contractor")) results.push("Residential service");
+  }
+
+  if (industry === "TREE_SERVICE") {
+    results.push("Tree service");
+    if (joined.includes("contractor")) results.push("Local service");
+  }
+
+  if (industry === "HVAC") {
+    results.push("HVAC service");
+    if (joined.includes("repair")) results.push("Repair");
+  }
+
+  if (results.length === 0) {
     results.push("Local service business");
   }
 
@@ -151,6 +215,7 @@ function isLikelySameBusiness(
 function getSearchQueries(input: DiscoverCompetitorsInput): string[] {
   const location = [input.city, input.state].filter(Boolean).join(" ").trim();
   const serviceArea = cleanString(input.serviceArea);
+
   const industryLabel =
     input.industry === "PLUMBING"
       ? "plumber"
@@ -165,7 +230,7 @@ function getSearchQueries(input: DiscoverCompetitorsInput): string[] {
   if (location) {
     queries.add(`${industryLabel} in ${location}`);
     queries.add(`best ${industryLabel} in ${location}`);
-    queries.add(`emergency ${industryLabel} in ${location}`);
+    queries.add(`top ${industryLabel} in ${location}`);
   }
 
   if (serviceArea) {
@@ -289,8 +354,7 @@ export async function discoverLocalCompetitors(
       }
 
       const key =
-        placeId ??
-        `${slugifyComparable(name)}::${normalizeDomain(websiteUrl) ?? "no-domain"}`;
+        placeId ?? `${slugifyComparable(name)}::${normalizeDomain(websiteUrl) ?? "no-domain"}`;
 
       if (!collected.has(key)) {
         collected.set(key, {
@@ -303,7 +367,7 @@ export async function discoverLocalCompetitors(
             input.city ?? null,
             input.state ?? null
           ),
-          serviceFocus: inferServiceFocusFromTypes(types),
+          serviceFocus: inferServiceFocusFromTypes(types, input.industry),
           formattedAddress,
           phone: nationalPhoneNumber,
           placeId,
@@ -335,13 +399,16 @@ export async function discoverLocalCompetitors(
         ...candidate,
         websiteUrl,
         googleBusinessUrl,
-        logoUrl: faviconFromWebsite(websiteUrl) ?? candidate.logoUrl,
+        logoUrl:
+          (await extractHomepageLogoCandidate(websiteUrl)) ??
+          faviconFromWebsite(websiteUrl) ??
+          candidate.logoUrl,
         formattedAddress:
           cleanString(details.formattedAddress) ?? candidate.formattedAddress,
         phone: cleanString(details.nationalPhoneNumber) ?? candidate.phone,
         serviceFocus:
-          inferServiceFocusFromTypes(types).length > 0
-            ? inferServiceFocusFromTypes(types)
+          inferServiceFocusFromTypes(types, input.industry).length > 0
+            ? inferServiceFocusFromTypes(types, input.industry)
             : candidate.serviceFocus,
       };
     })

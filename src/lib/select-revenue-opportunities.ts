@@ -28,8 +28,6 @@ const ACTIVE_EXECUTION_STATUSES: CampaignStatus[] = [
   "LAUNCHED",
 ];
 
-const HERO_DIRECT_RESPONSE_SCORE_WINDOW = 8;
-
 function extractMatchedOpportunityKey(briefJson: unknown): string | null {
   if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
     return null;
@@ -54,10 +52,10 @@ function getPenaltyForStatus(status: CampaignStatus | null): {
 
   if (ACTIVE_EXECUTION_STATUSES.includes(status)) {
     return {
-      penalty: 24,
+      penalty: 40,
       isInExecution: true,
       suppressionReason:
-        "This action is already active in execution and should not remain the top recommendation unless signals materially strengthen.",
+        "This action is already active in execution, so MarketForge shifts recommendations to the next best available opportunity.",
     };
   }
 
@@ -141,31 +139,88 @@ function isDirectResponseOpportunity(opportunity: SelectedOpportunity): boolean 
   );
 }
 
-function chooseHeroOpportunity(
-  rankedSelection: SelectedOpportunity[]
-): SelectedOpportunity {
-  const topOpportunity = rankedSelection[0];
+function sortSelectedOpportunities(
+  opportunities: SelectedOpportunity[]
+): SelectedOpportunity[] {
+  return [...opportunities].sort((a, b) => {
+    if (b.adjustedScore !== a.adjustedScore) {
+      return b.adjustedScore - a.adjustedScore;
+    }
 
-  if (!topOpportunity) {
+    if (b.confidenceScore !== a.confidenceScore) {
+      return b.confidenceScore - a.confidenceScore;
+    }
+
+    return b.revenueHigh - a.revenueHigh;
+  });
+}
+
+function buildVisibleRecommendationSet(
+  rankedSelection: SelectedOpportunity[]
+): SelectedOpportunity[] {
+  const visible = rankedSelection.filter(
+    (opportunity) => !opportunity.isInExecution && !opportunity.isDeprioritized
+  );
+
+  if (visible.length > 0) {
+    return visible;
+  }
+
+  const nonExecution = rankedSelection.filter(
+    (opportunity) => !opportunity.isInExecution
+  );
+
+  if (nonExecution.length > 0) {
+    return nonExecution;
+  }
+
+  return rankedSelection;
+}
+
+function chooseHeroOpportunity(
+  visibleRecommendations: SelectedOpportunity[]
+): SelectedOpportunity {
+  const heroEligible = visibleRecommendations.filter(
+    (opportunity) =>
+      opportunity.eligibleForHero &&
+      !opportunity.isDeprioritized &&
+      !isAeoOpportunity(opportunity)
+  );
+
+  if (heroEligible.length > 0) {
+    return heroEligible[0];
+  }
+
+  const directResponse = visibleRecommendations.filter(
+    (opportunity) => isDirectResponseOpportunity(opportunity) && !opportunity.isDeprioritized
+  );
+
+  if (directResponse.length > 0) {
+    return directResponse[0];
+  }
+
+  const firstVisible = visibleRecommendations[0];
+
+  if (!firstVisible) {
     throw new Error("No ranked opportunities available for hero selection.");
   }
 
-  if (!isAeoOpportunity(topOpportunity)) {
-    return topOpportunity;
-  }
+  return firstVisible;
+}
 
-  const closestDirectResponse = rankedSelection.find((opportunity) => {
-    if (!isDirectResponseOpportunity(opportunity)) {
-      return false;
-    }
+function reorderVisibleRecommendations(params: {
+  visibleRecommendations: SelectedOpportunity[];
+  topOpportunity: SelectedOpportunity;
+}): SelectedOpportunity[] {
+  const { visibleRecommendations, topOpportunity } = params;
 
-    return (
-      topOpportunity.adjustedScore - opportunity.adjustedScore <=
-      HERO_DIRECT_RESPONSE_SCORE_WINDOW
-    );
-  });
+  const remaining = sortSelectedOpportunities(
+    visibleRecommendations.filter(
+      (opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey
+    )
+  );
 
-  return closestDirectResponse ?? topOpportunity;
+  return [topOpportunity, ...remaining];
 }
 
 export function selectRevenueOpportunities(params: {
@@ -181,17 +236,11 @@ export function selectRevenueOpportunities(params: {
 } {
   const { opportunities, campaigns, availableJobsEstimate, competitors } = params;
 
-  const rankedSelection = opportunities
-    .map((opportunity) => {
+  const rankedSelection = sortSelectedOpportunities(
+    opportunities.map((opportunity) => {
       const linkedCampaign = findLinkedCampaign(opportunity, campaigns);
-
       const { penalty, isInExecution, suppressionReason } = getPenaltyForStatus(
         linkedCampaign?.status ?? null
-      );
-
-      const adjustedScore = Math.max(
-        1,
-        Math.round(opportunity.rawOpportunityScore - penalty)
       );
 
       return {
@@ -199,31 +248,40 @@ export function selectRevenueOpportunities(params: {
         linkedCampaignId: linkedCampaign?.id ?? null,
         linkedCampaignStatus: linkedCampaign?.status ?? null,
         isInExecution,
-        adjustedScore,
+        adjustedScore: Math.max(1, Math.round(opportunity.rawOpportunityScore - penalty)),
         suppressionReason,
       };
     })
-    .sort((a, b) => {
-      if (b.adjustedScore !== a.adjustedScore) {
-        return b.adjustedScore - a.adjustedScore;
-      }
+  );
 
-      if (b.confidenceScore !== a.confidenceScore) {
-        return b.confidenceScore - a.confidenceScore;
-      }
+  const visibleRecommendations = buildVisibleRecommendationSet(rankedSelection);
+  const topOpportunity = chooseHeroOpportunity(visibleRecommendations);
+  const orderedVisibleRecommendations = reorderVisibleRecommendations({
+    visibleRecommendations,
+    topOpportunity,
+  });
 
-      return b.revenueHigh - a.revenueHigh;
-    });
-
-  const topOpportunity = chooseHeroOpportunity(rankedSelection);
-
-  const backlogOpportunities = rankedSelection
-    .filter((opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey)
+  const primaryBacklog = orderedVisibleRecommendations
+    .filter(
+      (opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey
+    )
     .filter((opportunity) => opportunity.familyKey !== topOpportunity.familyKey)
-    .filter((opportunity) => !opportunity.isInExecution)
     .filter((opportunity) => opportunity.eligibleForBacklog)
-    .filter((opportunity) => opportunity.adjustedScore >= 62)
-    .slice(0, 5);
+    .filter((opportunity) => !opportunity.isDeprioritized);
+
+  const fallbackBacklog = orderedVisibleRecommendations
+    .filter(
+      (opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey
+    )
+    .filter(
+      (opportunity) =>
+        !primaryBacklog.some(
+          (primary) => primary.opportunityKey === opportunity.opportunityKey
+        )
+    )
+    .filter((opportunity) => !opportunity.isDeprioritized);
+
+  const backlogOpportunities = [...primaryBacklog, ...fallbackBacklog].slice(0, 5);
 
   const hero = buildRevenueOpportunityHero({
     opportunity: topOpportunity,

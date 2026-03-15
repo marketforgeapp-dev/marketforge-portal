@@ -11,7 +11,7 @@ export function BusinessInfoStep({ formData, setFormData }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Business Name">
           <input
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
             value={formData.businessName}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, businessName: e.target.value }))
@@ -21,7 +21,7 @@ export function BusinessInfoStep({ formData, setFormData }: Props) {
 
         <Field label="Website">
           <input
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
             placeholder="https://..."
             value={formData.website}
             onChange={(e) =>
@@ -32,7 +32,7 @@ export function BusinessInfoStep({ formData, setFormData }: Props) {
 
         <Field label="Phone">
           <input
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
             value={formData.phone}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, phone: e.target.value }))
@@ -42,7 +42,7 @@ export function BusinessInfoStep({ formData, setFormData }: Props) {
 
         <Field label="City">
           <input
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
             value={formData.city}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, city: e.target.value }))
@@ -52,7 +52,7 @@ export function BusinessInfoStep({ formData, setFormData }: Props) {
 
         <Field label="State">
           <input
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
             value={formData.state}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, state: e.target.value }))
@@ -63,7 +63,7 @@ export function BusinessInfoStep({ formData, setFormData }: Props) {
         <Field label="Service Area Radius (miles)">
           <input
             type="number"
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
             value={formData.serviceAreaRadiusMiles}
             onChange={(e) =>
               setFormData((prev) => ({
@@ -77,7 +77,7 @@ export function BusinessInfoStep({ formData, setFormData }: Props) {
 
       <Field label="Industry">
         <select
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
           value={formData.industry}
           onChange={(e) =>
             setFormData((prev) => ({

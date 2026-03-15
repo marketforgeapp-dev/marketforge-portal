@@ -12,23 +12,6 @@ type Props = {
   }>;
 };
 
-function calculateEstimatedFallbackRevenue(params: {
-  bookedJobs: number;
-  estimatedBookedJobs: number | null;
-  estimatedRevenue: unknown;
-}) {
-  const { bookedJobs, estimatedBookedJobs, estimatedRevenue } = params;
-
-  const totalEstimatedRevenue = Number(estimatedRevenue ?? 0);
-  const estimatedJobs = estimatedBookedJobs ?? 0;
-
-  if (bookedJobs <= 0) return 0;
-  if (totalEstimatedRevenue <= 0 || estimatedJobs <= 0) return 0;
-
-  const perJobRevenue = totalEstimatedRevenue / Math.max(estimatedJobs, 1);
-  return Math.round(bookedJobs * perJobRevenue);
-}
-
 export default async function CampaignDetailPage({ params }: Props) {
   const { campaignId } = await params;
 
@@ -68,18 +51,7 @@ const profile = await prisma.businessProfile.findUnique({
     return sum + Number(entry.revenue ?? 0);
   }, 0);
 
-  const estimatedFallbackRevenue = calculateEstimatedFallbackRevenue({
-    bookedJobs,
-    estimatedBookedJobs: campaign.estimatedBookedJobs,
-    estimatedRevenue: campaign.estimatedRevenue,
-  });
-
-  const revenueSoFar =
-    actualLeadRevenue > 0
-      ? actualLeadRevenue
-      : attributedRevenue > 0
-        ? attributedRevenue
-        : estimatedFallbackRevenue;
+    const revenueSoFar = actualLeadRevenue + attributedRevenue;
 
   return (
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">

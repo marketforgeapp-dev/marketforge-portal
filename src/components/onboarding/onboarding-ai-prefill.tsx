@@ -269,7 +269,9 @@ export function OnboardingAiPrefill({ onApply }: Props) {
 
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             AI suggestions have been applied to the onboarding form below.
-            Review and edit anything before continuing.
+            Review and edit anything before continuing. Review and adjust
+            anything before continuing. MarketForge will use these inputs
+            to generate your first set of revenue opportunities.
           </div>
         </div>
       ) : null}

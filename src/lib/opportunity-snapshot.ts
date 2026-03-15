@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type {
   RevenueOpportunityHero,
-  RankedOpportunity,
 } from "@/lib/revenue-opportunity-engine";
 import type { SelectedOpportunity } from "@/lib/select-revenue-opportunities";
 import { buildRevenueOpportunityEngine } from "@/lib/revenue-opportunity-engine";
@@ -32,6 +31,14 @@ function isSnapshotUsable(snapshot: {
   return snapshot.expiresAt.getTime() > Date.now();
 }
 
+function isSnapshotOlderThanProfile(params: {
+  generatedAt: Date;
+  profileUpdatedAt: Date | null | undefined;
+}) {
+  if (!params.profileUpdatedAt) return false;
+  return params.generatedAt.getTime() < params.profileUpdatedAt.getTime();
+}
+
 function parseHero(value: unknown): RevenueOpportunityHero {
   return value as RevenueOpportunityHero;
 }
@@ -57,11 +64,25 @@ export async function invalidateWorkspaceOpportunitySnapshot(workspaceId: string
 export async function getOrCreateWorkspaceOpportunitySnapshot(
   workspaceId: string
 ): Promise<WorkspaceOpportunitySnapshotPayload> {
-  const existing = await prisma.workspaceOpportunitySnapshot.findUnique({
-    where: { workspaceId },
-  });
+  const [existing, profileFreshness] = await Promise.all([
+    prisma.workspaceOpportunitySnapshot.findUnique({
+      where: { workspaceId },
+    }),
+    prisma.businessProfile.findUnique({
+      where: { workspaceId },
+      select: { updatedAt: true },
+    }),
+  ]);
 
-  if (existing && isSnapshotUsable(existing)) {
+  const snapshotIsFresh =
+    !!existing &&
+    isSnapshotUsable(existing) &&
+    !isSnapshotOlderThanProfile({
+      generatedAt: existing.generatedAt,
+      profileUpdatedAt: profileFreshness?.updatedAt,
+    });
+
+  if (snapshotIsFresh && existing) {
     return {
       hero: parseHero(existing.heroJson),
       topOpportunity: parseTopOpportunity(existing.topOpportunityJson),

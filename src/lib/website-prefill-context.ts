@@ -54,7 +54,10 @@ function stripHtml(html: string): string {
         .replace(/<script[\s\S]*?<\/script>/gi, " ")
         .replace(/<style[\s\S]*?<\/style>/gi, " ")
         .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
-        .replace(/<\/(p|div|section|article|li|h1|h2|h3|h4|h5|h6|br|footer|address)>/gi, "\n")
+        .replace(
+          /<\/(p|div|section|article|li|h1|h2|h3|h4|h5|h6|br|footer|address)>/gi,
+          "\n"
+        )
         .replace(/<[^>]+>/g, " ")
     )
   );
@@ -105,18 +108,21 @@ function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
     const href = match[1];
     const text = cleanWhitespace(stripHtml(match[2] || ""));
 
-    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:")
+    ) {
       continue;
     }
 
     const absolute = absolutizeUrl(href, baseUrl);
-
     if (!absolute) continue;
 
     try {
       const base = new URL(baseUrl);
       const target = new URL(absolute);
-
       if (base.hostname !== target.hostname) continue;
     } catch {
       continue;
@@ -148,7 +154,6 @@ function extractLogoCandidates(html: string, baseUrl: string): string[] {
     const raw = match[1] ?? "";
     const lower = raw.toLowerCase();
 
-    if (!lower) continue;
     if (
       lower.includes("logo") ||
       lower.includes("brand") ||
@@ -224,12 +229,18 @@ function scoreLink(link: ExtractedLink): number {
   if (combined.includes("location")) score += 3;
   if (combined.includes("areas")) score += 3;
   if (combined.includes("service-area")) score += 4;
-  if (combined.includes("plumb")) score += 2;
+  if (combined.includes("faq")) score += 4;
+  if (combined.includes("blog")) score += 3;
   if (combined.includes("drain")) score += 2;
-  if (combined.includes("water heater")) score += 2;
-  if (combined.includes("repair")) score += 2;
-  if (combined.includes("faq")) score += 2;
-  if (combined.includes("blog")) score += 1;
+  if (combined.includes("heater")) score += 2;
+  if (combined.includes("plumb")) score += 2;
+  if (combined.includes("septic")) score += 2;
+  if (combined.includes("tree")) score += 2;
+  if (combined.includes("stump")) score += 2;
+  if (combined.includes("storm")) score += 2;
+  if (combined.includes("hvac")) score += 2;
+  if (combined.includes("furnace")) score += 2;
+  if (combined.includes("cooling")) score += 2;
 
   return score;
 }
@@ -260,7 +271,6 @@ export async function getWebsitePrefillContext(
   websiteInput: string
 ): Promise<WebsitePrefillContext | null> {
   const normalizedWebsite = normalizeWebsite(websiteInput);
-
   if (!normalizedWebsite) return null;
 
   const homepageHtml = await fetchHtml(normalizedWebsite);
@@ -278,7 +288,7 @@ export async function getWebsitePrefillContext(
 
   const topLinks = [...internalLinks]
     .sort((a, b) => scoreLink(b) - scoreLink(a))
-    .slice(0, 4);
+    .slice(0, 8);
 
   const fetchedPages: WebsitePrefillContext["fetchedPages"] = [];
   let mergedExtraText = "";
@@ -309,8 +319,8 @@ export async function getWebsitePrefillContext(
     city: cityState.city ?? secondaryCityState.city,
     state: cityState.state ?? secondaryCityState.state,
     logoCandidates,
-    internalLinks: internalLinks.slice(0, 12),
-    visibleTextExcerpt: truncate(visibleText, 5000),
+    internalLinks: internalLinks.slice(0, 20),
+    visibleTextExcerpt: truncate(visibleText, 6000),
     fetchedPages,
   };
 }

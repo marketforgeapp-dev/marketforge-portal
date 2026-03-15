@@ -114,7 +114,9 @@ export function SettingsForm({
   const [formData, setFormData] = useState<OnboardingFormData>(() => ({
     ...initialData,
     servicePricing: normalizeServicePricingRows(
-      initialData.preferredServices ?? [],
+      initialData.preferredServices?.length
+  ? initialData.preferredServices
+  : initialData.primaryServices ?? [],
       initialData.servicePricing ?? []
     ),
   }));
@@ -122,9 +124,15 @@ export function SettingsForm({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [preferredServicesInput, setPreferredServicesInput] = useState(() =>
+    arrayToCommaSeparated(initialData.preferredServices ?? [])
+  );
 
+  const [deprioritizedServicesInput, setDeprioritizedServicesInput] = useState(() =>
+    arrayToCommaSeparated(initialData.deprioritizedServices ?? [])
+  );
   const locationLine = useMemo(() => {
-    const parts = [formData.city, formData.state].filter(Boolean);
+        const parts = [formData.city, formData.state].filter(Boolean);
     return parts.join(", ");
   }, [formData.city, formData.state]);
 
@@ -362,6 +370,9 @@ export function SettingsForm({
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Business Profile</h2>
+        <p className="mt-1 text-sm text-gray-600">
+  These details define how MarketForge understands your business and local market.
+</p>
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Business Name">
             <input
@@ -578,9 +589,10 @@ export function SettingsForm({
           <div>
             <h2 className="text-xl font-bold text-gray-900">Service Pricing</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Set average revenue by service so MarketForge can calculate more
-              credible opportunity value and avoid overstating revenue impact.
-            </p>
+  Set average revenue by service so MarketForge can calculate realistic
+  opportunity value. If a service does not have a specific price,
+  the system falls back to your average job value.
+</p>
           </div>
 
           <button
@@ -600,11 +612,11 @@ export function SettingsForm({
             </div>
           ) : null}
 
-          {(formData.servicePricing ?? []).map((row, index) => (
-            <div
-              key={`${row.serviceName || "service"}-${index}`}
-              className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[minmax(0,1fr)_220px_auto]"
-            >
+         {(formData.servicePricing ?? []).map((row, index) => (
+  <div
+    key={`service-pricing-row-${index}`}
+    className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[minmax(0,1fr)_220px_auto]"
+  >
               <Field label="Service Name">
                 <input
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
@@ -650,30 +662,32 @@ export function SettingsForm({
         </h2>
         <div className="mt-6 grid grid-cols-1 gap-4">
           <Field
-            label="Preferred Services (comma separated)"
-            helpText="These services also drive the default rows in Service Pricing."
-          >
-            <input
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-              value={arrayToCommaSeparated(formData.preferredServices)}
-              onChange={(e) =>
-                updateField("preferredServices", parseCommaSeparated(e.target.value))
-              }
-            />
-          </Field>
+  label="Preferred Services (comma separated)"
+  helpText="These services also drive the default rows in Service Pricing."
+>
+  <input
+    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+    value={preferredServicesInput}
+    onChange={(e) => setPreferredServicesInput(e.target.value)}
+    onBlur={() =>
+      updateField("preferredServices", parseCommaSeparated(preferredServicesInput))
+    }
+  />
+</Field>
 
           <Field label="Deprioritized Services (comma separated)">
-            <input
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-              value={arrayToCommaSeparated(formData.deprioritizedServices)}
-              onChange={(e) =>
-                updateField(
-                  "deprioritizedServices",
-                  parseCommaSeparated(e.target.value)
-                )
-              }
-            />
-          </Field>
+  <input
+    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+    value={deprioritizedServicesInput}
+    onChange={(e) => setDeprioritizedServicesInput(e.target.value)}
+    onBlur={() =>
+      updateField(
+        "deprioritizedServices",
+        parseCommaSeparated(deprioritizedServicesInput)
+      )
+    }
+  />
+</Field>
 
           <Field label="Busy Months (comma separated)">
             <input
@@ -710,6 +724,10 @@ export function SettingsForm({
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Web Presence</h2>
+        <p className="mt-1 text-sm text-gray-600">
+  These signals help MarketForge evaluate your digital visibility and
+  identify SEO, AEO, and local search opportunities.
+</p>
         <div className="mt-6 grid grid-cols-1 gap-4">
           <Field
             label="Google Business Profile URL"
@@ -767,9 +785,10 @@ export function SettingsForm({
           <div>
             <h2 className="text-xl font-bold text-gray-900">Competitors</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Refine the competitor list detected during onboarding so
-              MarketForge has accurate local market context.
-            </p>
+  Refine the competitor list detected during onboarding so MarketForge
+  can better understand your local competitive landscape and identify
+  opportunities where competitors are inactive or weak.
+</p>
           </div>
 
           <button

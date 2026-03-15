@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
+import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
 
 type RawCompetitor = {
   name?: unknown;
@@ -319,6 +321,15 @@ export async function saveSettings(input: unknown) {
     },
   });
 
+  const aeoReadinessScore = calculateAeoReadinessScore({
+    hasServicePages: values.hasServicePages,
+    hasFaqContent: values.hasFaqContent || values.hasFaqPage,
+    hasBlog: values.hasBlog,
+    hasGoogleBusinessPage: values.hasGoogleBusinessPage,
+    servicePageUrls: values.servicePageUrls,
+    googleBusinessProfileUrl: values.googleBusinessProfileUrl,
+  });
+
   const businessProfileData = {
     businessName: values.businessName,
     website: values.website,
@@ -359,6 +370,7 @@ export async function saveSettings(input: unknown) {
     hasGoogleBusinessPage: values.hasGoogleBusinessPage,
     hasServicePages: values.hasServicePages,
     servicePageUrls: values.servicePageUrls,
+    aeoReadinessScore,
   };
 
   await prisma.businessProfile.upsert({
@@ -395,6 +407,8 @@ export async function saveSettings(input: unknown) {
       })),
     });
   }
+
+    await invalidateWorkspaceOpportunitySnapshot(workspace.id);
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");

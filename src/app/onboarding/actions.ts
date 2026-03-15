@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
 import { onboardingSchema } from "@/lib/onboarding-schema";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
+import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
 
 function toNullableString(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -29,6 +30,17 @@ function toNumberOrNull(value: number | null | undefined): number | null {
 function cleanStringArray(value: string[] | undefined): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => item.trim()).filter((item) => item.length > 0);
+}
+
+function uniqueMergedServices(...groups: string[][]): string[] {
+  return Array.from(
+    new Set(
+      groups
+        .flat()
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+    )
+  );
 }
 
 function sanitizeOnboardingInput(input: unknown) {
@@ -161,10 +173,10 @@ export async function saveOnboarding(input: unknown) {
     },
   });
 
-  const preferredServices =
-    cleanStringArray(values.preferredServices).length > 0
-      ? cleanStringArray(values.preferredServices)
-      : cleanStringArray(values.primaryServices);
+    const preferredServices = uniqueMergedServices(
+    cleanStringArray(values.preferredServices),
+    cleanStringArray(values.primaryServices)
+  );
 
   const deprioritizedServices =
     cleanStringArray(values.deprioritizedServices).length > 0
@@ -199,7 +211,21 @@ export async function saveOnboarding(input: unknown) {
 
   const targetBookedJobsPerWeek =
     toNumberOrNull(values.targetBookedJobsPerWeek) ?? null;
+    const hasFaqContent = values.hasFaqContent || values.hasFaqPage || false;
+  const hasGoogleBusinessPage = values.hasGoogleBusinessPage || false;
+  const hasServicePages = values.hasServicePages || false;
+  const servicePageUrls = cleanStringArray(values.servicePageUrls);
+  const googleBusinessProfileUrl =
+    toNullableString(values.googleBusinessProfileUrl);
 
+  const aeoReadinessScore = calculateAeoReadinessScore({
+    hasServicePages,
+    hasFaqContent,
+    hasBlog: values.hasBlog || false,
+    hasGoogleBusinessPage,
+    servicePageUrls,
+    googleBusinessProfileUrl,
+  });
   const businessProfileData = {
     businessName,
     website: toNullableString(values.website),
@@ -234,13 +260,13 @@ export async function saveOnboarding(input: unknown) {
     slowMonths,
     seasonalityNotes: toNullableString(values.seasonalityNotes),
 
-    googleBusinessProfileUrl:
-      toNullableString(values.googleBusinessProfileUrl),
-    hasFaqContent: values.hasFaqContent || values.hasFaqPage || false,
+    googleBusinessProfileUrl,
+    hasFaqContent,
     hasBlog: values.hasBlog || false,
-    hasGoogleBusinessPage: values.hasGoogleBusinessPage || false,
-    hasServicePages: values.hasServicePages || false,
-    servicePageUrls: cleanStringArray(values.servicePageUrls),
+    hasGoogleBusinessPage,
+    hasServicePages,
+    servicePageUrls,
+    aeoReadinessScore,
   };
 
   await prisma.businessProfile.upsert({

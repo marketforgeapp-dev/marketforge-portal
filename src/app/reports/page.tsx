@@ -10,26 +10,11 @@ type ActionReportRow = {
   estimatedRevenue: number;
   leads: number;
   bookedJobs: number;
-  actualRevenue: number;
+  capturedRevenue: number;
   roiDisplay: string;
 };
 
-function calculateFallbackRevenue(params: {
-  bookedJobs: number;
-  estimatedBookedJobs: number | null;
-  estimatedRevenue: unknown;
-}) {
-  const { bookedJobs, estimatedBookedJobs, estimatedRevenue } = params;
 
-  const totalEstimatedRevenue = Number(estimatedRevenue ?? 0);
-  const estimatedJobs = estimatedBookedJobs ?? 0;
-
-  if (bookedJobs <= 0) return 0;
-  if (totalEstimatedRevenue <= 0 || estimatedJobs <= 0) return 0;
-
-  const perJobRevenue = totalEstimatedRevenue / Math.max(estimatedJobs, 1);
-  return Math.round(bookedJobs * perJobRevenue);
-}
 
 function formatStatusLabel(status: string) {
   switch (status) {
@@ -79,18 +64,7 @@ export default async function ReportsPage() {
       return sum + Number(entry.revenue ?? 0);
     }, 0);
 
-    const fallbackRevenue = calculateFallbackRevenue({
-      bookedJobs,
-      estimatedBookedJobs: campaign.estimatedBookedJobs,
-      estimatedRevenue: campaign.estimatedRevenue,
-    });
-
-    const actualRevenue =
-      actualLeadRevenue > 0
-        ? actualLeadRevenue
-        : attributedRevenue > 0
-          ? attributedRevenue
-          : fallbackRevenue;
+        const capturedRevenue = actualLeadRevenue + attributedRevenue;
 
     const avgRoi =
       campaign.attributions.length > 0
@@ -105,15 +79,15 @@ export default async function ReportsPage() {
       estimatedRevenue: Number(campaign.estimatedRevenue ?? 0),
       leads,
       bookedJobs,
-      actualRevenue,
+      capturedRevenue,
       roiDisplay: avgRoi > 0 ? `${avgRoi.toFixed(1)}x` : "—",
     };
   });
 
-  const totalRevenue = rows.reduce((sum, row) => sum + row.actualRevenue, 0);
+  const totalRevenue = rows.reduce((sum, row) => sum + row.capturedRevenue, 0);
   const totalBookedJobs = rows.reduce((sum, row) => sum + row.bookedJobs, 0);
   const totalLeads = rows.reduce((sum, row) => sum + row.leads, 0);
-  const actionsWithRevenue = rows.filter((row) => row.actualRevenue > 0).length;
+  const actionsWithRevenue = rows.filter((row) => row.capturedRevenue > 0).length;
   const leadToJobRate =
     totalLeads > 0 ? Math.round((totalBookedJobs / totalLeads) * 100) : 0;
 
@@ -147,7 +121,7 @@ export default async function ReportsPage() {
                 ${totalRevenue.toLocaleString()}
               </p>
               <p className="mt-1 text-sm text-gray-600">
-                Attributed and booked revenue recorded
+                  Revenue recorded from booked leads and attribution entries
               </p>
             </div>
 
@@ -212,7 +186,7 @@ export default async function ReportsPage() {
                       Booked Jobs
                     </th>
                     <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
-                      Real Revenue
+                      Captured Revenue
                     </th>
                     <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
                       Est Revenue
@@ -243,7 +217,7 @@ export default async function ReportsPage() {
                       </td>
 
                       <td className="px-5 py-4 text-sm font-semibold text-emerald-700">
-                        ${row.actualRevenue.toLocaleString()}
+                        ${row.capturedRevenue.toLocaleString()}
                       </td>
 
                       <td className="px-5 py-4 text-sm text-gray-700">

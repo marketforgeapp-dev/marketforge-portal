@@ -116,9 +116,10 @@ export default async function SettingsPage() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
-              Update the business profile, service mix, competitors, capacity,
-              and digital presence signals that power MarketForge intelligence.
-            </p>
+  Update the business profile, services, pricing, competitors, and capacity
+  signals that MarketForge uses to calculate revenue opportunities,
+  prioritize actions, and generate campaign recommendations.
+</p>
           </section>
 
           <SettingsForm

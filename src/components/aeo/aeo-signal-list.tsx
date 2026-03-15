@@ -1,4 +1,7 @@
+import { getIndustryCopy } from "@/lib/industry-copy";
+
 type Props = {
+  industry?: "PLUMBING" | "SEPTIC" | "TREE_SERVICE" | "HVAC" | null;
   hasServicePages: boolean;
   hasFaqContent: boolean;
   hasBlog: boolean;
@@ -7,39 +10,42 @@ type Props = {
 };
 
 export function AeoSignalList({
+  industry,
   hasServicePages,
   hasFaqContent,
   hasBlog,
   hasGoogleBusinessPage,
   servicePageCount,
 }: Props) {
+  const copy = getIndustryCopy(industry);
+
   const signals = [
     {
-      label: "Service Pages",
+      label: copy.servicePageLabel,
       value: hasServicePages ? "Present" : "Missing",
       good: hasServicePages,
       detail: hasServicePages
-        ? "Core services are represented on the site."
-        : "Dedicated service pages are missing.",
+        ? `Core ${copy.industryLabel.toLowerCase()} services are represented on the site.`
+        : `Dedicated ${copy.industryLabel.toLowerCase()} service pages are missing.`,
     },
     {
-      label: "FAQ Content",
+      label: copy.faqLabel,
       value: hasFaqContent ? "Present" : "Missing",
       good: hasFaqContent,
       detail: hasFaqContent
-        ? "Answer-ready content is available."
-        : "Structured FAQ content is missing.",
+        ? "Answer-ready content is available for high-intent local questions."
+        : "Structured FAQ coverage is missing or too thin.",
     },
     {
-      label: "Blog / Content Layer",
+      label: "Content Layer",
       value: hasBlog ? "Present" : "Missing",
       good: hasBlog,
       detail: hasBlog
-        ? "Educational content supports answer depth."
+        ? "Educational content supports answer depth and topic breadth."
         : "Topical content coverage is limited.",
     },
     {
-      label: "Google Business Profile",
+      label: copy.googleBusinessLabel,
       value: hasGoogleBusinessPage ? "Connected" : "Missing",
       good: hasGoogleBusinessPage,
       detail: hasGoogleBusinessPage
@@ -52,8 +58,8 @@ export function AeoSignalList({
       good: servicePageCount >= 4,
       detail:
         servicePageCount >= 4
-          ? "Coverage is broad enough to support multiple intents."
-          : "More service-page coverage would strengthen visibility.",
+          ? "Coverage is broad enough to support multiple service intents."
+          : "More dedicated service-page coverage would strengthen visibility.",
     },
   ];
 

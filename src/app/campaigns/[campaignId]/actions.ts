@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { CampaignStatus } from "@/generated/prisma";
+import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 
 function revalidateCampaignViews(campaignId: string) {
   revalidatePath(`/campaigns/${campaignId}`);
@@ -13,6 +14,15 @@ function revalidateCampaignViews(campaignId: string) {
 }
 
 export async function approveCampaign(campaignId: string) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: { workspaceId: true },
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found.");
+  }
+
   await prisma.campaign.update({
     where: { id: campaignId },
     data: {
@@ -20,16 +30,29 @@ export async function approveCampaign(campaignId: string) {
     },
   });
 
+  await invalidateWorkspaceOpportunitySnapshot(campaign.workspaceId);
+
   revalidateCampaignViews(campaignId);
 }
 
 export async function queueCampaignForLaunch(campaignId: string) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: { workspaceId: true },
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found.");
+  }
+
   await prisma.campaign.update({
     where: { id: campaignId },
     data: {
       status: "SCHEDULED",
     },
   });
+
+  await invalidateWorkspaceOpportunitySnapshot(campaign.workspaceId);
 
   revalidateCampaignViews(campaignId);
 }
@@ -133,7 +156,10 @@ export async function saveCampaignAssetEdit(input: {
 export async function resetCampaignToReview(campaignId: string) {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
-    select: { status: true },
+    select: {
+      status: true,
+      workspaceId: true,
+    },
   });
 
   if (!campaign) {
@@ -146,13 +172,15 @@ export async function resetCampaignToReview(campaignId: string) {
     return;
   }
 
-  await prisma.campaign.update({
+    await prisma.campaign.update({
     where: { id: campaignId },
     data: {
       status: "READY",
       qualityReviewStatus: "PENDING",
     },
   });
+
+  await invalidateWorkspaceOpportunitySnapshot(campaign.workspaceId);
 
   revalidateCampaignViews(campaignId);
 }
