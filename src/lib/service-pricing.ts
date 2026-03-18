@@ -19,6 +19,12 @@ export type ServicePricingCandidate = {
   industry?: SupportedIndustry;
 };
 
+type IndexedPricingRow = {
+  row: ServicePricingRow;
+  normalizedServiceName: string;
+  familyKey: string;
+};
+
 export function normalizePricingKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -62,7 +68,30 @@ function resolveIndustry(
   return getProfileIndustry(profile);
 }
 
-function buildCandidatePricingKeys(
+function getValidPricingRows(
+  profile: BusinessProfile,
+  industry: SupportedIndustry
+): IndexedPricingRow[] {
+  return parseServicePricing(profile)
+    .filter(
+      (row) =>
+        typeof row.averageRevenue === "number" &&
+        Number.isFinite(row.averageRevenue) &&
+        row.averageRevenue > 0
+    )
+    .map((row) => {
+      const familyKey = getServiceFamilyKey(row.serviceName, industry);
+
+      return {
+        row,
+        normalizedServiceName: normalizePricingKey(row.serviceName),
+        familyKey,
+      };
+    })
+    .filter((row) => isFamilyCompatibleWithIndustry(row.familyKey, industry));
+}
+
+function buildExactCandidateKeys(
   candidate: ServicePricingCandidate,
   industry: SupportedIndustry
 ): Set<string> {
@@ -80,45 +109,99 @@ function buildCandidatePricingKeys(
   );
 }
 
+function findExactServiceNameMatch(params: {
+  pricingRows: IndexedPricingRow[];
+  candidateKeys: Set<string>;
+  candidateFamilyKey: string;
+}): IndexedPricingRow | null {
+  const { pricingRows, candidateKeys, candidateFamilyKey } = params;
+
+  for (const row of pricingRows) {
+    if (
+      row.familyKey === candidateFamilyKey &&
+      candidateKeys.has(row.normalizedServiceName)
+    ) {
+      return row;
+    }
+  }
+
+  return null;
+}
+
+function findExactBlueprintMatch(params: {
+  pricingRows: IndexedPricingRow[];
+  candidateFamilyKey: string;
+  industry: SupportedIndustry;
+}): IndexedPricingRow | null {
+  const { pricingRows, candidateFamilyKey, industry } = params;
+  const blueprint = getBlueprintForFamily(candidateFamilyKey, industry);
+  const blueprintKey = normalizePricingKey(blueprint.serviceName);
+
+  return (
+    pricingRows.find(
+      (row) =>
+        row.familyKey === candidateFamilyKey &&
+        row.normalizedServiceName === blueprintKey
+    ) ?? null
+  );
+}
+
+function findSingleFamilyFallback(params: {
+  pricingRows: IndexedPricingRow[];
+  candidateFamilyKey: string;
+}): IndexedPricingRow | null {
+  const familyRows = params.pricingRows.filter(
+    (row) => row.familyKey === params.candidateFamilyKey
+  );
+
+  if (familyRows.length === 1) {
+    return familyRows[0];
+  }
+
+  return null;
+}
+
 export function getServiceLevelJobValue(params: {
   profile: BusinessProfile;
   candidate: ServicePricingCandidate;
 }): number | null {
-  const pricingRows = parseServicePricing(params.profile);
-  if (pricingRows.length === 0) return null;
-
   const industry = resolveIndustry(params.profile, params.candidate);
+  const pricingRows = getValidPricingRows(params.profile, industry);
+
+  if (pricingRows.length === 0) {
+    return null;
+  }
+
   const candidateFamilyKey = params.candidate.familyKey;
-  const candidateKeys = buildCandidatePricingKeys(params.candidate, industry);
+  const candidateKeys = buildExactCandidateKeys(params.candidate, industry);
 
-  for (const row of pricingRows) {
-    if (
-      typeof row.averageRevenue !== "number" ||
-      !Number.isFinite(row.averageRevenue) ||
-      row.averageRevenue <= 0
-    ) {
-      continue;
-    }
+  const exactServiceNameMatch = findExactServiceNameMatch({
+    pricingRows,
+    candidateKeys,
+    candidateFamilyKey,
+  });
 
-    const rowKey = normalizePricingKey(row.serviceName);
-    const rowFamilyKey = getServiceFamilyKey(row.serviceName, industry);
+  if (exactServiceNameMatch) {
+    return exactServiceNameMatch.row.averageRevenue;
+  }
 
-    if (!isFamilyCompatibleWithIndustry(rowFamilyKey, industry)) {
-      continue;
-    }
+  const exactBlueprintMatch = findExactBlueprintMatch({
+    pricingRows,
+    candidateFamilyKey,
+    industry,
+  });
 
-    const directMatch =
-      candidateKeys.has(rowKey) ||
-      Array.from(candidateKeys).some(
-        (candidateKey) =>
-          candidateKey.includes(rowKey) || rowKey.includes(candidateKey)
-      );
+  if (exactBlueprintMatch) {
+    return exactBlueprintMatch.row.averageRevenue;
+  }
 
-    const familyMatch = rowFamilyKey === candidateFamilyKey;
+  const singleFamilyFallback = findSingleFamilyFallback({
+    pricingRows,
+    candidateFamilyKey,
+  });
 
-    if (directMatch || familyMatch) {
-      return row.averageRevenue;
-    }
+  if (singleFamilyFallback) {
+    return singleFamilyFallback.row.averageRevenue;
   }
 
   return null;

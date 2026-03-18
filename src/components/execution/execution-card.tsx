@@ -14,6 +14,13 @@ type CampaignWithExecution = Campaign & {
   briefJson: Prisma.JsonValue | null;
 };
 
+type EstimatedRange = {
+  jobsLow?: number | null;
+  jobsHigh?: number | null;
+  revenueLow?: number | null;
+  revenueHigh?: number | null;
+};
+
 type Props = {
   campaign: CampaignWithExecution;
 };
@@ -35,10 +42,42 @@ function getExecutionMeta(
   return execution as ExecutionMeta;
 }
 
+function extractEstimatedRange(
+  briefJson: Prisma.JsonValue | null
+): EstimatedRange | null {
+  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
+    return null;
+  }
+
+  const record = briefJson as Record<string, unknown>;
+  const range = record.estimatedRange;
+
+  if (!range || typeof range !== "object" || Array.isArray(range)) {
+    return null;
+  }
+
+  const estimatedRange = range as Record<string, unknown>;
+
+  return {
+    jobsLow:
+      typeof estimatedRange.jobsLow === "number" ? estimatedRange.jobsLow : null,
+    jobsHigh:
+      typeof estimatedRange.jobsHigh === "number" ? estimatedRange.jobsHigh : null,
+    revenueLow:
+      typeof estimatedRange.revenueLow === "number"
+        ? estimatedRange.revenueLow
+        : null,
+    revenueHigh:
+      typeof estimatedRange.revenueHigh === "number"
+        ? estimatedRange.revenueHigh
+        : null,
+  };
+}
+
 function statusLabel(status: Campaign["status"]) {
   const labels: Record<Campaign["status"], string> = {
-    DRAFT: "Draft",
-    READY: "Draft Ready",
+    DRAFT: "Review",
+    READY: "Review",
     APPROVED: "Approved",
     SCHEDULED: "Queued",
     LAUNCHED: "Launched",
@@ -50,7 +89,49 @@ function statusLabel(status: Campaign["status"]) {
 
 export function ExecutionCard({ campaign }: Props) {
   const execution = getExecutionMeta(campaign.briefJson);
-  const revenue = Number(campaign.estimatedRevenue ?? 0);
+  function extractEstimatedRange(
+  briefJson: Prisma.JsonValue | null
+): EstimatedRange | null {
+  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
+    return null;
+  }
+
+  const record = briefJson as Record<string, unknown>;
+  const range = record.estimatedRange;
+
+  if (!range || typeof range !== "object" || Array.isArray(range)) {
+    return null;
+  }
+
+  const estimatedRange = range as Record<string, unknown>;
+
+  return {
+    jobsLow:
+      typeof estimatedRange.jobsLow === "number" ? estimatedRange.jobsLow : null,
+    jobsHigh:
+      typeof estimatedRange.jobsHigh === "number" ? estimatedRange.jobsHigh : null,
+    revenueLow:
+      typeof estimatedRange.revenueLow === "number"
+        ? estimatedRange.revenueLow
+        : null,
+    revenueHigh:
+      typeof estimatedRange.revenueHigh === "number"
+        ? estimatedRange.revenueHigh
+        : null,
+  };
+}
+
+const estimatedRange = extractEstimatedRange(campaign.briefJson);
+
+const jobsDisplay =
+  estimatedRange?.jobsLow != null && estimatedRange?.jobsHigh != null
+    ? `${estimatedRange.jobsLow}–${estimatedRange.jobsHigh}`
+    : campaign.estimatedBookedJobs ?? 0;
+
+const revenueDisplay =
+  estimatedRange?.revenueHigh != null
+    ? estimatedRange.revenueHigh
+    : Number(campaign.estimatedRevenue ?? 0);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -92,7 +173,7 @@ export function ExecutionCard({ campaign }: Props) {
             Est Jobs
           </p>
           <p className="mt-1 text-sm font-semibold text-gray-900">
-            {campaign.estimatedBookedJobs ?? 0}
+            {jobsDisplay}
           </p>
         </div>
 
@@ -101,7 +182,7 @@ export function ExecutionCard({ campaign }: Props) {
             Est Revenue
           </p>
           <p className="mt-1 text-sm font-semibold text-gray-900">
-            ${revenue.toLocaleString()}
+            ${revenueDisplay.toLocaleString()}
           </p>
         </div>
       </div>

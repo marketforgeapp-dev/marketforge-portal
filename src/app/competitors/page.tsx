@@ -14,7 +14,10 @@ export default async function CompetitorsPage() {
 
   const competitors = await prisma.competitor.findMany({
     where: { workspaceId: workspace.id },
-    orderBy: { createdAt: "asc" },
+    orderBy: [
+      { isPrimaryCompetitor: "desc" },
+      { createdAt: "asc" },
+    ],
   });
 
   const alerts = await prisma.intelligenceAlert.findMany({
@@ -38,8 +41,8 @@ export default async function CompetitorsPage() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
-              Monitor local competitors, track activity changes, and identify
-              moments where MarketForge can help you capture more revenue.
+              Monitor local competitors, compare visible service coverage, and
+              identify where MarketForge can help you capture more revenue.
             </p>
           </section>
 

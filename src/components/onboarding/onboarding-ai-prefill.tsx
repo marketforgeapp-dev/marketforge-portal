@@ -61,26 +61,43 @@ export function OnboardingAiPrefill({ onApply }: Props) {
   const [result, setResult] = useState<OnboardingPrefillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasApplied, setHasApplied] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function handleGenerate() {
+    function handleGenerate() {
+    if (isPending || !companyName.trim() || !website.trim()) {
+      return;
+    }
+
     setError(null);
     setHasApplied(false);
+    setLoadingMessage(
+      "Analyzing website, identifying services, and building competitor suggestions..."
+    );
 
     startTransition(async () => {
-      const response = await generateOnboardingPrefill({
-        companyName,
-        website,
-      });
+      try {
+        const response = await generateOnboardingPrefill({
+          companyName,
+          website,
+        });
 
-      if (!response.success) {
-        setError(response.error);
-        return;
+        if (!response.success) {
+          setError(response.error);
+          setLoadingMessage(null);
+          return;
+        }
+
+        setLoadingMessage("Applying suggestions to your onboarding workspace...");
+        setResult(response.data);
+        onApply(response.data);
+        setHasApplied(true);
+        setLoadingMessage(null);
+      } catch (error) {
+        console.error(error);
+        setError("Unable to generate onboarding suggestions right now.");
+        setLoadingMessage(null);
       }
-
-      setResult(response.data);
-      onApply(response.data);
-      setHasApplied(true);
     });
   }
 
@@ -100,20 +117,28 @@ export function OnboardingAiPrefill({ onApply }: Props) {
       </p>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <input
+                <input
           type="text"
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
           placeholder="Enter company name"
-          className="rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900"
+          disabled={isPending}
+          className="rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
         />
 
-        <input
+                <input
           type="text"
           value={website}
           onChange={(e) => setWebsite(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleGenerate();
+            }
+          }}
           placeholder="Enter company website"
-          className="rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900"
+          disabled={isPending}
+          className="rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
         />
       </div>
 
@@ -124,7 +149,7 @@ export function OnboardingAiPrefill({ onApply }: Props) {
           disabled={isPending || !companyName.trim() || !website.trim()}
           className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending ? "Generating..." : "Generate & Apply Suggestions"}
+                    {isPending ? "Generating & Applying..." : "Generate & Apply Suggestions"}
         </button>
 
         {hasApplied ? (
@@ -133,6 +158,24 @@ export function OnboardingAiPrefill({ onApply }: Props) {
           </span>
         ) : null}
       </div>
+
+            {loadingMessage ? (
+        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900">
+                MarketForge is preparing your workspace
+              </p>
+              <p className="mt-1 text-sm text-blue-800">{loadingMessage}</p>
+              <p className="mt-2 text-xs text-blue-700">
+                This can take a little bit because MarketForge is analyzing the
+                website, checking local competitor signals, and generating suggestions.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

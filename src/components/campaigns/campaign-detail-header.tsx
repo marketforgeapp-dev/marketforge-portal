@@ -51,8 +51,8 @@ type ParsedBrief = {
 };
 
 const STATUS_LABELS: Record<CampaignStatus, string> = {
-  DRAFT: "Draft Ready",
-  READY: "Draft Ready",
+  DRAFT: "Review",
+  READY: "Review",
   APPROVED: "Approved",
   SCHEDULED: "Queued",
   LAUNCHED: "Launched",

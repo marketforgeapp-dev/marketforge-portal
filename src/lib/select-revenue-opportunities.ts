@@ -12,6 +12,7 @@ type CampaignExecutionRecord = {
   status: CampaignStatus;
   targetService?: string | null;
   briefJson?: unknown;
+  updatedAt?: Date | string | null;
 };
 
 export type SelectedOpportunity = RankedOpportunity & {
@@ -28,6 +29,112 @@ const ACTIVE_EXECUTION_STATUSES: CampaignStatus[] = [
   "LAUNCHED",
 ];
 
+const STALE_COMPLETED_REENTRY_DAYS = 45;
+
+function normalize(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+function normalizeComparable(text: string): string {
+  return normalize(text).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function getCampaignUpdatedAtDate(
+  campaign: CampaignExecutionRecord
+): Date | null {
+  if (!campaign.updatedAt) {
+    return null;
+  }
+
+  const value =
+    campaign.updatedAt instanceof Date
+      ? campaign.updatedAt
+      : new Date(campaign.updatedAt);
+
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+function isCompletedCampaignStale(
+  campaign: CampaignExecutionRecord
+): boolean {
+  if (campaign.status !== "COMPLETED") {
+    return false;
+  }
+
+  const updatedAt = getCampaignUpdatedAtDate(campaign);
+  if (!updatedAt) {
+    return false;
+  }
+
+  const ageMs = Date.now() - updatedAt.getTime();
+  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+
+  return ageDays >= STALE_COMPLETED_REENTRY_DAYS;
+}
+
+function getPortfolioFamilyKey(opportunity: {
+  recommendedCampaignType: string;
+  opportunityType: string;
+  actionFraming: string;
+  bestMove: string;
+  title: string;
+}): string {
+  if (
+    opportunity.recommendedCampaignType === "SEO_CONTENT" ||
+    opportunity.recommendedCampaignType === "AEO_FAQ" ||
+    opportunity.opportunityType === "AI_SEARCH_VISIBILITY" ||
+    opportunity.actionFraming === "AEO_CONTENT" ||
+    opportunity.actionFraming === "LOCAL_VISIBILITY"
+  ) {
+    return "search-visibility";
+  }
+
+  if (opportunity.recommendedCampaignType === "EMERGENCY_SERVICE") {
+    return "fast-response";
+  }
+
+  if (opportunity.actionFraming === "SCHEDULE_FILL") {
+    return "schedule-fill";
+  }
+
+  if (
+    opportunity.opportunityType === "HIGH_VALUE_SERVICE" ||
+    opportunity.actionFraming === "PROMOTION" ||
+    opportunity.recommendedCampaignType === "WATER_HEATER"
+  ) {
+    return "high-value-service";
+  }
+
+  if (opportunity.actionFraming === "REPUTATION") {
+    return "trust-conversion";
+  }
+
+  if (opportunity.opportunityType === "COMPETITOR_INACTIVE") {
+    return "competitor-capture";
+  }
+
+  return "core-revenue";
+}
+
+function extractCampaignOrigin(
+  briefJson: unknown
+): "recommendation" | "nl_custom" | null {
+  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
+    return null;
+  }
+
+  const value = (briefJson as Record<string, unknown>).campaignOrigin;
+  return value === "recommendation" || value === "nl_custom" ? value : null;
+}
+
+function extractConsumesRecommendationSlot(briefJson: unknown): boolean {
+  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
+    return false;
+  }
+
+  return (briefJson as Record<string, unknown>).consumesRecommendationSlot === true;
+}
+
 function extractMatchedOpportunityKey(briefJson: unknown): string | null {
   if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
     return null;
@@ -37,11 +144,42 @@ function extractMatchedOpportunityKey(briefJson: unknown): string | null {
   return typeof maybeKey === "string" && maybeKey.length > 0 ? maybeKey : null;
 }
 
-function getPenaltyForStatus(status: CampaignStatus | null): {
+function extractMatchedOpportunityTitle(briefJson: unknown): string | null {
+  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
+    return null;
+  }
+
+  const maybeTitle =
+    (briefJson as Record<string, unknown>).matchedOpportunityTitle;
+
+  return typeof maybeTitle === "string" && maybeTitle.length > 0
+    ? maybeTitle
+    : null;
+}
+
+function extractMatchedFamilyKey(briefJson: unknown): string | null {
+  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
+    return null;
+  }
+
+  const maybeFamilyKey =
+    (briefJson as Record<string, unknown>).matchedFamilyKey;
+
+  return typeof maybeFamilyKey === "string" && maybeFamilyKey.length > 0
+    ? maybeFamilyKey
+    : null;
+}
+
+function getPenaltyForStatus(params: {
+  status: CampaignStatus | null;
+  completedIsStale: boolean;
+}): {
   penalty: number;
   isInExecution: boolean;
   suppressionReason: string | null;
 } {
+  const { status, completedIsStale } = params;
+
   if (!status) {
     return {
       penalty: 0,
@@ -69,11 +207,19 @@ function getPenaltyForStatus(status: CampaignStatus | null): {
   }
 
   if (status === "COMPLETED") {
+    if (completedIsStale) {
+      return {
+        penalty: 0,
+        isInExecution: false,
+        suppressionReason: null,
+      };
+    }
+
     return {
       penalty: 10,
       isInExecution: false,
       suppressionReason:
-        "This action has already completed execution and is downweighted unless fresh signals justify resurfacing it.",
+        "This action has completed recently and is temporarily downweighted before re-entering the opportunity pool.",
     };
   }
 
@@ -88,8 +234,24 @@ function findLinkedCampaign(
   opportunity: RankedOpportunity,
   campaigns: CampaignExecutionRecord[]
 ): CampaignExecutionRecord | null {
+  const recommendationCampaigns = campaigns.filter((campaign) => {
+    const origin = extractCampaignOrigin(campaign.briefJson);
+    const consumesSlot = extractConsumesRecommendationSlot(campaign.briefJson);
+    const matchedOpportunityKey = extractMatchedOpportunityKey(campaign.briefJson);
+    const matchedFamilyKey = extractMatchedFamilyKey(campaign.briefJson);
+    const matchedOpportunityTitle = extractMatchedOpportunityTitle(campaign.briefJson);
+
+    return (
+      origin === "recommendation" ||
+      consumesSlot === true ||
+      Boolean(matchedOpportunityKey) ||
+      Boolean(matchedFamilyKey) ||
+      Boolean(matchedOpportunityTitle)
+    );
+  });
+
   const exactKeyMatch =
-    campaigns.find(
+    recommendationCampaigns.find(
       (campaign) =>
         extractMatchedOpportunityKey(campaign.briefJson) ===
         opportunity.opportunityKey
@@ -99,44 +261,42 @@ function findLinkedCampaign(
     return exactKeyMatch;
   }
 
-  const normalizedService = opportunity.serviceName.trim().toLowerCase();
+  const normalizedOpportunityService = normalizeComparable(opportunity.serviceName);
+  const normalizedOpportunityTitle = normalizeComparable(opportunity.title);
+  const opportunityFamilyKey = opportunity.familyKey;
+  const opportunityCampaignType = opportunity.recommendedCampaignType;
 
-  const fallbackMatch =
-    campaigns.find((campaign) => {
-      if (campaign.campaignType !== opportunity.recommendedCampaignType) {
+  const legacyFamilyMatch =
+    recommendationCampaigns.find((campaign) => {
+      if (campaign.campaignType !== opportunityCampaignType) {
         return false;
+      }
+
+      const matchedFamilyKey = extractMatchedFamilyKey(campaign.briefJson);
+      if (matchedFamilyKey && matchedFamilyKey === opportunityFamilyKey) {
+        return true;
+      }
+
+      const matchedOpportunityTitle = extractMatchedOpportunityTitle(
+        campaign.briefJson
+      );
+      if (
+        matchedOpportunityTitle &&
+        normalizeComparable(matchedOpportunityTitle) === normalizedOpportunityTitle
+      ) {
+        return true;
       }
 
       if (!campaign.targetService) {
         return false;
       }
 
-      return campaign.targetService.trim().toLowerCase() === normalizedService;
+      return (
+        normalizeComparable(campaign.targetService) === normalizedOpportunityService
+      );
     }) ?? null;
 
-  return fallbackMatch;
-}
-
-function isAeoOpportunity(opportunity: SelectedOpportunity): boolean {
-  return (
-    opportunity.opportunityType === "AI_SEARCH_VISIBILITY" ||
-    opportunity.recommendedCampaignType === "AEO_FAQ" ||
-    opportunity.actionFraming === "AEO_CONTENT"
-  );
-}
-
-function isDirectResponseOpportunity(opportunity: SelectedOpportunity): boolean {
-  if (isAeoOpportunity(opportunity)) {
-    return false;
-  }
-
-  return (
-    opportunity.recommendedCampaignType === "DRAIN_SPECIAL" ||
-    opportunity.recommendedCampaignType === "EMERGENCY_SERVICE" ||
-    opportunity.recommendedCampaignType === "WATER_HEATER" ||
-    opportunity.recommendedCampaignType === "MAINTENANCE_PUSH" ||
-    opportunity.recommendedCampaignType === "CUSTOM"
-  );
+  return legacyFamilyMatch;
 }
 
 function sortSelectedOpportunities(
@@ -177,50 +337,167 @@ function buildVisibleRecommendationSet(
   return rankedSelection;
 }
 
-function chooseHeroOpportunity(
-  visibleRecommendations: SelectedOpportunity[]
-): SelectedOpportunity {
-  const heroEligible = visibleRecommendations.filter(
-    (opportunity) =>
-      opportunity.eligibleForHero &&
-      !opportunity.isDeprioritized &&
-      !isAeoOpportunity(opportunity)
+function isAeoOpportunity(opportunity: {
+  recommendedCampaignType: string;
+  opportunityType: string;
+  actionFraming: string;
+}): boolean {
+  return (
+    opportunity.recommendedCampaignType === "SEO_CONTENT" ||
+    opportunity.recommendedCampaignType === "AEO_FAQ" ||
+    opportunity.opportunityType === "AI_SEARCH_VISIBILITY" ||
+    opportunity.actionFraming === "AEO_CONTENT" ||
+    opportunity.actionFraming === "LOCAL_VISIBILITY"
   );
-
-  if (heroEligible.length > 0) {
-    return heroEligible[0];
-  }
-
-  const directResponse = visibleRecommendations.filter(
-    (opportunity) => isDirectResponseOpportunity(opportunity) && !opportunity.isDeprioritized
-  );
-
-  if (directResponse.length > 0) {
-    return directResponse[0];
-  }
-
-  const firstVisible = visibleRecommendations[0];
-
-  if (!firstVisible) {
-    throw new Error("No ranked opportunities available for hero selection.");
-  }
-
-  return firstVisible;
 }
 
-function reorderVisibleRecommendations(params: {
-  visibleRecommendations: SelectedOpportunity[];
-  topOpportunity: SelectedOpportunity;
-}): SelectedOpportunity[] {
-  const { visibleRecommendations, topOpportunity } = params;
-
-  const remaining = sortSelectedOpportunities(
-    visibleRecommendations.filter(
-      (opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey
-    )
+function selectHeroOpportunity(
+  visibleRecommendations: SelectedOpportunity[]
+): SelectedOpportunity {
+  const ordered = sortSelectedOpportunities(
+    visibleRecommendations.filter((opportunity) => !opportunity.isDeprioritized)
   );
 
-  return [topOpportunity, ...remaining];
+  const topNonAeo =
+    ordered.find((opportunity) => !isAeoOpportunity(opportunity)) ?? null;
+
+  if (topNonAeo) {
+    return topNonAeo;
+  }
+
+  if (ordered.length > 0) {
+    return ordered[0];
+  }
+
+  return sortSelectedOpportunities(visibleRecommendations)[0];
+}
+
+function getTopCandidatesPerServiceFamily(
+  opportunities: SelectedOpportunity[]
+): SelectedOpportunity[] {
+  const seen = new Set<string>();
+  const output: SelectedOpportunity[] = [];
+
+  for (const opportunity of opportunities) {
+    if (seen.has(opportunity.familyKey)) {
+      continue;
+    }
+
+    seen.add(opportunity.familyKey);
+    output.push(opportunity);
+  }
+
+  return output;
+}
+
+function pushUnique(
+  bucket: SelectedOpportunity[],
+  candidate: SelectedOpportunity,
+  usedOpportunityKeys: Set<string>
+) {
+  if (usedOpportunityKeys.has(candidate.opportunityKey)) {
+    return;
+  }
+
+  usedOpportunityKeys.add(candidate.opportunityKey);
+  bucket.push(candidate);
+}
+
+function buildBacklogOpportunities(
+  visibleRecommendations: SelectedOpportunity[],
+  hero: SelectedOpportunity
+): SelectedOpportunity[] {
+  const remaining = sortSelectedOpportunities(
+    visibleRecommendations.filter(
+      (opportunity) => opportunity.opportunityKey !== hero.opportunityKey
+    )
+  ).filter((opportunity) => opportunity.eligibleForBacklog);
+
+  const topPerServiceFamily = getTopCandidatesPerServiceFamily(remaining);
+  const nonSearchFamilyLeaders = topPerServiceFamily.filter(
+    (opportunity) => getPortfolioFamilyKey(opportunity) !== "search-visibility"
+  );
+  const searchFamilyLeaders = topPerServiceFamily.filter(
+    (opportunity) => getPortfolioFamilyKey(opportunity) === "search-visibility"
+  );
+
+  const selected: SelectedOpportunity[] = [];
+  const usedOpportunityKeys = new Set<string>();
+  const usedServiceFamilies = new Set<string>([hero.familyKey]);
+  const usedPortfolioFamilies = new Set<string>([getPortfolioFamilyKey(hero)]);
+
+  for (const opportunity of nonSearchFamilyLeaders) {
+    if (selected.length >= 5) break;
+    if (usedServiceFamilies.has(opportunity.familyKey)) continue;
+
+    pushUnique(selected, opportunity, usedOpportunityKeys);
+    usedServiceFamilies.add(opportunity.familyKey);
+    usedPortfolioFamilies.add(getPortfolioFamilyKey(opportunity));
+  }
+
+  if (
+    selected.length < 5 &&
+    !usedPortfolioFamilies.has("search-visibility") &&
+    searchFamilyLeaders.length > 0
+  ) {
+    const firstSearchCandidate = searchFamilyLeaders.find(
+      (opportunity) => !usedServiceFamilies.has(opportunity.familyKey)
+    );
+
+    if (firstSearchCandidate) {
+      pushUnique(selected, firstSearchCandidate, usedOpportunityKeys);
+      usedServiceFamilies.add(firstSearchCandidate.familyKey);
+      usedPortfolioFamilies.add("search-visibility");
+    }
+  }
+
+  for (const opportunity of remaining) {
+    if (selected.length >= 5) break;
+    if (usedOpportunityKeys.has(opportunity.opportunityKey)) continue;
+
+    const portfolioFamilyKey = getPortfolioFamilyKey(opportunity);
+
+    if (
+      portfolioFamilyKey === "search-visibility" &&
+      usedPortfolioFamilies.has("search-visibility")
+    ) {
+      continue;
+    }
+
+    if (!usedServiceFamilies.has(opportunity.familyKey)) {
+      pushUnique(selected, opportunity, usedOpportunityKeys);
+      usedServiceFamilies.add(opportunity.familyKey);
+      usedPortfolioFamilies.add(portfolioFamilyKey);
+    }
+  }
+
+  for (const opportunity of remaining) {
+    if (selected.length >= 5) break;
+    if (usedOpportunityKeys.has(opportunity.opportunityKey)) continue;
+
+    const portfolioFamilyKey = getPortfolioFamilyKey(opportunity);
+
+    if (
+      portfolioFamilyKey === "search-visibility" &&
+      usedPortfolioFamilies.has("search-visibility")
+    ) {
+      continue;
+    }
+
+    pushUnique(selected, opportunity, usedOpportunityKeys);
+    usedPortfolioFamilies.add(portfolioFamilyKey);
+  }
+
+  if (selected.length < 5) {
+    for (const opportunity of remaining) {
+      if (selected.length >= 5) break;
+      if (usedOpportunityKeys.has(opportunity.opportunityKey)) continue;
+
+      pushUnique(selected, opportunity, usedOpportunityKeys);
+    }
+  }
+
+  return selected.slice(0, 5);
 }
 
 export function selectRevenueOpportunities(params: {
@@ -236,12 +513,17 @@ export function selectRevenueOpportunities(params: {
 } {
   const { opportunities, campaigns, availableJobsEstimate, competitors } = params;
 
-  const rankedSelection = sortSelectedOpportunities(
+    const rankedSelection = sortSelectedOpportunities(
     opportunities.map((opportunity) => {
       const linkedCampaign = findLinkedCampaign(opportunity, campaigns);
-      const { penalty, isInExecution, suppressionReason } = getPenaltyForStatus(
-        linkedCampaign?.status ?? null
-      );
+      const completedIsStale = linkedCampaign
+        ? isCompletedCampaignStale(linkedCampaign)
+        : false;
+
+      const { penalty, isInExecution, suppressionReason } = getPenaltyForStatus({
+        status: linkedCampaign?.status ?? null,
+        completedIsStale,
+      });
 
       return {
         ...opportunity,
@@ -255,33 +537,11 @@ export function selectRevenueOpportunities(params: {
   );
 
   const visibleRecommendations = buildVisibleRecommendationSet(rankedSelection);
-  const topOpportunity = chooseHeroOpportunity(visibleRecommendations);
-  const orderedVisibleRecommendations = reorderVisibleRecommendations({
+  const topOpportunity = selectHeroOpportunity(visibleRecommendations);
+  const backlogOpportunities = buildBacklogOpportunities(
     visibleRecommendations,
-    topOpportunity,
-  });
-
-  const primaryBacklog = orderedVisibleRecommendations
-    .filter(
-      (opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey
-    )
-    .filter((opportunity) => opportunity.familyKey !== topOpportunity.familyKey)
-    .filter((opportunity) => opportunity.eligibleForBacklog)
-    .filter((opportunity) => !opportunity.isDeprioritized);
-
-  const fallbackBacklog = orderedVisibleRecommendations
-    .filter(
-      (opportunity) => opportunity.opportunityKey !== topOpportunity.opportunityKey
-    )
-    .filter(
-      (opportunity) =>
-        !primaryBacklog.some(
-          (primary) => primary.opportunityKey === opportunity.opportunityKey
-        )
-    )
-    .filter((opportunity) => !opportunity.isDeprioritized);
-
-  const backlogOpportunities = [...primaryBacklog, ...fallbackBacklog].slice(0, 5);
+    topOpportunity
+  );
 
   const hero = buildRevenueOpportunityHero({
     opportunity: topOpportunity,

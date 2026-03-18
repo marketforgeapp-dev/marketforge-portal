@@ -374,7 +374,7 @@ Return best-effort onboarding suggestions for MarketForge.
       industry: inferredIndustry,
       preferredServices: finalPreferredServices,
       servicePageUrls: mergedServicePageUrls,
-      hasFaqContent: parsed.hasFaqContent || visibilitySignals.hasFaqContent,
+      hasFaqContent: visibilitySignals.hasFaqContent,
       hasBlog: visibilitySignals.hasBlog,
       hasGoogleBusinessPage:
         visibilitySignals.hasGoogleBusinessPage ||

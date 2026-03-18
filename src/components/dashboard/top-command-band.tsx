@@ -97,12 +97,13 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl }: Props) {
   const ctaText =
     brief?.campaignDraft?.cta ?? brief?.actionThesis?.ctaHint ?? "Book now";
 
-  const image = getActionImage({
+    const image = getActionImage({
+    industry: "plumbing",
+    familyKey: hero.familyKey,
     imageKey: brief?.actionThesis?.imageKey ?? hero.imageKey,
     imageMode: brief?.actionThesis?.imageMode ?? hero.imageMode,
     logoUrl,
   });
-
   return (
     <section className="mf-card mf-card-highlight rounded-3xl p-4 md:p-5">
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">

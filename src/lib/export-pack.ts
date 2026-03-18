@@ -50,7 +50,52 @@ type BriefJsonShape = {
     launchPlatform?: string | null;
     credentialsReceived?: boolean;
     launchNotes?: string | null;
+    approvedAssetTypes?: string[];
   };
+};
+
+type GoogleBusinessAssetPayload = {
+  kind: "GOOGLE_BUSINESS";
+  title: string;
+  description: string;
+  cta: string;
+  imageKey: string;
+  imageMode: "SERVICE_IMAGE" | "LOGO";
+  industry: string;
+};
+
+type MetaAssetPayload = {
+  kind: "META";
+  headline: string;
+  primaryText: string;
+  cta: string;
+  imageKey: string;
+  imageMode: "SERVICE_IMAGE" | "LOGO";
+  industry: string;
+};
+
+type EmailAssetPayload = {
+  kind: "EMAIL";
+  subject: string;
+  previewLine: string;
+  body: string;
+  cta: string;
+  industry: string;
+};
+
+type BlogAssetPayload = {
+  kind: "BLOG";
+  title: string;
+  excerpt: string;
+  introduction: string;
+  sections: Array<{
+    heading: string;
+    body: string;
+  }>;
+  cta: string;
+  imageKey: string;
+  imageMode: "SERVICE_IMAGE" | "LOGO";
+  industry: string;
 };
 
 function safeBriefJson(value: Prisma.JsonValue | null): BriefJsonShape | null {
@@ -61,11 +106,25 @@ function safeBriefJson(value: Prisma.JsonValue | null): BriefJsonShape | null {
   return value as BriefJsonShape;
 }
 
-function assetByType(
+function approvedAssetByType(
   assets: CampaignAsset[],
   type: CampaignAsset["assetType"]
 ) {
-  return assets.find((asset) => asset.assetType === type) ?? null;
+  return assets.find(
+    (asset) => asset.assetType === type && asset.isApproved
+  ) ?? null;
+}
+
+function parseStructuredAsset<T>(asset: CampaignAsset | null): T | null {
+  if (!asset) return null;
+
+  try {
+    const parsed = JSON.parse(asset.content);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as T;
+  } catch {
+    return null;
+  }
 }
 
 function svgTemplate(params: {
@@ -126,7 +185,34 @@ function generateUtmSet(campaign: Campaign) {
     yelp: {
       ad: `?utm_source=yelp&utm_medium=local&utm_campaign=${baseCampaign}&utm_content=ad&campaign_code=${campaign.campaignCode}`,
     },
+
+    email: {
+      click: `?utm_source=email&utm_medium=owned&utm_campaign=${baseCampaign}&utm_content=cta&campaign_code=${campaign.campaignCode}`,
+    },
   };
+}
+
+function buildBlogArticleMarkdown(blog: BlogAssetPayload | null) {
+  if (!blog) {
+    return "No approved blog content found.";
+  }
+
+  const sections = blog.sections
+    .map((section) => `## ${section.heading}\n\n${section.body}`)
+    .join("\n\n");
+
+  return `# ${blog.title}
+
+${blog.excerpt}
+
+${blog.introduction}
+
+${sections}
+
+## Next Step
+
+${blog.cta}
+`;
 }
 
 export async function buildCampaignExportPack({
@@ -141,15 +227,20 @@ export async function buildCampaignExportPack({
   const brief = safeBriefJson(campaign.briefJson);
   const utm = generateUtmSet(campaign);
 
-  const googleBusiness = assetByType(campaign.assets, "GOOGLE_BUSINESS");
-  const meta = assetByType(campaign.assets, "META");
-  const googleAds = assetByType(campaign.assets, "GOOGLE_ADS");
-  const yelp = assetByType(campaign.assets, "YELP");
-  const email = assetByType(campaign.assets, "EMAIL");
-  const blog = assetByType(campaign.assets, "BLOG");
-  const aeoFaq = assetByType(campaign.assets, "AEO_FAQ");
-  const answerSnippet = assetByType(campaign.assets, "ANSWER_SNIPPET");
-  const seoAsset = assetByType(campaign.assets, "SEO");
+  const googleBusinessAsset = approvedAssetByType(campaign.assets, "GOOGLE_BUSINESS");
+  const metaAsset = approvedAssetByType(campaign.assets, "META");
+  const googleAds = approvedAssetByType(campaign.assets, "GOOGLE_ADS");
+  const yelp = approvedAssetByType(campaign.assets, "YELP");
+  const emailAsset = approvedAssetByType(campaign.assets, "EMAIL");
+  const blogAsset = approvedAssetByType(campaign.assets, "BLOG");
+  const aeoFaq = approvedAssetByType(campaign.assets, "AEO_FAQ");
+  const answerSnippet = approvedAssetByType(campaign.assets, "ANSWER_SNIPPET");
+  const seoAsset = approvedAssetByType(campaign.assets, "SEO");
+
+  const googleBusiness = parseStructuredAsset<GoogleBusinessAssetPayload>(googleBusinessAsset);
+  const meta = parseStructuredAsset<MetaAssetPayload>(metaAsset);
+  const email = parseStructuredAsset<EmailAssetPayload>(emailAsset);
+  const blog = parseStructuredAsset<BlogAssetPayload>(blogAsset);
 
   const businessName = sanitizeForFileName(profile?.businessName ?? "Business");
   const campaignName = sanitizeForFileName(campaign.name);
@@ -164,41 +255,59 @@ export async function buildCampaignExportPack({
 
   const startHere = `# MarketForge Launch Pack
 
-This pack is designed so an operator can launch this campaign with minimal guesswork.
+This pack is designed so that an operator with little or no platform experience can launch the approved assets step by step.
 
 ## Campaign
 - Name: ${campaign.name}
-- Target Service: ${campaign.targetService ?? "General plumbing"}
+- Target Service: ${campaign.targetService ?? "General service"}
 - Offer: ${campaign.offer ?? "See campaign brief"}
 - Audience: ${campaign.audience ?? "See campaign brief"}
 - Service Area: ${campaign.serviceArea ?? profile?.serviceArea ?? "Not specified"}
 
-## Recommended operator order
+## What is included in this pack
+Only approved assets are included.
+
+- 01-campaign-brief
+- 02-google-business
+- 03-facebook
+- 04-instagram
+- 05-google-ads
+- 06-yelp
+- 07-email
+- 08-blog
+- 09-aeo
+- 10-seo
+- 11-operator-checklist
+
+## Recommended launch order
 1. Read \`01-campaign-brief/campaign-summary.md\`
-2. Use \`02-google-business/\` for Google Business Profile posting
-3. Use \`03-facebook/\` for Facebook posting or ad setup
-4. Use \`04-instagram/\` for Instagram feed / story / reel setup
-5. Use \`05-google-ads/\` for search ad copy
-6. Use \`06-yelp/\` for Yelp ad / promoted listing copy
-7. Use \`07-email/\` if email is being sent
-8. Use \`08-blog/\` and \`09-aeo/\` for site/content updates
-9. Use \`10-seo/\` for search optimization guidance
-10. Follow \`11-operator-checklist/launch-checklist.md\`
+2. Read \`11-operator-checklist/launch-checklist.md\`
+3. Complete Google Business if included
+4. Complete Facebook if included
+5. Complete Instagram if included
+6. Complete Google Ads if included
+7. Complete Yelp if included
+8. Complete Email if included
+9. Publish the Blog if included
+10. Apply AEO + Answer Snippet content if included
+11. Apply SEO guidance if included
+
+## How to use this pack
+Each folder contains:
+- the exact approved copy to paste
+- platform-specific operator notes
+- creative templates where relevant
+- UTM guidance where relevant
+- checks to complete before publishing
 
 ## Creative guidance
 - Recommended image: ${brief?.creativeGuidance?.recommendedImage ?? "Not provided"}
 - Avoid: ${brief?.creativeGuidance?.avoidImagery ?? "Not provided"}
 
-## Notes
-This pack includes editable SVG templates sized for common operator workflows:
-- Google Business square image
-- Facebook feed square
-- Facebook wide/link ad
-- Instagram feed square
-- Instagram feed vertical 4:5
-- Instagram Stories / Reels 9:16
-- Yelp square creative placeholder
-
+## Important notes
+- If a folder says “No approved asset found,” that platform was not approved for launch.
+- Launch only the assets included in this pack.
+- Do not invent extra copy unless the client explicitly requests changes.
 `;
 
   root.file("00-START-HERE.md", startHere);
@@ -216,10 +325,12 @@ This pack includes editable SVG templates sized for common operator workflows:
         offer: campaign.offer ?? null,
         status: campaign.status,
         execution: brief?.execution ?? null,
-        assetsIncluded: campaign.assets.map((asset) => ({
-          assetType: asset.assetType,
-          title: asset.title,
-        })),
+        assetsIncluded: campaign.assets
+          .filter((asset) => asset.isApproved)
+          .map((asset) => ({
+            assetType: asset.assetType,
+            title: asset.title,
+          })),
       },
       null,
       2
@@ -247,6 +358,9 @@ ${utm.googleBusiness.post}
 
 Yelp
 ${utm.yelp.ad}
+
+Email
+${utm.email.click}
 
 Campaign Code
 ${campaign.campaignCode}
@@ -297,18 +411,36 @@ ${brief?.opportunityCheck?.whyThisMatters ?? brief?.opportunityCheck?.rationale 
   const googleBusinessFolder = root.folder("02-google-business");
   googleBusinessFolder?.file(
     "post-copy.txt",
-    googleBusiness?.content ?? "No Google Business post found."
+    googleBusiness
+      ? `${googleBusiness.title}\n\n${googleBusiness.description}\n\nCTA: ${googleBusiness.cta}`
+      : "No approved Google Business asset found."
   );
   googleBusinessFolder?.file(
-    "image-guidelines.md",
-    `# Google Business Profile Image Guidelines
+    "operator-notes.md",
+    `# Google Business Profile Operator Notes
 
-Recommended operator image:
-- Format: JPG or PNG
-- Recommended resolution: 720 x 720
-- Minimum resolution: 250 x 250
+Use this folder to create and publish a Google Business Profile post.
 
-Use the included square template if you need a fast starting canvas.
+Step-by-step
+1. Open the client's Google Business Profile
+2. Navigate to Posts or Updates
+3. Choose the most relevant post type
+4. Paste the copy from post-copy.txt
+5. Upload a square creative image
+6. Select the CTA button that best matches the offer
+7. Add the correct destination URL or phone number
+8. Preview the post
+9. Publish or schedule it
+
+Before publishing
+- Confirm the phone number is correct
+- Confirm the destination URL works
+- Confirm the service area wording matches the business profile
+- Confirm the offer language matches what was approved
+- Confirm the image is readable on mobile
+
+Recommended UTM
+${utm.googleBusiness.post}
 `
   );
   googleBusinessFolder?.file(
@@ -325,7 +457,36 @@ Use the included square template if you need a fast starting canvas.
   const facebookFolder = root.folder("03-facebook");
   facebookFolder?.file(
     "facebook-copy.txt",
-    meta?.content ?? "No Facebook copy found."
+    meta
+      ? `${meta.headline}\n\n${meta.primaryText}\n\nCTA: ${meta.cta}`
+      : "No approved Facebook / Meta copy found."
+  );
+  facebookFolder?.file(
+    "operator-notes.md",
+    `# Facebook Operator Notes
+
+Use this folder for Facebook posting or ad setup.
+
+Step-by-step
+1. Open Facebook Business Manager or the Facebook Page
+2. Create the post or ad
+3. Paste the copy from facebook-copy.txt
+4. Upload the correct image or creative
+5. Confirm the CTA
+6. Confirm the destination URL or phone number
+7. Preview the ad or post
+8. Publish or schedule it
+
+Before publishing
+- Confirm the destination URL works
+- Confirm the CTA matches the approved campaign
+- Confirm the creative image is the correct ratio
+- Confirm the service and offer language are accurate
+- Confirm the correct account and page are selected
+
+Recommended UTM
+${utm.facebook.feed}
+`
   );
   facebookFolder?.file(
     "facebook-feed-template-1080x1080.svg",
@@ -351,7 +512,35 @@ Use the included square template if you need a fast starting canvas.
   const instagramFolder = root.folder("04-instagram");
   instagramFolder?.file(
     "instagram-caption.txt",
-    meta?.content ?? "No Instagram caption found."
+    meta
+      ? `${meta.headline}\n\n${meta.primaryText}\n\nCTA: ${meta.cta}`
+      : "No approved Instagram / Meta copy found."
+  );
+  instagramFolder?.file(
+    "operator-notes.md",
+    `# Instagram Operator Notes
+
+Use this folder for Instagram feed, story, or reel setup.
+
+Step-by-step
+1. Open Instagram scheduling or Meta Business Suite
+2. Choose Feed, Story, or Reel placement
+3. Paste the copy from instagram-caption.txt
+4. Upload the correct creative size
+5. Confirm CTA or profile link destination
+6. Preview the post
+7. Publish or schedule it
+
+Before publishing
+- Confirm the image size matches the selected placement
+- Confirm the caption reads cleanly on mobile
+- Confirm the CTA and service language are correct
+- Confirm the correct Instagram account is selected
+
+Recommended UTM
+Feed: ${utm.instagram.feed}
+Story: ${utm.instagram.story}
+`
   );
   instagramFolder?.file(
     "instagram-feed-square-1080x1080.svg",
@@ -387,39 +576,64 @@ Use the included square template if you need a fast starting canvas.
   const googleAdsFolder = root.folder("05-google-ads");
   googleAdsFolder?.file(
     "search-assets.txt",
-    googleAds?.content ?? "No Google Ads copy found."
+    googleAds?.content ?? "No approved Google Ads copy found."
   );
   googleAdsFolder?.file(
     "operator-notes.md",
     `# Google Ads Operator Notes
 
-This pack currently assumes a search-first workflow:
-- use the provided headlines and descriptions
-- confirm final destination URL and phone CTA before publishing
+Use this folder to load the approved search ad copy into Google Ads.
 
-If you later run display or Performance Max creative, create image variants from the Facebook / Instagram templates.
+Step-by-step
+1. Open the correct Google Ads account
+2. Create a new Search campaign or open the intended ad group
+3. Copy the approved headlines and descriptions from search-assets.txt
+4. Paste the copy into the responsive search ad fields
+5. Add the correct final URL
+6. Confirm the phone number or call extension if used
+7. Confirm targeting matches the business service area
+8. Review ad strength and fix any missing required fields
+9. Save and publish
+
+Before publishing
+- Confirm the destination URL works correctly
+- Confirm the CTA and offer match the approved campaign
+- Confirm targeting matches the intended geography
+- Confirm tracking and campaign code are included where needed
+
+Recommended UTM
+${utm.googleAds.search}
 `
   );
 
   const yelpFolder = root.folder("06-yelp");
   yelpFolder?.file(
     "yelp-ad-copy.txt",
-    yelp?.content ?? "No Yelp ad copy found."
+    yelp?.content ?? "No approved Yelp ad copy found."
   );
   yelpFolder?.file(
     "operator-notes.md",
     `# Yelp Operator Notes
 
-Use this content for Yelp promoted listing / ad setup or business update workflows.
+Use this folder for Yelp promoted listing, ad setup, or business update workflows.
 
-Recommended checks:
-- confirm service area naming matches Yelp profile
-- confirm primary phone number is correct
-- confirm offer language matches Yelp policy
-- add booking or call CTA
-- apply Yelp UTM tracking if a destination link is used
+Step-by-step
+1. Open the business Yelp account
+2. Navigate to the correct ad or business content section
+3. Paste the approved copy from yelp-ad-copy.txt
+4. Add the correct CTA or booking link
+5. Confirm service area language matches the Yelp profile
+6. Confirm the phone number is correct
+7. Preview the content
+8. Publish or schedule
 
-Suggested UTM
+Before publishing
+- Confirm the offer language complies with Yelp policy
+- Confirm the destination URL or phone CTA is correct
+- Confirm the copy matches the approved campaign
+- Confirm tracking is added if a link is used
+
+Recommended UTM
 ${utm.yelp.ad}
 `
   );
@@ -435,16 +649,101 @@ ${utm.yelp.ad}
   );
 
   const emailFolder = root.folder("07-email");
-  emailFolder?.file("email-copy.txt", email?.content ?? "No email asset found.");
+  emailFolder?.file(
+    "email-copy.txt",
+    email
+      ? `Subject: ${email.subject}\nPreview Line: ${email.previewLine}\n\n${email.body}\n\nCTA: ${email.cta}`
+      : "No approved email asset found."
+  );
+  emailFolder?.file(
+    "operator-notes.md",
+    `# Email Operator Notes
+
+Use this folder to send the approved campaign email.
+
+Step-by-step
+1. Open the client's email platform
+2. Create a new campaign or draft
+3. Paste the copy from email-copy.txt
+4. Add the correct subject line if provided
+5. Confirm the CTA link or phone number
+6. Send a test email to yourself
+7. Review spacing, formatting, and mobile rendering
+8. Schedule or send the email
+
+Before sending
+- Confirm links work correctly
+- Confirm the CTA matches the approved campaign
+- Confirm the offer and service naming are correct
+- Confirm no placeholder text remains
+- Confirm the sender and reply-to addresses are correct
+
+Recommended UTM
+${utm.email.click}
+`
+  );
 
   const blogFolder = root.folder("08-blog");
-  blogFolder?.file("blog-outline.md", blog?.content ?? "No blog outline found.");
+  blogFolder?.file(
+    "blog-article.md",
+    buildBlogArticleMarkdown(blog)
+  );
+  blogFolder?.file(
+    "operator-notes.md",
+    `# Blog Operator Notes
+
+Use this folder to publish the approved blog article on the client's website.
+
+Step-by-step
+1. Open the website CMS or blog editor
+2. Create a new post
+3. Copy the content from blog-article.md
+4. Paste it into the blog editor
+5. Format headings, bullets, and paragraphs as needed
+6. Add the correct feature image
+7. Confirm internal links and CTA placement
+8. Preview the article on desktop and mobile
+9. Publish or schedule the article
+
+Before publishing
+- Confirm the article title is correct
+- Confirm the service and city references are accurate
+- Confirm there is a CTA in the article
+- Confirm headings are formatted cleanly
+- Confirm no draft notes or placeholders remain
+`
+  );
 
   const aeoFolder = root.folder("09-aeo");
-  aeoFolder?.file("faq-content.md", aeoFaq?.content ?? "No FAQ asset found.");
+  aeoFolder?.file(
+    "faq-content.md",
+    aeoFaq?.content ?? "No approved FAQ asset found."
+  );
   aeoFolder?.file(
     "answer-snippet.txt",
-    answerSnippet?.content ?? "No answer snippet found."
+    answerSnippet?.content ?? "No approved answer snippet found."
+  );
+  aeoFolder?.file(
+    "operator-notes.md",
+    `# AEO Operator Notes
+
+Use this folder to improve answer-engine visibility through FAQ and short-form answer content.
+
+Step-by-step
+1. Open the website page where FAQ or answer content should live
+2. Copy the content from faq-content.md into the FAQ section
+3. Copy the content from answer-snippet.txt into the short-answer area if relevant
+4. Confirm formatting is clean and readable
+5. Confirm answers are accurate for the business
+6. Publish the updated content
+7. Recheck the page after publishing
+
+Before publishing
+- Confirm all answers are specific to the business
+- Confirm no unsupported claims are included
+- Confirm service area references are correct
+- Confirm the content is easy to scan and understand
+`
   );
 
   const seoFolder = root.folder("10-seo");
@@ -453,7 +752,7 @@ ${utm.yelp.ad}
     `# SEO Optimization Guidance
 
 ## Target Service
-${campaign.targetService ?? "General plumbing"}
+${campaign.targetService ?? "General service"}
 
 ## Existing SEO Asset
 ${seoAsset?.content ?? "No separate SEO asset stored."}
@@ -461,24 +760,24 @@ ${seoAsset?.content ?? "No separate SEO asset stored."}
 ## Suggested Keywords
 
 Primary keywords
-- ${campaign.targetService ?? "plumbing service"} near me
-- ${campaign.targetService ?? "plumbing service"} ${campaign.serviceArea ?? ""}
-- emergency ${campaign.targetService ?? "plumber"}
+- ${campaign.targetService ?? "local service"} near me
+- ${campaign.targetService ?? "local service"} ${campaign.serviceArea ?? ""}
+- local ${campaign.targetService ?? "service expert"}
 
 Secondary keywords
-- affordable ${campaign.targetService ?? "plumbing service"}
-- same day ${campaign.targetService ?? "plumbing service"}
-- local ${campaign.targetService ?? "plumber"}
+- affordable ${campaign.targetService ?? "local service"}
+- same day ${campaign.targetService ?? "local service"}
+- trusted ${campaign.targetService ?? "local professional"}
 
 ## Suggested Page Updates
 
-If a service page exists, update:
+If a page exists, update:
 
 Title Tag
-"${campaign.targetService ?? "Plumbing"} in ${campaign.serviceArea ?? "Your Area"} | ${profile?.businessName ?? "Local Experts"}"
+"${campaign.targetService ?? "Service"} in ${campaign.serviceArea ?? "Your Area"} | ${profile?.businessName ?? "Local Experts"}"
 
 H1
-"${campaign.targetService ?? "Plumbing"} Services in ${campaign.serviceArea ?? "Your Area"}"
+"${campaign.targetService ?? "Service"} in ${campaign.serviceArea ?? "Your Area"}"
 
 ## Internal Linking Suggestions
 
@@ -489,16 +788,40 @@ Link from:
 - recent blog posts
 
 Anchor text examples:
-- "${campaign.targetService ?? "drain cleaning"} services"
-- "emergency ${campaign.targetService ?? "plumber"}"
-- "${campaign.serviceArea ?? "local"} plumbing experts"
+- "${campaign.targetService ?? "service"}"
+- "${campaign.serviceArea ?? "local"} ${campaign.targetService ?? "service"}"
+- "${profile?.businessName ?? "local experts"}"
 
 ## Local SEO
 
 Ensure service area is clearly stated on:
 - homepage
-- service page
+- target page
 - Google Business listing
+`
+  );
+  seoFolder?.file(
+    "operator-notes.md",
+    `# SEO Operator Notes
+
+Use this folder to apply the approved SEO improvements to the client's site.
+
+Step-by-step
+1. Open the target page in the CMS
+2. Review seo-guidance.md
+3. Update the title tag if needed
+4. Update the H1 if needed
+5. Improve body copy using the approved target service language
+6. Add internal links from relevant pages
+7. Confirm service area language is correct
+8. Publish the page updates
+9. Recheck the live page after publishing
+
+Before publishing
+- Confirm all edits match the approved service focus
+- Confirm internal links work
+- Confirm the page title and H1 are not duplicated elsewhere
+- Confirm no placeholder language remains
 `
   );
 
@@ -506,6 +829,10 @@ Ensure service area is clearly stated on:
   opsFolder?.file(
     "launch-checklist.md",
     `# Operator Launch Checklist
+
+Use this checklist only after reviewing 00-START-HERE.md and 01-campaign-brief/campaign-summary.md.
+
+Complete each relevant channel in order and check every item before marking the action as launched.
 
 ## Before launch
 - [ ] Confirm business phone number
@@ -521,13 +848,13 @@ Ensure service area is clearly stated on:
 - [ ] Business profile posting complete
 
 ## Facebook
-- [ ] Correct format selected (square or wide)
+- [ ] Correct format selected
 - [ ] Copy pasted from facebook-copy.txt
 - [ ] CTA checked
 - [ ] Destination URL / phone checked
 
 ## Instagram
-- [ ] Correct format selected (square, vertical, or stories)
+- [ ] Correct format selected
 - [ ] Caption pasted from instagram-caption.txt
 - [ ] Visual exported from correct template
 - [ ] Text placement checked for crop safety
@@ -544,11 +871,27 @@ Ensure service area is clearly stated on:
 - [ ] Destination / call CTA checked
 - [ ] UTM applied if link is used
 
+## Email
+- [ ] Subject line checked
+- [ ] Body checked
+- [ ] Test email sent
+- [ ] Links confirmed
+
+## Blog
+- [ ] Article pasted into CMS
+- [ ] Formatting checked
+- [ ] CTA confirmed
+- [ ] Feature image added
+
+## AEO / FAQ
+- [ ] FAQ content published
+- [ ] Answer snippet published
+- [ ] Accuracy checked
+
 ## SEO / Website
 - [ ] SEO guidance reviewed
-- [ ] Service page updated if needed
+- [ ] Title/H1 updated if needed
 - [ ] Internal links added if needed
-- [ ] FAQ / answer content published if needed
 
 ## After launch
 - [ ] Mark campaign as Launched in MarketForge

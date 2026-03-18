@@ -48,11 +48,11 @@ export async function getRevenueCapturedSummary(workspaceId: string) {
   }
 
   const entries = Object.values(revenueByCampaign)
-    .map((campaign) => ({
-      campaignName: campaign.campaignName,
-      jobsGenerated: campaign.jobs,
-      revenue: campaign.revenue,
-    }))
+  .map((campaign) => ({
+    campaignName: campaign.campaignName,
+    bookedJobs: campaign.jobs,
+    revenue: campaign.revenue,
+  }))
     .sort((a, b) => b.revenue - a.revenue);
 
   const totalRevenue = entries.reduce((sum, entry) => sum + entry.revenue, 0);

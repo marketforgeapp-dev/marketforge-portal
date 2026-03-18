@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
+import { lookupSingleCompetitor } from "@/lib/google-places-competitors";
 
 type RawCompetitor = {
   name?: unknown;
@@ -154,33 +155,21 @@ function normalizeCompetitors(value: unknown) {
     }))
     .filter((item) => item.name.length > 0);
 
-  if (competitors.length <= 1) {
-    return competitors;
+  if (competitors.length === 0) {
+    return [];
   }
 
-  const hasPrimary = competitors.some((item) => item.isPrimaryCompetitor);
+  const selectedPrimaryIndex = competitors.findIndex(
+    (competitor) => competitor.isPrimaryCompetitor
+  );
+  const primaryIndex = selectedPrimaryIndex >= 0 ? selectedPrimaryIndex : 0;
 
-  if (hasPrimary) {
-    let primaryAssigned = false;
-
-    return competitors.map((item) => {
-      if (item.isPrimaryCompetitor && !primaryAssigned) {
-        primaryAssigned = true;
-        return item;
-      }
-
-      return {
-        ...item,
-        isPrimaryCompetitor: false,
-      };
-    });
-  }
-
-  return competitors.map((item, index) => ({
-    ...item,
-    isPrimaryCompetitor: index === 0,
+  return competitors.map((competitor, index) => ({
+    ...competitor,
+    isPrimaryCompetitor: index === primaryIndex,
   }));
 }
+
 function normalizeServicePricing(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
@@ -199,6 +188,7 @@ function normalizeServicePricing(value: unknown) {
     })
     .filter((item) => item.serviceName.length > 0);
 }
+
 function normalizeSettingsInput(input: unknown) {
   const raw: RawSettingsInput = isRecord(input) ? input : {};
 
@@ -323,7 +313,7 @@ export async function saveSettings(input: unknown) {
 
   const aeoReadinessScore = calculateAeoReadinessScore({
     hasServicePages: values.hasServicePages,
-    hasFaqContent: values.hasFaqContent || values.hasFaqPage,
+    hasFaqContent: values.hasFaqContent,
     hasBlog: values.hasBlog,
     hasGoogleBusinessPage: values.hasGoogleBusinessPage,
     servicePageUrls: values.servicePageUrls,
@@ -365,7 +355,7 @@ export async function saveSettings(input: unknown) {
     seasonalityNotes: values.seasonalityNotes,
 
     googleBusinessProfileUrl: values.googleBusinessProfileUrl,
-    hasFaqContent: values.hasFaqContent || values.hasFaqPage,
+    hasFaqContent: values.hasFaqContent,
     hasBlog: values.hasBlog,
     hasGoogleBusinessPage: values.hasGoogleBusinessPage,
     hasServicePages: values.hasServicePages,
@@ -386,29 +376,54 @@ export async function saveSettings(input: unknown) {
     where: { workspaceId: workspace.id },
   });
 
-  if (values.competitors.length > 0) {
-    await prisma.competitor.createMany({
-      data: values.competitors.map((competitor) => ({
+  const enrichedCompetitors = await Promise.all(
+    values.competitors.map(async (competitor) => {
+      const trimmedName = competitor.name.trim();
+      const manualWebsiteUrl = toNullableString(competitor.websiteUrl);
+      const manualGoogleBusinessUrl = toNullableString(
+        competitor.googleBusinessUrl
+      );
+      const manualLogoUrl = toNullableString(competitor.logoUrl);
+
+      const discoveredMatch =
+        trimmedName.length > 0
+          ? await lookupSingleCompetitor({
+              companyName: trimmedName,
+              industry: values.industry,
+              city: values.city,
+              state: values.state,
+              website: manualWebsiteUrl,
+            })
+          : null;
+
+      return {
         workspaceId: workspace.id,
-        name: competitor.name,
-        websiteUrl: toNullableString(competitor.websiteUrl),
-        googleBusinessUrl: toNullableString(competitor.googleBusinessUrl),
-        logoUrl: toNullableString(competitor.logoUrl),
+        name: trimmedName,
+        websiteUrl: manualWebsiteUrl ?? discoveredMatch?.websiteUrl ?? null,
+        googleBusinessUrl:
+          manualGoogleBusinessUrl ?? discoveredMatch?.googleBusinessUrl ?? null,
+        logoUrl: manualLogoUrl ?? discoveredMatch?.logoUrl ?? null,
         isPrimaryCompetitor: competitor.isPrimaryCompetitor,
-        notes: null,
-        serviceFocus: [],
+        notes: discoveredMatch?.whyItMatters ?? null,
+        serviceFocus: discoveredMatch?.serviceFocus ?? [],
         rating: null,
         reviewCount: null,
         isRunningAds: null,
         isPostingActively: null,
         hasActivePromo: null,
         reviewVelocity: null,
-        signalSummary: null,
-      })),
+        signalSummary: discoveredMatch?.whyItMatters ?? null,
+      };
+    })
+  );
+
+  if (enrichedCompetitors.length > 0) {
+    await prisma.competitor.createMany({
+      data: enrichedCompetitors,
     });
   }
 
-    await invalidateWorkspaceOpportunitySnapshot(workspace.id);
+  await invalidateWorkspaceOpportunitySnapshot(workspace.id);
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");

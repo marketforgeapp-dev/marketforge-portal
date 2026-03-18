@@ -5,25 +5,36 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { prisma } from "@/lib/prisma";
 import { openai } from "@/lib/openai";
 import { nlCampaignSchema } from "@/lib/nl-campaign-schema";
-import {ActionThesis,  buildRevenueOpportunityEngine,} from "@/lib/revenue-opportunity-engine";
+import {
+  ActionThesis,
+  buildRevenueOpportunityEngine,
+} from "@/lib/revenue-opportunity-engine";
 import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import type { BusinessProfile } from "@/generated/prisma";
 import { resolveServiceJobValue } from "@/lib/service-pricing";
-import type {CampaignObjective, CampaignType, OpportunityType,} from "@/generated/prisma";
+import type {
+  CampaignObjective,
+  CampaignType,
+  OpportunityType,
+} from "@/generated/prisma";
 
 type CreateCampaignResult =
   | { success: true; campaignId: string; campaignName: string }
   | { success: false; error: string };
+
+type CreateCampaignFromPromptOptions = {
+  linkedOpportunity?: ResolvedOpportunity | null;
+  campaignOrigin?: "recommendation" | "nl_custom";
+  consumesRecommendationSlot?: boolean;
+};
 
 type EngineOpportunity = Awaited<
   ReturnType<typeof buildRevenueOpportunityEngine>
 >["rankedOpportunities"][number];
 
 type PromptLane =
-  | "DRAIN"
-  | "EMERGENCY"
-  | "WATER_HEATER"
+  | "SERVICE"
   | "CAPACITY_FILL"
   | "AEO_SEO"
   | "REVIEWS"
@@ -82,6 +93,84 @@ function slugify(value: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
+function toTitleCase(value: string): string {
+  return value
+    .split(" ")
+    .map((part) =>
+      part.length > 0
+        ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+        : part
+    )
+    .join(" ");
+}
+
+async function generateBlogWithAI(params: {
+  businessName: string;
+  serviceName: string;
+  serviceArea: string;
+  offer?: string | null;
+}) {
+  try {
+    const prompt = `
+You are writing a helpful, local-service blog post for homeowners.
+
+Business: ${params.businessName}
+Service: ${params.serviceName}
+Location: ${params.serviceArea}
+
+Write a clear, natural, homeowner-friendly blog post.
+
+Requirements:
+- No marketing jargon
+- No phrases like "high-intent", "capture demand", "generate leads"
+- No internal or strategic language
+- Write like a helpful expert, not an advertiser
+- Keep it practical and trustworthy
+
+Return JSON ONLY in this exact format:
+
+{
+  "title": "...",
+  "excerpt": "...",
+  "introduction": "...",
+  "sections": [
+    { "heading": "...", "body": "..." },
+    { "heading": "...", "body": "..." },
+    { "heading": "...", "body": "..." }
+  ],
+  "cta": "..."
+}
+
+Guidelines:
+- Title should sound like a real blog post
+- Excerpt = 1 sentence summary
+- Introduction = 2–3 sentences
+- Each section body = 2–4 sentences
+- CTA = simple homeowner action (call, schedule, etc.)
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.7,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content;
+
+    if (!content) return null;
+
+    return JSON.parse(content);
+  } catch (err) {
+    console.error("[blog-generation] failed, falling back", err);
+    return null;
+  }
+}
+
 function buildSyntheticOpportunityKey(params: {
   serviceName: string;
   opportunityType: OpportunityType;
@@ -94,15 +183,6 @@ function buildSyntheticOpportunityKey(params: {
   ].join("::");
 }
 
-function toTitleCase(value: string): string {
-  return value
-    .split(" ")
-    .map((part) =>
-      part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part
-    )
-    .join(" ");
-}
-
 function extractRequestedServiceLabel(prompt: string): string | null {
   const normalizedPrompt = normalize(prompt);
 
@@ -113,15 +193,15 @@ function extractRequestedServiceLabel(prompt: string): string | null {
     /promote (.+?)( service| services| jobs| leads| calls| bookings|$)/,
     /campaign for (.+?)( service| services| jobs| leads| calls| bookings|$)/,
     /action for (.+?)( service| services| jobs| leads| calls| bookings|$)/,
+    /more (.+?) in /,
+    /more (.+?) near me/,
   ];
 
   for (const pattern of patterns) {
     const match = normalizedPrompt.match(pattern);
     const raw = match?.[1]?.trim();
 
-    if (!raw) {
-      continue;
-    }
+    if (!raw) continue;
 
     const cleaned = raw
       .replace(/\bmore\b/g, "")
@@ -136,6 +216,86 @@ function extractRequestedServiceLabel(prompt: string): string | null {
   }
 
   return null;
+}
+
+function inferIndustryFromContext(params: {
+  prompt: string;
+  familyKey?: string | null;
+  serviceName?: string | null;
+}): string {
+  const source = normalize(
+    `${params.prompt} ${params.familyKey ?? ""} ${params.serviceName ?? ""}`
+  );
+
+  if (
+    source.includes("septic") ||
+    source.includes("drain field") ||
+    source.includes("grease trap") ||
+    source.includes("lift pump")
+  ) {
+    return "septic";
+  }
+
+  if (
+    source.includes("tree") ||
+    source.includes("stump") ||
+    source.includes("pruning") ||
+    source.includes("trimming") ||
+    source.includes("lot clearing") ||
+    source.includes("storm cleanup")
+  ) {
+    return "tree-service";
+  }
+
+  if (
+    source.includes("hvac") ||
+    source.includes("air conditioning") ||
+    source.includes("furnace") ||
+    source.includes("heating") ||
+    source.includes("cooling") ||
+    source.includes("ac repair")
+  ) {
+    return "hvac";
+  }
+
+  return "plumbing";
+}
+
+function getFallbackImageKeyForIndustry(industry: string): string {
+  const lower = normalize(industry);
+
+  if (lower.includes("septic")) return "septic-pumping";
+  if (lower.includes("tree")) return "tree-removal";
+  if (lower.includes("hvac")) return "ac-repair";
+
+  return "general-plumbing";
+}
+
+function normalizeStructuredAssetImageKey(params: {
+  imageKey?: string | null;
+  industry?: string | null;
+}) {
+  const normalized = slugify(params.imageKey ?? "");
+  const industry = params.industry ?? "plumbing";
+
+  const aliasMap: Record<string, string> = {
+    plumbing: "general-plumbing",
+    septic: "septic-pumping",
+    "tree-service": "tree-removal",
+    hvac: "ac-repair",
+    service: getFallbackImageKeyForIndustry(industry),
+    "local-service": getFallbackImageKeyForIndustry(industry),
+    "home-service": getFallbackImageKeyForIndustry(industry),
+    "hot-water-heater": "water-heater",
+    "water-heater-install": "water-heater",
+    "tankless-hot-water-heater": "tankless-water-heater",
+  };
+
+  if (!normalized) {
+    return getFallbackImageKeyForIndustry(industry);
+  }
+
+  return aliasMap[normalized] ?? normalized;
 }
 
 function formatFaq(faq: Array<{ question: string; answer: string }>): string {
@@ -213,41 +373,12 @@ function toCampaignObjectiveFromAction(actionType: string): CampaignObjective {
 function routePromptIntent(prompt: string): RoutedIntent {
   const lower = normalize(prompt);
 
-  if (lower.includes("drain")) {
-    return {
-      lane: "DRAIN",
-      mode: "CAMPAIGN",
-      preferredCampaignType: "DRAIN_SPECIAL",
-      preferredActionType: "CAMPAIGN_LAUNCH",
-      label: "Drain intent",
-    };
-  }
-
-  if (lower.includes("emergency")) {
-    return {
-      lane: "EMERGENCY",
-      mode: "CAMPAIGN",
-      preferredCampaignType: "EMERGENCY_SERVICE",
-      preferredActionType: "CAMPAIGN_LAUNCH",
-      label: "Emergency intent",
-    };
-  }
-
   if (
-    lower.includes("water heater") ||
-    lower.includes("hot water") ||
-    lower.includes("tankless")
+    lower.includes("slow week") ||
+    lower.includes("fill the schedule") ||
+    lower.includes("fill schedule") ||
+    lower.includes("capacity")
   ) {
-    return {
-      lane: "WATER_HEATER",
-      mode: "CAMPAIGN",
-      preferredCampaignType: "WATER_HEATER",
-      preferredActionType: "HIGH_VALUE_SERVICE_PUSH",
-      label: "Water heater intent",
-    };
-  }
-
-  if (lower.includes("slow week") || lower.includes("fill the schedule")) {
     return {
       lane: "CAPACITY_FILL",
       mode: "CAMPAIGN",
@@ -284,6 +415,15 @@ function routePromptIntent(prompt: string): RoutedIntent {
     };
   }
 
+  const requestedService = extractRequestedServiceLabel(prompt);
+  if (requestedService) {
+    return {
+      lane: "SERVICE",
+      mode: "CAMPAIGN",
+      label: `${requestedService} service intent`,
+    };
+  }
+
   return {
     lane: "GENERAL",
     mode: "AUTO",
@@ -293,15 +433,13 @@ function routePromptIntent(prompt: string): RoutedIntent {
 
 function getStrongMatchThreshold(lane: PromptLane): number {
   switch (lane) {
-    case "DRAIN":
-    case "EMERGENCY":
-    case "WATER_HEATER":
-      return 70;
+    case "SERVICE":
+      return 65;
     case "CAPACITY_FILL":
-      return 68;
+      return 65;
     case "AEO_SEO":
     case "REVIEWS":
-      return 65;
+      return 60;
     default:
       return 50;
   }
@@ -318,55 +456,26 @@ function scoreExistingOpportunityFit(
   const bestMove = normalize(opportunity.bestMove);
   const displayMove = normalize(opportunity.displayMoveLabel);
 
-  let score = 0;
+  const requestedService = extractRequestedServiceLabel(prompt);
+  const normalizedRequestedService = requestedService
+    ? normalize(requestedService)
+    : null;
 
+  let score = 0;
   score += Math.min(opportunity.rawOpportunityScore * 0.35, 35);
 
   if (
     routedIntent.preferredCampaignType &&
     opportunity.recommendedCampaignType === routedIntent.preferredCampaignType
   ) {
-    score += 30;
-  }
-
-  if (
-    routedIntent.lane === "DRAIN" &&
-    (service.includes("drain") ||
-      title.includes("drain") ||
-      bestMove.includes("drain") ||
-      displayMove.includes("drain"))
-  ) {
-    score += 35;
-  }
-
-  if (
-    routedIntent.lane === "EMERGENCY" &&
-    (service.includes("emergency") ||
-      title.includes("emergency") ||
-      bestMove.includes("emergency") ||
-      displayMove.includes("emergency"))
-  ) {
-    score += 35;
-  }
-
-  if (
-    routedIntent.lane === "WATER_HEATER" &&
-    (service.includes("water heater") ||
-      service.includes("tankless") ||
-      title.includes("water heater") ||
-      bestMove.includes("water heater") ||
-      displayMove.includes("water heater") ||
-      displayMove.includes("tankless"))
-  ) {
-    score += 35;
+    score += 28;
   }
 
   if (
     routedIntent.lane === "CAPACITY_FILL" &&
     (opportunity.opportunityType === "CAPACITY_GAP" ||
       opportunity.recommendedCampaignType === "MAINTENANCE_PUSH" ||
-      service.includes("maintenance") ||
-      bestMove.includes("checkup"))
+      normalize(opportunity.actionThesis.angle).includes("schedule"))
   ) {
     score += 35;
   }
@@ -387,49 +496,24 @@ function scoreExistingOpportunityFit(
     score += 35;
   }
 
-  if (lowerPrompt.includes("tankless") && displayMove.includes("tankless")) {
-    score += 20;
-  }
-
-  if (lowerPrompt.includes("install") && displayMove.includes("install")) {
-    score += 10;
-  }
-
-  if (lowerPrompt.includes("upgrade") && displayMove.includes("upgrade")) {
-    score += 10;
-  }
-
-  if (
-    service.length > 0 &&
-    (lowerPrompt.includes(service) ||
-      lowerPrompt.includes(service.replace(/\s+/g, "-")) ||
-      lowerPrompt.includes(service.replace(/\s+/g, " ")))
-  ) {
-    score += 40;
+  if (normalizedRequestedService) {
+    if (
+      lowerPrompt.includes(normalizedRequestedService) ||
+      service.includes(normalizedRequestedService) ||
+      title.includes(normalizedRequestedService) ||
+      bestMove.includes(normalizedRequestedService) ||
+      displayMove.includes(normalizedRequestedService)
+    ) {
+      score += 40;
+    }
   }
 
   if (
-    routedIntent.lane === "GENERAL" &&
-    lowerPrompt.includes("sump pump") &&
-    service.includes("sump pump")
+    lowerPrompt.includes(service) ||
+    lowerPrompt.includes(title) ||
+    lowerPrompt.includes(bestMove)
   ) {
-    score += 35;
-  }
-
-  if (
-    routedIntent.lane === "GENERAL" &&
-    lowerPrompt.includes("leak") &&
-    service.includes("leak")
-  ) {
-    score += 35;
-  }
-
-  if (
-    routedIntent.lane === "GENERAL" &&
-    lowerPrompt.includes("toilet") &&
-    service.includes("toilet")
-  ) {
-    score += 35;
+    score += 15;
   }
 
   return Math.max(0, Math.round(score));
@@ -439,107 +523,54 @@ function buildPromptRefinedActionThesis(params: {
   prompt: string;
   resolvedOpportunity: Pick<
     ResolvedOpportunity,
-    "familyKey" | "actionThesis" | "displayMoveLabel"
+    "familyKey" | "actionThesis" | "displayMoveLabel" | "imageMode" | "imageKey"
   >;
   serviceArea: string;
 }): ActionThesis & { whyThisActionBullets: string[] } {
-  const { prompt, resolvedOpportunity, serviceArea } = params;
+  const { prompt, resolvedOpportunity } = params;
   const lower = normalize(prompt);
   const base = resolvedOpportunity.actionThesis;
 
-  if (resolvedOpportunity.familyKey === "water-heater") {
-    const isTankless = lower.includes("tankless");
-    const isInstall = lower.includes("install");
-    const isUpgrade = lower.includes("upgrade");
-    const isReplacement = lower.includes("replacement") && !isTankless;
-
-    if (isTankless) {
-      return {
-        familyKey: base.familyKey,
-        primaryService: "Tankless water heater",
-        angle: "tankless install and upgrade",
-        title: "Promote Tankless Water Heater Installs",
-        summary:
-          "Generate tankless water heater install and upgrade jobs with a high-intent local offer.",
-        audience: `Homeowners in ${serviceArea} considering a tankless upgrade, conversion, or installation`,
-        offerHint: "Tankless install offer or estimate-led upgrade push",
-        ctaHint: "Schedule your tankless estimate",
-        imageKey: "tankless-water-heater-install",
-        imageMode: "SERVICE_IMAGE",
-        whyThisActionBullets: [
-          "The request is explicitly focused on tankless water heater jobs.",
-          "Tankless demand usually comes from upgrade, efficiency, and modernization intent rather than only emergency replacement.",
-          "This action is framed around install and upgrade positioning so the messaging matches the requested service.",
-          "This is a strong fit for a high-value local action if capacity exists this week.",
-        ],
-      };
-    }
-
-    if (isReplacement) {
-      return {
-        ...base,
-        primaryService: "Water heater replacement",
-        angle: "replacement demand capture",
-        title: "Promote Water Heater Replacement Jobs",
-        summary:
-          "Capture high-intent replacement demand from homeowners dealing with aging or failed systems.",
-        audience: `Homeowners in ${serviceArea} evaluating water heater replacement`,
-        offerHint: "Estimate-led replacement offer",
-        ctaHint: "Schedule your replacement estimate",
-        imageKey: "water-heater-install",
-        imageMode: "SERVICE_IMAGE",
-        whyThisActionBullets: [
-          "The request points to water heater replacement demand.",
-          "Replacement intent usually sits close to booking behavior because homeowners want hot water restored quickly.",
-          "This action is framed around replacement messaging rather than a generic plumbing promotion.",
-          "The service has strong revenue potential relative to everyday repair work.",
-        ],
-      };
-    }
-
-    if (isInstall || isUpgrade) {
-      return {
-        ...base,
-        primaryService: "Water heater installation",
-        angle: "install and upgrade",
-        title: "Promote Water Heater Install & Upgrade Jobs",
-        summary:
-          "Generate local install and upgrade demand with messaging built around higher-value booked jobs.",
-        audience: `Homeowners in ${serviceArea} considering a water heater install, upgrade, or replacement`,
-        offerHint: "Installation offer or estimate-led promotion",
-        ctaHint: "Book your estimate",
-        imageKey: "water-heater-install",
-        imageMode: "SERVICE_IMAGE",
-        whyThisActionBullets: [
-          "The request is focused on installation or upgrade demand.",
-          "This action is positioned around install and upgrade jobs instead of broad plumbing language.",
-          "Water heater work is commercially valuable and can convert well with clear local positioning.",
-          "The action stays aligned to the requested service angle all the way through the assets.",
-        ],
-      };
-    }
-  }
-
-  if (resolvedOpportunity.familyKey === "drain-cleaning") {
+  if (
+    lower.includes("aeo") ||
+    lower.includes("faq") ||
+    lower.includes("seo") ||
+    lower.includes("visibility") ||
+    lower.includes("ai search")
+  ) {
     return {
       ...base,
+      imageMode: "LOGO",
+      imageKey: "company-logo",
       whyThisActionBullets: [
-        "The request maps cleanly to drain-service demand capture.",
-        "Drain issues usually create strong near-booking intent when homeowners are dealing with backups, clogs, or slow flow.",
-        "This action is designed to turn urgent local demand into booked jobs quickly.",
-        "The offer and copy should stay direct-response and easy to approve fast.",
+        "This request is visibility-oriented and is better handled through content, search presence, and website clarity.",
+        "A branded visual anchor is a better fit for this action than a physical service image.",
+        "The action is intended to improve discoverability and trust rather than only immediate booked jobs.",
+        "This keeps the content aligned to local visibility work instead of forcing it into a service-promo lane.",
       ],
     };
   }
 
-  if (resolvedOpportunity.familyKey === "ai-search-visibility") {
+  if (lower.includes("review")) {
     return {
       ...base,
       whyThisActionBullets: [
-        "The request is focused on answer-engine and local visibility improvements.",
-        "This action is better handled through content and service-page improvements than a paid promotion.",
-        "The company logo is the right visual anchor for this type of action.",
-        "This work improves future discovery and trust rather than only immediate lead capture.",
+        "This request is focused on review generation and trust-building.",
+        "Recent reviews strengthen conversion and local credibility over time.",
+        "This action should stay tightly aligned to the request instead of drifting into generic promotion.",
+        "The content should feel easy to approve and operationally simple to execute.",
+      ],
+    };
+  }
+
+  if (lower.includes("fill the schedule") || lower.includes("capacity")) {
+    return {
+      ...base,
+      whyThisActionBullets: [
+        "This request is about filling open capacity, not only chasing the largest-ticket work.",
+        "The action is positioned to create lower-friction, easier-to-book demand.",
+        "This keeps the recommendation aligned to current schedule needs.",
+        "The messaging should feel practical, believable, and easy to launch quickly.",
       ],
     };
   }
@@ -549,7 +580,7 @@ function buildPromptRefinedActionThesis(params: {
     whyThisActionBullets: [
       "This action is the clearest match to the requested service and commercial goal.",
       "It is framed to be easy to review, approve, and execute quickly.",
-      "The messaging stays aligned to the displayed move instead of drifting into a generic category.",
+      "The messaging stays aligned to the displayed move instead of drifting into an unrelated category.",
       "The goal is to generate believable local demand, not generic marketing copy.",
     ],
   };
@@ -589,7 +620,7 @@ function resolveSyntheticJobValue(params: {
 function buildSyntheticOpportunity(params: {
   prompt: string;
   routedIntent: RoutedIntent;
-    profile: {
+  profile: {
     businessName: string;
     serviceArea: string;
     averageJobValue: unknown;
@@ -599,240 +630,57 @@ function buildSyntheticOpportunity(params: {
   };
 }): ResolvedOpportunity {
   const { prompt, routedIntent, profile } = params;
-    const lowerPrompt = normalize(prompt);
-
-  if (routedIntent.lane === "DRAIN") {
-    const resolvedJobValue = resolveSyntheticJobValue({
-  profile,
-  familyKey: "drain-cleaning",
-  serviceName: "Drain cleaning",
-  primaryService: "Drain cleaning",
-});
-    const bestMove = "Promote Drain Cleaning Service";
-    const serviceName = "Drain cleaning";
-    const opportunityType: OpportunityType = "SEASONAL_DEMAND";
-
-    return {
-      opportunityKey: buildSyntheticOpportunityKey({
-        serviceName,
-        opportunityType,
-        bestMove,
-      }),
-      familyKey: "drain-cleaning",
-      title: "Drain Cleaning Revenue Opportunity",
-      serviceName,
-      opportunityType,
-      bestMove,
-      displayMoveLabel: "Promote Drain Cleaning Service",
-      displaySummary: `Capture urgent, high-intent drain demand in ${profile.serviceArea}.`,
-      imageKey: "drain-cleaning",
-      imageMode: "SERVICE_IMAGE",
-      actionThesis: {
-        familyKey: "drain-cleaning",
-        primaryService: "Drain cleaning",
-        angle: "direct-response demand capture",
-        title: "Promote Drain Cleaning Service",
-        summary:
-          "Drive fast-turn drain cleaning bookings with a direct-response local push.",
-        audience: `Homeowners in ${profile.serviceArea} dealing with clogs, backups, or slow drains`,
-        offerHint: "Fast-response service offer",
-        ctaHint: "Book service now",
-        imageKey: "drain-cleaning",
-        imageMode: "SERVICE_IMAGE",
-      },
-      recommendedCampaignType: "DRAIN_SPECIAL",
-      jobsLow: 2,
-      jobsHigh: 4,
-      revenueLow: Math.round(resolvedJobValue * 2),
-      revenueHigh: Math.round(resolvedJobValue * 4),
-      rawOpportunityScore: 78,
-      confidenceLabel: "Medium",
-      confidenceScore: 72,
-      whyNowBullets: [
-        "The request is explicitly focused on drain cleaning demand.",
-        "Drain-focused offers are usually practical, high-intent, and fast to approve.",
-        "This is a better fit than reusing an unrelated existing opportunity.",
-      ],
-      whyThisMatters: `A drain-focused push is the most direct match to the request and should produce a more believable execution plan for ${profile.serviceArea}.`,
-      sourceTags: ["Demand", "Capacity"],
-      source: "generated",
-      fitScore: 92,
-    };
-  }
-
-  if (routedIntent.lane === "EMERGENCY") {
-    const bestMove = "Push Emergency Plumbing Response";
-    const serviceName = "Emergency plumbing";
-    const opportunityType: OpportunityType = "COMPETITOR_INACTIVE";
-    const resolvedJobValue = resolveSyntheticJobValue({
-  profile,
-  familyKey: "emergency-plumbing",
-  serviceName: "Emergency plumbing",
-  primaryService: "Emergency plumbing",
-});
-    return {
-      opportunityKey: buildSyntheticOpportunityKey({
-        serviceName,
-        opportunityType,
-        bestMove,
-      }),
-      familyKey: "emergency-plumbing",
-      title: "Emergency Plumbing Revenue Opportunity",
-      serviceName,
-      opportunityType,
-      bestMove,
-      displayMoveLabel: "Push Emergency Plumbing Response",
-      displaySummary: `Capture urgent calls from homeowners who need immediate help in ${profile.serviceArea}.`,
-      imageKey: "emergency-plumbing",
-      imageMode: "SERVICE_IMAGE",
-      actionThesis: {
-        familyKey: "emergency-plumbing",
-        primaryService: "Emergency plumbing",
-        angle: "urgent response",
-        title: "Push Emergency Plumbing Response",
-        summary:
-          "Capture urgent same-day demand with fast-response emergency positioning.",
-        audience: `Homeowners in ${profile.serviceArea} needing immediate plumbing help`,
-        offerHint: "Fast response and availability",
-        ctaHint: "Call now",
-        imageKey: "emergency-plumbing",
-        imageMode: "SERVICE_IMAGE",
-      },
-      recommendedCampaignType: "EMERGENCY_SERVICE",
-      jobsLow: 1,
-      jobsHigh: 3,
-      revenueLow: Math.round(resolvedJobValue * 1.2),
-      revenueHigh: Math.round(resolvedJobValue * 3.2),
-      rawOpportunityScore: 76,
-      confidenceLabel: "Medium",
-      confidenceScore: 70,
-      whyNowBullets: [
-        "The request is explicitly for emergency plumbing promotion.",
-        "Emergency-response messaging should stay in an urgency-based action lane.",
-        "This is more relevant than borrowing a non-emergency opportunity.",
-      ],
-      whyThisMatters:
-        "An emergency-service action is the strongest direct match to the prompt and should feel more trustworthy than forcing an unrelated opportunity.",
-      sourceTags: ["Demand", "Competitor"],
-      source: "generated",
-      fitScore: 91,
-    };
-  }
-
-  if (routedIntent.lane === "WATER_HEATER") {
-    const bestMove = "Promote Water Heater Install & Upgrade Jobs";
-    const serviceName = lowerPrompt.includes("tankless")
-      ? "Tankless water heater"
-      : "Water heater service";
-    const opportunityType: OpportunityType = "HIGH_VALUE_SERVICE";
-
-    const thesis = lowerPrompt.includes("tankless")
-      ? {
-          familyKey: "water-heater",
-          primaryService: "Tankless water heater",
-          angle: "tankless install and upgrade",
-          title: "Promote Tankless Water Heater Installs",
-          summary:
-            "Generate tankless install and upgrade jobs with a high-intent local offer.",
-          audience: `Homeowners in ${profile.serviceArea} considering a tankless upgrade, conversion, or installation`,
-          offerHint: "Tankless install offer or estimate-led upgrade push",
-          ctaHint: "Schedule your tankless estimate",
-          imageKey: "tankless-water-heater-install",
-          imageMode: "SERVICE_IMAGE" as const,
-        }
-      : {
-          familyKey: "water-heater",
-          primaryService: "Water heater service",
-          angle: "install and upgrade",
-          title: "Promote Water Heater Install & Upgrade Jobs",
-          summary:
-            "Generate local install and upgrade demand with messaging built around higher-value booked jobs.",
-          audience: `Homeowners in ${profile.serviceArea} considering a water heater install, upgrade, or replacement`,
-          offerHint: "Installation offer or estimate-led promotion",
-          ctaHint: "Book your estimate",
-          imageKey: "water-heater-install",
-          imageMode: "SERVICE_IMAGE" as const,
-        };
-      const resolvedJobValue = resolveSyntheticJobValue({
-  profile,
-  familyKey: "water-heater",
-  serviceName,
-  primaryService: thesis.primaryService,
-});
-    return {
-      opportunityKey: buildSyntheticOpportunityKey({
-        serviceName,
-        opportunityType,
-        bestMove,
-      }),
-      familyKey: "water-heater",
-      title: "Water Heater Revenue Opportunity",
-      serviceName,
-      opportunityType,
-      bestMove,
-      displayMoveLabel: thesis.title,
-      displaySummary: thesis.summary,
-      imageKey: thesis.imageKey,
-      imageMode: thesis.imageMode,
-      actionThesis: thesis,
-      recommendedCampaignType: "WATER_HEATER",
-      jobsLow: 1,
-      jobsHigh: 3,
-      revenueLow: Math.round(resolvedJobValue * 2.5),
-      revenueHigh: Math.round(resolvedJobValue * 5),
-      rawOpportunityScore: 82,
-      confidenceLabel: "Medium",
-      confidenceScore: 76,
-      whyNowBullets: [
-        "The request is explicitly focused on water heater demand.",
-        "This is a high-value service lane with clear commercial relevance.",
-        "The opportunity is being synthesized because prompt relevance is stronger than existing-match quality.",
-      ],
-      whyThisMatters:
-        "A dedicated water-heater opportunity is more credible here than attaching the prompt to a weaker existing match.",
-      sourceTags: ["Service Value", "Demand"],
-      source: "generated",
-      fitScore: 93,
-    };
-  }
+  const lowerPrompt = normalize(prompt);
+  const requestedService = extractRequestedServiceLabel(prompt);
+  const inferredIndustry = inferIndustryFromContext({
+    prompt,
+    familyKey: requestedService ? slugify(requestedService) : null,
+    serviceName: requestedService,
+  });
 
   if (routedIntent.lane === "CAPACITY_FILL") {
-    const bestMove = "Fill This Week’s Schedule with Checkups";
-    const serviceName = "Service checkup";
+    const serviceName = requestedService ?? "Open schedule service";
+    const familyKey = requestedService
+      ? slugify(requestedService)
+      : `${inferredIndustry}-capacity-fill`;
+    const bestMove = requestedService
+      ? `Fill Schedule with ${requestedService}`
+      : "Fill This Week’s Schedule";
     const opportunityType: OpportunityType = "CAPACITY_GAP";
     const resolvedJobValue = resolveSyntheticJobValue({
-  profile,
-  familyKey: "maintenance",
-  serviceName: "Service checkup",
-  primaryService: "Service checkup",
-});
+      profile,
+      familyKey,
+      serviceName,
+      primaryService: serviceName,
+    });
+
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
         opportunityType,
         bestMove,
       }),
-      familyKey: "maintenance",
-      title: "Open Capacity Revenue Opportunity",
+      familyKey,
+      title: `${serviceName} Capacity Opportunity`,
       serviceName,
       opportunityType,
       bestMove,
-      displayMoveLabel: "Fill This Week’s Schedule with Checkups",
+      displayMoveLabel: bestMove,
       displaySummary:
-        "Use lower-friction service work to turn open capacity into booked jobs.",
-      imageKey: "service-checkup",
+        "Use lower-friction, easier-to-book work to turn open capacity into booked jobs.",
+      imageKey: familyKey,
       imageMode: "SERVICE_IMAGE",
       actionThesis: {
-        familyKey: "maintenance",
-        primaryService: "Service checkup",
+        familyKey,
+        primaryService: serviceName,
         angle: "schedule fill",
-        title: "Fill This Week’s Schedule with Checkups",
+        title: bestMove,
         summary:
-          "Fill open technician capacity with easier-to-book preventative or checkup work.",
-        audience: `Homeowners in ${profile.serviceArea} open to proactive service and seasonal checkups`,
-        offerHint: "Simple entry offer",
+          "Create a practical local action that helps turn open capacity into booked jobs.",
+        audience: `Homeowners in ${profile.serviceArea} who need timely local service help`,
+        offerHint: "Simple offer designed to make booking easier this week",
         ctaHint: "Book now",
-        imageKey: "service-checkup",
+        imageKey: familyKey,
         imageMode: "SERVICE_IMAGE",
       },
       recommendedCampaignType: "MAINTENANCE_PUSH",
@@ -844,44 +692,45 @@ function buildSyntheticOpportunity(params: {
       confidenceLabel: "Medium",
       confidenceScore: 74,
       whyNowBullets: [
-        "The request is to fill schedule capacity, not to chase the largest-ticket work.",
-        "Lower-friction maintenance offers are a more natural schedule-fill move.",
-        "This avoids mismatching the prompt to heavy repair work.",
+        "The request is to fill schedule capacity, not just chase the highest-ticket work.",
+        "This action is built to create lower-friction demand that is easier to approve and launch.",
+        "The recommendation avoids forcing a category mismatch when the business need is capacity-first.",
       ],
       whyThisMatters:
-        "A capacity-fill action should prioritize easier-to-book work rather than large repair jobs.",
+        "A schedule-fill request should produce a schedule-fill action instead of drifting into unrelated promotion.",
       sourceTags: ["Capacity", "Demand"],
       source: "generated",
-      fitScore: 94,
+      fitScore: 92,
     };
   }
 
   if (routedIntent.lane === "AEO_SEO") {
-    const bestMove = "Improve AI Search Visibility";
-    const serviceName = "AI search visibility";
+    const serviceName = requestedService ?? "AI search visibility";
     const opportunityType: OpportunityType = "AI_SEARCH_VISIBILITY";
     const baseAverageJobValue =
-  typeof profile.averageJobValue === "number" && Number.isFinite(profile.averageJobValue)
-    ? profile.averageJobValue
-    : Number(profile.averageJobValue ?? 450);
+      typeof profile.averageJobValue === "number" &&
+      Number.isFinite(profile.averageJobValue)
+        ? profile.averageJobValue
+        : Number(profile.averageJobValue ?? 450);
+
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
         opportunityType,
-        bestMove,
+        bestMove: "Improve AI Search Visibility",
       }),
       familyKey: "ai-search-visibility",
       title: "AI Search Visibility Opportunity",
       serviceName,
       opportunityType,
-      bestMove,
+      bestMove: "Improve AI Search Visibility",
       displayMoveLabel: "Improve AI Search Visibility",
-      displaySummary: `Strengthen local answer-engine visibility for key service searches in ${profile.serviceArea}.`,
+      displaySummary: `Strengthen local answer-engine visibility in ${profile.serviceArea}.`,
       imageKey: "company-logo",
       imageMode: "LOGO",
       actionThesis: {
         familyKey: "ai-search-visibility",
-        primaryService: "AI search visibility",
+        primaryService: serviceName,
         angle: "answer-engine visibility",
         title: "Improve AI Search Visibility",
         summary:
@@ -910,7 +759,7 @@ function buildSyntheticOpportunity(params: {
         "The request is explicitly asking for AEO / FAQ / visibility work.",
       ],
       whyThisMatters:
-        "This is the most direct match to an AEO-oriented request and should not be forced through an unrelated service opportunity.",
+        "This is the most direct match to a visibility-oriented request and should not be forced through an unrelated service opportunity.",
       sourceTags: ["AEO", "Demand"],
       source: "generated",
       fitScore: 95,
@@ -918,30 +767,31 @@ function buildSyntheticOpportunity(params: {
   }
 
   if (routedIntent.lane === "REVIEWS") {
-    const bestMove = "Improve Review Generation";
     const serviceName = "Review generation";
     const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
     const baseAverageJobValue =
-  typeof profile.averageJobValue === "number" && Number.isFinite(profile.averageJobValue)
-    ? profile.averageJobValue
-    : Number(profile.averageJobValue ?? 450);
+      typeof profile.averageJobValue === "number" &&
+      Number.isFinite(profile.averageJobValue)
+        ? profile.averageJobValue
+        : Number(profile.averageJobValue ?? 450);
+
     return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
         opportunityType,
-        bestMove,
+        bestMove: "Improve Review Generation",
       }),
-      familyKey: "general-plumbing",
+      familyKey: `${inferredIndustry}-reviews`,
       title: "Review Generation Opportunity",
       serviceName,
       opportunityType,
-      bestMove,
+      bestMove: "Improve Review Generation",
       displayMoveLabel: "Improve Review Generation",
       displaySummary: `Strengthen local trust and conversion with a focused review-generation action in ${profile.serviceArea}.`,
-      imageKey: "general-plumbing",
+      imageKey: `${inferredIndustry}-reviews`,
       imageMode: "SERVICE_IMAGE",
       actionThesis: {
-        familyKey: "general-plumbing",
+        familyKey: `${inferredIndustry}-reviews`,
         primaryService: "Review generation",
         angle: "trust building",
         title: "Improve Review Generation",
@@ -950,7 +800,7 @@ function buildSyntheticOpportunity(params: {
         audience: `Recent customers in ${profile.serviceArea}`,
         offerHint: "Simple follow-up review request",
         ctaHint: "Request review",
-        imageKey: "general-plumbing",
+        imageKey: `${inferredIndustry}-reviews`,
         imageMode: "SERVICE_IMAGE",
       },
       recommendedCampaignType: "REVIEW_GENERATION",
@@ -968,35 +818,39 @@ function buildSyntheticOpportunity(params: {
       ],
       whyThisMatters:
         "A review-focused request should produce a review-focused action.",
-      sourceTags: ["Demand"],
+      sourceTags: ["Trust", "Demand"],
       source: "generated",
       fitScore: 88,
     };
   }
 
-    const requestedService = extractRequestedServiceLabel(prompt);
-
-  const bestMove = requestedService
-    ? `Promote ${requestedService} Demand`
-    : "Promote Local Service Demand";
-
-  const serviceName = requestedService
-    ? requestedService
-    : lowerPrompt.includes("plumb")
-      ? "General plumbing"
-      : "Local service demand";
+  const serviceName =
+    requestedService ??
+    (lowerPrompt.includes("emergency")
+      ? "Emergency service"
+      : "Local service demand");
 
   const familyKey = requestedService
-    ? `custom-request:${slugify(requestedService)}`
-    : "general-plumbing";
+    ? slugify(requestedService)
+    : `${inferredIndustry}-general-service`;
 
-  const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
+  const opportunityType: OpportunityType =
+    lowerPrompt.includes("emergency")
+      ? "COMPETITOR_INACTIVE"
+      : lowerPrompt.includes("upgrade") || lowerPrompt.includes("install")
+        ? "HIGH_VALUE_SERVICE"
+        : "LOCAL_SEARCH_SPIKE";
 
-  const baseAverageJobValue =
-    typeof profile.averageJobValue === "number" &&
-    Number.isFinite(profile.averageJobValue)
-      ? profile.averageJobValue
-      : Number(profile.averageJobValue ?? 450);
+  const bestMove = requestedService
+    ? `Promote ${requestedService}`
+    : "Promote Local Service Demand";
+
+  const resolvedJobValue = resolveSyntheticJobValue({
+    profile,
+    familyKey,
+    serviceName,
+    primaryService: serviceName,
+  });
 
   return {
     opportunityKey: buildSyntheticOpportunityKey({
@@ -1011,43 +865,45 @@ function buildSyntheticOpportunity(params: {
     serviceName,
     opportunityType,
     bestMove,
-    displayMoveLabel: requestedService
-      ? `Promote ${requestedService}`
-      : "Promote Local Service Demand",
+    displayMoveLabel: bestMove,
     displaySummary: requestedService
       ? `Build a custom requested action for ${requestedService.toLowerCase()} demand in ${profile.serviceArea}.`
       : `Build a prompt-aligned local action for ${profile.serviceArea}.`,
-    imageKey: "general-plumbing",
+    imageKey: familyKey,
     imageMode: "SERVICE_IMAGE",
     actionThesis: {
       familyKey,
       primaryService: serviceName,
-      angle: requestedService ? "custom requested service demand" : "local demand capture",
-      title: requestedService
-        ? `Promote ${requestedService}`
-        : "Promote Local Service Demand",
+      angle:
+        opportunityType === "HIGH_VALUE_SERVICE"
+          ? "high-value service demand"
+          : lowerPrompt.includes("emergency")
+            ? "urgent demand capture"
+            : "local demand capture",
+      title: bestMove,
       summary: requestedService
         ? `Generate more local demand for ${requestedService.toLowerCase()} based on the customer’s explicit request.`
         : "Generate more local demand with a prompt-aligned action instead of forcing a weak category match.",
       audience: `Homeowners in ${profile.serviceArea}`,
       offerHint: "Compelling local service offer",
-      ctaHint: "Book now",
-      imageKey: "general-plumbing",
+      ctaHint: lowerPrompt.includes("emergency") ? "Call now" : "Book now",
+      imageKey: familyKey,
       imageMode: "SERVICE_IMAGE",
     },
-    recommendedCampaignType: "CUSTOM",
+    recommendedCampaignType:
+      opportunityType === "HIGH_VALUE_SERVICE" ? "WATER_HEATER" : "CUSTOM",
     jobsLow: 1,
     jobsHigh: 3,
-    revenueLow: Math.round(baseAverageJobValue * 1),
-    revenueHigh: Math.round(baseAverageJobValue * 3),
-    rawOpportunityScore: requestedService ? 66 : 60,
+    revenueLow: Math.round(resolvedJobValue * 1),
+    revenueHigh: Math.round(resolvedJobValue * 3),
+    rawOpportunityScore: requestedService ? 68 : 60,
     confidenceLabel: "Low",
-    confidenceScore: requestedService ? 66 : 60,
+    confidenceScore: requestedService ? 68 : 60,
     whyNowBullets: requestedService
       ? [
-          "The request is explicitly asking for a service that is not currently surfaced in the default opportunity set.",
-          "MarketForge allows custom requested actions even when that service is not part of the standard Business Profile recommendation mix.",
-          "This keeps customer-requested action generation flexible without polluting the default ranked opportunities.",
+          "The request is explicitly asking for a service that is not currently surfaced as a strong existing match.",
+          "MarketForge allows a custom requested action even when that service is not part of the strongest current recommendation set.",
+          "This keeps the action aligned to the customer’s request without polluting the default engine.",
         ]
       : [
           "No strong existing opportunity matched the prompt cleanly.",
@@ -1076,7 +932,6 @@ function buildFallbackCampaignDraft(params: {
     actionTitle,
     actionSummary,
     targetService,
-    serviceArea,
     campaignType,
     objective,
     actionThesis,
@@ -1085,22 +940,16 @@ function buildFallbackCampaignDraft(params: {
   const offer =
     campaignType === "AEO_FAQ"
       ? actionThesis.offerHint
-      : campaignType === "DRAIN_SPECIAL"
-        ? "$79 Drain Cleaning Special"
-        : campaignType === "WATER_HEATER"
-          ? actionThesis.offerHint
-          : campaignType === "EMERGENCY_SERVICE"
-            ? "Fast Emergency Service"
-            : campaignType === "MAINTENANCE_PUSH"
-              ? "Seasonal Checkup Offer"
-              : actionThesis.offerHint;
+      : campaignType === "REVIEW_GENERATION"
+        ? "Simple review request"
+        : campaignType === "MAINTENANCE_PUSH"
+          ? "Simple local offer designed to create bookings"
+          : actionThesis.offerHint;
 
   const cta =
     campaignType === "AEO_FAQ" || campaignType === "SEO_CONTENT"
       ? actionThesis.ctaHint
-      : campaignType === "EMERGENCY_SERVICE"
-        ? "Call now"
-        : actionThesis.ctaHint;
+      : actionThesis.ctaHint;
 
   return {
     title: actionTitle,
@@ -1153,8 +1002,326 @@ function buildFallbackCampaignFromResolvedOpportunity(
   });
 }
 
+function cleanActionTitleForAd(title?: string | null) {
+  const base = (title ?? "Local Service Offer").trim();
+
+  return base
+    .replace(/^promote\s+/i, "")
+    .replace(/^capture\s+/i, "")
+    .replace(/^push\s+/i, "")
+    .replace(/^improve\s+/i, "")
+    .replace(/^fill\s+/i, "")
+    .replace(/^more\s+/i, "")
+    .replace(/^high-intent\s+/i, "")
+    .replace(/\s+jobs?$/i, "")
+    .replace(/\s+bookings?$/i, "")
+    .replace(/\s+demand$/i, "")
+    .replace(/\s+response$/i, "")
+    .trim();
+}
+
+function buildMetaPrimaryText(params: {
+  summary?: string | null;
+  serviceArea?: string | null;
+  cta?: string | null;
+}) {
+  const summary = (params.summary ?? "").trim();
+  const serviceArea = (params.serviceArea ?? "").trim();
+  const cta = (params.cta ?? "Book now").trim();
+
+  let cleaned = summary
+    .replace(/^generate\s+/i, "")
+    .replace(/^drive\s+/i, "")
+    .replace(/^capture\s+/i, "")
+    .replace(/^promote\s+/i, "")
+    .replace(/^more\s+/i, "")
+    .replace(/^high-intent\s+/i, "")
+    .replace(/\bbookings\b/gi, "appointments")
+    .trim();
+
+  if (!cleaned) {
+    return serviceArea
+      ? `Trusted local service is available in ${serviceArea}. ${cta}.`
+      : `Trusted local service is available now. ${cta}.`;
+  }
+
+  if (serviceArea) {
+    const escapedArea = serviceArea.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    cleaned = cleaned
+      .replace(new RegExp(`\\s+in\\s+${escapedArea}\\.?\s*$`, "i"), "")
+      .trim();
+  }
+
+  cleaned = cleaned.replace(/\.\s*$/g, "").trim();
+
+  return serviceArea
+    ? `${cleaned} in ${serviceArea}. ${cta}.`
+    : `${cleaned}. ${cta}.`;
+}
+
+function buildGoogleBusinessPostText(params: {
+  summary?: string | null;
+  serviceArea?: string | null;
+  cta?: string | null;
+}) {
+  const summary = (params.summary ?? "").trim();
+  const serviceArea = (params.serviceArea ?? "").trim();
+  const cta = (params.cta ?? "Learn more").trim();
+
+  let cleaned = summary
+    .replace(/^generate\s+/i, "")
+    .replace(/^drive\s+/i, "")
+    .replace(/^capture\s+/i, "")
+    .replace(/^promote\s+/i, "")
+    .replace(/^more\s+/i, "")
+    .replace(/^high-intent\s+/i, "")
+    .replace(/\bbookings\b/gi, "appointments")
+    .trim();
+
+  if (!cleaned) {
+    return serviceArea
+      ? `Need local service in ${serviceArea}? ${cta}.`
+      : `Need local service help? ${cta}.`;
+  }
+
+  if (serviceArea) {
+    const escapedArea = serviceArea.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    cleaned = cleaned
+      .replace(new RegExp(`\\s+in\\s+${escapedArea}\\.?\s*$`, "i"), "")
+      .trim();
+  }
+
+  cleaned = cleaned.replace(/\.\s*$/g, "").trim();
+
+  return serviceArea
+    ? `${cleaned} in ${serviceArea}. ${cta}.`
+    : `${cleaned}. ${cta}.`;
+}
+
+function normalizeOfferText(value?: string | null) {
+  const trimmed = (value ?? "").trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildStructuredGoogleBusinessAsset(params: {
+  title?: string | null;
+  summary?: string | null;
+  cta?: string | null;
+  offer?: string | null;
+  imageKey?: string | null;
+  imageMode?: "SERVICE_IMAGE" | "LOGO" | null;
+  industry?: string | null;
+  serviceArea?: string | null;
+}) {
+    const cta = params.cta ?? "Learn More";
+  const offer = normalizeOfferText(params.offer);
+  const descriptionBase = buildGoogleBusinessPostText({
+    summary: params.summary,
+    serviceArea: params.serviceArea,
+    cta,
+  });
+
+  return JSON.stringify({
+    kind: "GOOGLE_BUSINESS",
+    title: cleanActionTitleForAd(params.title),
+    description: offer
+      ? `${offer} — ${descriptionBase}`
+      : descriptionBase,
+    cta,
+    offer,
+    imageKey: normalizeStructuredAssetImageKey({
+      imageKey: params.imageKey,
+      industry: params.industry,
+    }),
+    imageMode: params.imageMode ?? "SERVICE_IMAGE",
+    industry: params.industry ?? "plumbing",
+  });
+}
+
+function buildStructuredMetaAsset(params: {
+  headline?: string | null;
+  primaryText?: string | null;
+  cta?: string | null;
+  offer?: string | null;
+  imageKey?: string | null;
+  imageMode?: "SERVICE_IMAGE" | "LOGO" | null;
+  industry?: string | null;
+  serviceArea?: string | null;
+}) {
+    const cta = params.cta ?? "Book Now";
+  const offer = normalizeOfferText(params.offer);
+  const primaryTextBase = buildMetaPrimaryText({
+    summary: params.primaryText,
+    serviceArea: params.serviceArea,
+    cta,
+  });
+
+  return JSON.stringify({
+    kind: "META",
+    headline: cleanActionTitleForAd(params.headline),
+    primaryText: offer
+      ? `${offer}. ${primaryTextBase}`
+      : primaryTextBase,
+    cta,
+    offer,
+    imageKey: normalizeStructuredAssetImageKey({
+      imageKey: params.imageKey,
+      industry: params.industry,
+    }),
+    imageMode: params.imageMode ?? "SERVICE_IMAGE",
+    industry: params.industry ?? "plumbing",
+  });
+}
+
+function buildStructuredEmailAsset(params: {
+  subject?: string | null;
+  previewLine?: string | null;
+  body?: string | null;
+  cta?: string | null;
+  industry?: string | null;
+}) {
+  return JSON.stringify({
+    kind: "EMAIL",
+    subject: params.subject ?? "Service Update",
+    previewLine:
+      params.previewLine ?? "Local service support is available.",
+    body:
+      params.body ??
+      "We have availability to help with your local service needs.",
+    cta: params.cta ?? "Learn More",
+    industry: params.industry ?? "plumbing",
+  });
+}
+
+function cleanInternalMarketingLanguage(value?: string | null) {
+  const text = (value ?? "").trim();
+
+  if (!text) return "";
+
+  return text
+    .replace(/\bdrive more high-intent bookings\b/gi, "understand when professional help is needed")
+    .replace(/\bgenerate more high-intent bookings\b/gi, "understand when professional help is needed")
+    .replace(/\bcapture more high-intent bookings\b/gi, "understand when professional help is needed")
+    .replace(/\bdrive more bookings\b/gi, "know when it is time to take action")
+    .replace(/\bgenerate more bookings\b/gi, "know when it is time to take action")
+    .replace(/\bcapture more bookings\b/gi, "know when it is time to take action")
+    .replace(/\bgenerate more local demand\b/gi, "help homeowners make informed decisions")
+    .replace(/\bdrive more local demand\b/gi, "help homeowners make informed decisions")
+    .replace(/\bcapture local demand\b/gi, "help homeowners make informed decisions")
+    .replace(/\bhigh-intent\b/gi, "")
+    .replace(/\bbookings\b/gi, "service appointments")
+    .replace(/\bdemand\b/gi, "service needs")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildCustomerFacingBlogIntro(params: {
+  primaryService: string;
+  serviceArea: string;
+}) {
+  return `If you need ${params.primaryService.toLowerCase()} in ${params.serviceArea}, it helps to understand the early warning signs, what can happen if the issue gets worse, and when it makes sense to bring in a professional.`;
+}
+
+function buildCustomerFacingBlogSections(params: {
+  primaryService: string;
+  businessName: string;
+  serviceArea: string;
+  summary?: string | null;
+  whyBullets?: string[] | null;
+}) {
+  const service = params.primaryService.toLowerCase();
+
+  return [
+    {
+      heading: `Common signs you may need ${service}`,
+      body: `Homeowners often notice recurring issues, reduced performance, unusual sounds, inconsistent operation, or visible warning signs before they realize they need ${service}. Catching those signs early can make the problem easier and less expensive to address.`,
+    },
+    {
+      heading: `Why acting early matters`,
+      body: `When service issues are ignored, they can become more disruptive, more expensive, and harder to resolve. Taking action early usually helps protect comfort, safety, property condition, and overall system performance.`,
+    },
+    {
+      heading: `How ${params.businessName} helps homeowners in ${params.serviceArea}`,
+      body: `${params.businessName} helps homeowners across ${params.serviceArea} with professional ${service}, clear recommendations, and practical next steps based on the condition of the property and the urgency of the issue.`,
+    },
+  ];
+}
+
+async function buildStructuredBlogAsset(params: {
+  title?: string | null;
+  businessName?: string | null;
+  serviceArea?: string | null;
+  primaryService?: string | null;
+  summary?: string | null;
+  whyBullets?: string[] | null;
+  cta?: string | null;
+  imageKey?: string | null;
+  imageMode?: "SERVICE_IMAGE" | "LOGO" | null;
+  industry?: string | null;
+}) {
+  const serviceName = params.primaryService ?? "local service";
+  const businessName = params.businessName ?? "This business";
+  const serviceArea = params.serviceArea ?? "your area";
+
+  // 🔥 NEW: Try AI generation first
+  const aiBlog = await generateBlogWithAI({
+    businessName,
+    serviceName,
+    serviceArea,
+  });
+
+  // ✅ SUCCESS PATH (AI worked)
+  if (aiBlog) {
+    return JSON.stringify({
+      kind: "BLOG",
+      title: aiBlog.title,
+      excerpt: aiBlog.excerpt,
+      introduction: aiBlog.introduction,
+      sections: aiBlog.sections,
+      cta: aiBlog.cta ?? "Book now",
+      imageKey: params.imageKey ?? "general-service",
+      imageMode: params.imageMode ?? "SERVICE_IMAGE",
+      industry: params.industry ?? "plumbing",
+    });
+  }
+
+  // 🛟 FALLBACK (existing deterministic logic)
+  return JSON.stringify({
+    kind: "BLOG",
+    title: `${serviceName} Guide for Homeowners in ${serviceArea}`,
+    excerpt: `What homeowners in ${serviceArea} should know about ${serviceName.toLowerCase()}.`,
+    introduction: `If you need ${serviceName.toLowerCase()} in ${serviceArea}, it helps to understand the early warning signs and when it makes sense to bring in a professional.`,
+    sections: [
+      {
+        heading: `Common signs you may need ${serviceName.toLowerCase()}`,
+        body: `Homeowners often notice recurring issues, reduced performance, unusual sounds, or visible warning signs before realizing they need ${serviceName.toLowerCase()}.`,
+      },
+      {
+        heading: `Why acting early matters`,
+        body: `When issues are ignored, they can become more disruptive and more expensive. Acting early usually helps protect your home and avoid bigger repairs.`,
+      },
+      {
+        heading: `How ${businessName} helps homeowners in ${serviceArea}`,
+        body: `${businessName} helps homeowners across ${serviceArea} with professional ${serviceName.toLowerCase()} service and clear next steps.`,
+      },
+    ],
+    cta: params.cta ?? "Book now",
+    imageKey: params.imageKey ?? "general-service",
+    imageMode: params.imageMode ?? "SERVICE_IMAGE",
+    industry: params.industry ?? "plumbing",
+  });
+}
+
+function shouldInvalidateOpportunitySnapshotOnCampaignCreate(_: {
+  campaignOrigin: "recommendation" | "nl_custom";
+  consumesRecommendationSlot: boolean;
+}): boolean {
+  return false;
+}
+
 export async function createCampaignFromPrompt(
-  prompt: string
+  prompt: string,
+  options: CreateCampaignFromPromptOptions = {}
 ): Promise<CreateCampaignResult> {
   const cleanedPrompt = prompt.trim();
 
@@ -1241,9 +1408,11 @@ export async function createCampaignFromPrompt(
 
   const bestExistingMatch = scoredExistingMatches[0] ?? null;
   const strongMatchThreshold = getStrongMatchThreshold(routedIntent.lane);
+  const forcedOpportunity = options.linkedOpportunity ?? null;
 
   const resolvedOpportunity: ResolvedOpportunity =
-    bestExistingMatch && bestExistingMatch.fitScore >= strongMatchThreshold
+    forcedOpportunity ??
+    (bestExistingMatch && bestExistingMatch.fitScore >= strongMatchThreshold
       ? {
           opportunityKey: bestExistingMatch.opportunity.opportunityKey,
           familyKey: bestExistingMatch.opportunity.familyKey,
@@ -1278,10 +1447,11 @@ export async function createCampaignFromPrompt(
             businessName: profile.businessName,
             serviceArea: profile.serviceArea,
             averageJobValue: profile.averageJobValue,
+            servicePricingJson: profile.servicePricingJson,
             hasFaqContent: profile.hasFaqContent,
             servicePageUrls: profile.servicePageUrls,
           },
-        });
+        }));
 
   const refinedActionThesis = buildPromptRefinedActionThesis({
     prompt: cleanedPrompt,
@@ -1299,7 +1469,7 @@ Your job is to:
 4. Generate one coherent action package where strategy, explanation, imagery guidance, and assets all describe the same move.
 
 Critical rules:
-- Do not drift back to a broader service category if the action thesis is more specific.
+- Do not drift back to a broader category if the action thesis is more specific.
 - The action thesis is the source of truth for title, angle, audience, CTA, and image direction.
 - Respect explicit user intent.
 - Keep the language direct, commercial, and trustworthy.
@@ -1397,12 +1567,12 @@ Return a single structured next-best-action plan.
   const effectiveActionType =
     routedIntent.preferredActionType ?? parsed.nextBestAction.actionType;
 
-  const effectiveActionThesis = {
+    const effectiveActionThesis = {
     ...refinedActionThesis,
     ...parsed.actionThesis,
     familyKey: resolvedOpportunity.familyKey,
-    imageKey: parsed.actionThesis.imageKey || refinedActionThesis.imageKey,
-    imageMode: parsed.actionThesis.imageMode || refinedActionThesis.imageMode,
+    imageKey: refinedActionThesis.imageKey,
+    imageMode: refinedActionThesis.imageMode,
     whyThisActionBullets:
       parsed.actionThesis.whyThisActionBullets?.length > 0
         ? parsed.actionThesis.whyThisActionBullets
@@ -1437,6 +1607,16 @@ Return a single structured next-best-action plan.
 
   const campaignName = campaignDraft.title || effectiveActionThesis.title;
 
+  const campaignOrigin = options.campaignOrigin ?? "nl_custom";
+  const consumesRecommendationSlot =
+    options.consumesRecommendationSlot ?? false;
+
+  const structuredIndustry = inferIndustryFromContext({
+    prompt: cleanedPrompt,
+    familyKey: resolvedOpportunity.familyKey,
+    serviceName: effectiveActionThesis.primaryService,
+  });
+
   const campaign = await prisma.campaign.create({
     data: {
       workspaceId: workspace.id,
@@ -1457,6 +1637,8 @@ Return a single structured next-best-action plan.
       briefJson: {
         userPrompt: cleanedPrompt,
         parsedIntent: parsed.parsedIntent,
+        campaignOrigin,
+        consumesRecommendationSlot,
         opportunityCheck: {
           ...parsed.opportunityCheck,
           matchedOpportunityTitle: resolvedOpportunity.title,
@@ -1477,11 +1659,17 @@ Return a single structured next-best-action plan.
         actionPack: parsed.actionPack,
         campaignDraft,
         creativeGuidance: campaignDraft.creativeGuidance,
-        matchedOpportunityKey: resolvedOpportunity.opportunityKey,
-        matchedOpportunityTitle: resolvedOpportunity.title,
+        matchedOpportunityKey: consumesRecommendationSlot
+          ? resolvedOpportunity.opportunityKey
+          : null,
+        matchedOpportunityTitle: consumesRecommendationSlot
+          ? resolvedOpportunity.title
+          : null,
         matchedOpportunitySource: resolvedOpportunity.source,
         matchedOpportunityFitScore: resolvedOpportunity.fitScore,
-        matchedFamilyKey: resolvedOpportunity.familyKey,
+        matchedFamilyKey: consumesRecommendationSlot
+          ? resolvedOpportunity.familyKey
+          : null,
         displayMoveLabel: resolvedOpportunity.displayMoveLabel,
         displaySummary: resolvedOpportunity.displaySummary,
         imageKey: effectiveActionThesis.imageKey,
@@ -1495,6 +1683,7 @@ Return a single structured next-best-action plan.
         marketForgeActionScore: resolvedOpportunity.rawOpportunityScore,
         routedIntent: routedIntent.label,
         routedLane: routedIntent.lane,
+        structuredIndustry,
         generatedAt: new Date().toISOString(),
       },
     },
@@ -1502,23 +1691,41 @@ Return a single structured next-best-action plan.
 
   await prisma.campaignAsset.createMany({
     data: [
-      {
+                        {
         campaignId: campaign.id,
         assetType: "GOOGLE_BUSINESS",
         title:
           effectiveExecutionMode === "ACTION_PACK"
             ? "Google Business Action Draft"
             : "Google Business Post",
-        content: parsed.assets.googleBusinessPost,
+        content: buildStructuredGoogleBusinessAsset({
+          title: effectiveActionThesis.title,
+          summary: parsed.assets.yelpAd.body,
+          cta: effectiveActionThesis.ctaHint,
+          offer: parsed.assets.yelpAd.offer,
+          imageKey: effectiveActionThesis.imageKey,
+          imageMode: effectiveActionThesis.imageMode,
+          industry: structuredIndustry,
+          serviceArea: profile.serviceArea,
+        }),
       },
-      {
+                        {
         campaignId: campaign.id,
         assetType: "META",
         title:
           effectiveExecutionMode === "ACTION_PACK"
             ? "Meta Action Draft"
             : "Meta Ad Copy",
-        content: parsed.assets.metaAdCopy,
+        content: buildStructuredMetaAsset({
+          headline: effectiveActionThesis.title,
+          primaryText: parsed.assets.yelpAd.body,
+          cta: effectiveActionThesis.ctaHint,
+          offer: parsed.assets.yelpAd.offer,
+          imageKey: effectiveActionThesis.imageKey,
+          imageMode: effectiveActionThesis.imageMode,
+          industry: structuredIndustry,
+          serviceArea: profile.serviceArea,
+        }),
       },
       {
         campaignId: campaign.id,
@@ -1535,17 +1742,37 @@ Return a single structured next-best-action plan.
       {
         campaignId: campaign.id,
         assetType: "EMAIL",
-        title: parsed.assets.emailCampaign.subjectLine,
-        content: parsed.assets.emailCampaign.body,
+        title: parsed.assets.emailCampaign.subjectLine ?? "Email Campaign",
+        content: buildStructuredEmailAsset({
+          subject: parsed.assets.emailCampaign.subjectLine,
+          previewLine: effectiveActionThesis.summary,
+          body: parsed.assets.emailCampaign.body,
+          cta: effectiveActionThesis.ctaHint,
+          industry: structuredIndustry,
+        }),
       },
       {
         campaignId: campaign.id,
         assetType: "BLOG",
         title:
           effectiveExecutionMode === "ACTION_PACK"
-            ? parsed.actionPack.actionTitle
-            : "Blog Outline",
-        content: parsed.assets.blogOutline,
+            ? parsed.actionPack.actionTitle ?? "Blog Article"
+            : "Blog Article",
+        content: await buildStructuredBlogAsset({
+          title:
+            effectiveExecutionMode === "ACTION_PACK"
+              ? parsed.actionPack.actionTitle ?? effectiveActionThesis.title
+              : effectiveActionThesis.title,
+          businessName: profile.businessName,
+          serviceArea: profile.serviceArea,
+          primaryService: effectiveActionThesis.primaryService,
+          summary: effectiveActionThesis.summary,
+          whyBullets: effectiveActionThesis.whyThisActionBullets ?? [],
+          cta: effectiveActionThesis.ctaHint,
+          imageKey: effectiveActionThesis.imageKey,
+          imageMode: effectiveActionThesis.imageMode,
+          industry: structuredIndustry,
+        }),
       },
       {
         campaignId: campaign.id,
@@ -1562,7 +1789,18 @@ Return a single structured next-best-action plan.
     ],
   });
 
-  await invalidateWorkspaceOpportunitySnapshot(workspace.id);
+  if (consumesRecommendationSlot) {
+    const shouldInvalidateOnCreate = shouldInvalidateOpportunitySnapshotOnCampaignCreate(
+      {
+        campaignOrigin,
+        consumesRecommendationSlot,
+      }
+    );
+
+    if (shouldInvalidateOnCreate) {
+      await invalidateWorkspaceOpportunitySnapshot(workspace.id);
+    }
+  }
 
   return {
     success: true,
@@ -1656,5 +1894,9 @@ export async function createCampaignFromOpportunity(
 
   const prompt = `${matched.actionThesis.title}. ${matched.actionThesis.summary}`;
 
-  return createCampaignFromPrompt(prompt);
+  return createCampaignFromPrompt(prompt, {
+    linkedOpportunity: matched,
+    campaignOrigin: "recommendation",
+    consumesRecommendationSlot: true,
+  });
 }

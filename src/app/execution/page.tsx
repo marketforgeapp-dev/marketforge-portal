@@ -3,6 +3,7 @@ import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ExecutionBoard } from "@/components/execution/execution-board";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 
 export default async function ExecutionPage() {
   const workspace = await getCurrentWorkspace();
@@ -10,6 +11,11 @@ export default async function ExecutionPage() {
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
+
+  const profile = await prisma.businessProfile.findUnique({
+    where: { workspaceId: workspace.id },
+    select: { logoUrl: true, businessName: true },
+  });
 
   const campaigns = await prisma.campaign.findMany({
     where: {
@@ -20,7 +26,6 @@ export default async function ExecutionPage() {
     },
   });
 
-  const readyCount = campaigns.filter((c) => c.status === "READY").length;
   const approvedCount = campaigns.filter((c) => c.status === "APPROVED").length;
   const queuedCount = campaigns.filter((c) => c.status === "SCHEDULED").length;
   const launchedCount = campaigns.filter((c) => c.status === "LAUNCHED").length;
@@ -32,6 +37,10 @@ export default async function ExecutionPage() {
         <DashboardSidebar />
 
         <main className="min-w-0 flex-1 space-y-5">
+                    <DashboardHeader
+            workspaceName={profile?.businessName ?? workspace.name}
+            logoUrl={profile?.logoUrl ?? null}
+          />
           <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
               Action Execution
@@ -47,19 +56,7 @@ export default async function ExecutionPage() {
             </p>
           </section>
 
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="mf-card rounded-2xl p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
-                Draft Ready
-              </p>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
-                {readyCount}
-              </p>
-              <p className="mt-1 text-sm text-gray-600">
-                Ready for review and approval
-              </p>
-            </div>
-
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="mf-card rounded-2xl p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
                 Approved

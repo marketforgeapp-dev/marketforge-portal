@@ -143,31 +143,115 @@ function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
 }
 
 function extractLogoCandidates(html: string, baseUrl: string): string[] {
-  const srcCandidates = [
-    ...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi),
-    ...html.matchAll(/<img[^>]+data-src=["']([^"']+)["'][^>]*>/gi),
-  ];
+  const strongCandidates: string[] = [];
+  const weakCandidates: string[] = [];
 
-  const results: string[] = [];
+  const imgTagMatches = [...html.matchAll(/<img\b[^>]*>/gi)];
 
-  for (const match of srcCandidates) {
-    const raw = match[1] ?? "";
-    const lower = raw.toLowerCase();
+  for (const match of imgTagMatches) {
+    const tag = match[0] ?? "";
+    const lowerTag = tag.toLowerCase();
 
-    if (
-      lower.includes("logo") ||
-      lower.includes("brand") ||
-      lower.includes("header")
-    ) {
-      const absolute = absolutizeUrl(raw, baseUrl);
-      if (absolute) results.push(absolute);
+    const looksLikeLogoTag =
+      lowerTag.includes("logo") ||
+      lowerTag.includes("brand") ||
+      lowerTag.includes("header") ||
+      lowerTag.includes("navbar") ||
+      lowerTag.includes("site-title");
+
+    const srcMatch =
+      tag.match(/\ssrc=["']([^"']+)["']/i) ??
+      tag.match(/\sdata-src=["']([^"']+)["']/i);
+
+    if (srcMatch?.[1]) {
+      const absolute = absolutizeUrl(srcMatch[1], baseUrl);
+      if (!absolute) continue;
+
+      const lowerSrc = absolute.toLowerCase();
+
+      const isWeakIcon =
+        lowerSrc.includes("favicon") ||
+        lowerSrc.includes("apple-touch-icon") ||
+        lowerSrc.includes("site-icon") ||
+        lowerSrc.includes("mask-icon") ||
+        lowerSrc.includes("/icon-") ||
+        lowerSrc.includes("/icons/");
+
+      if (isWeakIcon) {
+        continue;
+      }
+
+      if (looksLikeLogoTag) {
+        strongCandidates.push(absolute);
+      } else {
+        weakCandidates.push(absolute);
+      }
+    }
+
+    const srcsetMatch = tag.match(/\ssrcset=["']([^"']+)["']/i);
+    if (srcsetMatch?.[1]) {
+      const firstSrcsetUrl = srcsetMatch[1].split(",")[0]?.trim().split(" ")[0];
+      if (!firstSrcsetUrl) continue;
+
+      const absolute = absolutizeUrl(firstSrcsetUrl, baseUrl);
+      if (!absolute) continue;
+
+      const lowerSrc = absolute.toLowerCase();
+
+      const isWeakIcon =
+        lowerSrc.includes("favicon") ||
+        lowerSrc.includes("apple-touch-icon") ||
+        lowerSrc.includes("site-icon") ||
+        lowerSrc.includes("mask-icon") ||
+        lowerSrc.includes("/icon-") ||
+        lowerSrc.includes("/icons/");
+
+      if (isWeakIcon) {
+        continue;
+      }
+
+      if (looksLikeLogoTag) {
+        strongCandidates.push(absolute);
+      } else {
+        weakCandidates.push(absolute);
+      }
     }
   }
 
-  const favicon = absolutizeUrl("/favicon.ico", baseUrl);
-  if (favicon) results.push(favicon);
+  const metaImageMatches = [
+    ...html.matchAll(
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/gi
+    ),
+    ...html.matchAll(
+      /<meta[^>]+name=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/gi
+    ),
+    ...html.matchAll(
+      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/gi
+    ),
+  ];
 
-  return Array.from(new Set(results));
+  for (const match of metaImageMatches) {
+    const absolute = absolutizeUrl(match[1] ?? "", baseUrl);
+    if (!absolute) continue;
+
+    const lowerSrc = absolute.toLowerCase();
+
+    const isWeakIcon =
+      lowerSrc.includes("favicon") ||
+      lowerSrc.includes("apple-touch-icon") ||
+      lowerSrc.includes("site-icon") ||
+      lowerSrc.includes("mask-icon") ||
+      lowerSrc.includes("/icon-") ||
+      lowerSrc.includes("/icons/");
+
+    if (isWeakIcon) {
+      continue;
+    }
+
+    weakCandidates.push(absolute);
+  }
+
+  return Array.from(new Set([...strongCandidates, ...weakCandidates]));
 }
 
 function extractPhone(text: string): string | null {

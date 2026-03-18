@@ -10,20 +10,13 @@ type Props = {
 };
 
 export function ExecutionBoard({ campaigns }: Props) {
-  const ready = campaigns.filter((campaign) => campaign.status === "READY");
   const approved = campaigns.filter((campaign) => campaign.status === "APPROVED");
   const queued = campaigns.filter((campaign) => campaign.status === "SCHEDULED");
   const launched = campaigns.filter((campaign) => campaign.status === "LAUNCHED");
   const completed = campaigns.filter((campaign) => campaign.status === "COMPLETED");
 
   return (
-    <section className="grid gap-4 xl:grid-cols-5">
-      <ExecutionColumn
-        title="Draft Ready"
-        description="Generated actions waiting for review and approval."
-        campaigns={ready}
-      />
-
+    <section className="grid gap-4 xl:grid-cols-4">
       <ExecutionColumn
         title="Approved"
         description="Approved actions ready to move into queue."

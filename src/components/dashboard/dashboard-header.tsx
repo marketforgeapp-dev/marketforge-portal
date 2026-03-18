@@ -29,26 +29,35 @@ export function DashboardHeader({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 p-2.5">
-            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/10">
+                <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+            <div className="flex h-14 min-w-[88px] max-w-[140px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/10 px-2">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={logoUrl}
                   alt={workspaceName}
-                  className="h-10 w-10 object-contain"
+                  className="max-h-10 w-auto max-w-full object-contain"
                 />
               ) : (
                 <Image
                   src="/MarketForge_Logo.jpeg"
                   alt={workspaceName}
-                  width={48}
-                  height={48}
-                  className="h-10 w-10 object-contain"
+                  width={64}
+                  height={64}
+                  className="max-h-10 w-auto object-contain"
                   priority
                 />
               )}
+            </div>
+
+            <div className="hidden min-w-0 sm:block">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">
+                Workspace
+              </p>
+              <p className="truncate text-sm font-semibold text-white">
+                {workspaceName}
+              </p>
             </div>
           </div>
 

@@ -5,6 +5,7 @@ import { CampaignDetailHeader } from "@/components/campaigns/campaign-detail-hea
 import { CampaignStatusActions } from "@/components/campaigns/campaign-status-actions";
 import { CampaignBriefPanel } from "@/components/campaigns/campaign-brief-panel";
 import { CampaignAssetsReview } from "@/components/campaigns/campaign-assets-review";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 
 type Props = {
   params: Promise<{
@@ -37,7 +38,7 @@ export default async function CampaignDetailPage({ params }: Props) {
   }
 const profile = await prisma.businessProfile.findUnique({
   where: { workspaceId: campaign.workspaceId },
-  select: { logoUrl: true },
+  select: { logoUrl: true, businessName: true, website: true },
 });
   const totalLeads = campaign.leads.length;
   const bookedLeads = campaign.leads.filter((lead) => lead.status === "BOOKED");
@@ -59,6 +60,10 @@ const profile = await prisma.businessProfile.findUnique({
         <DashboardSidebar />
 
         <main className="min-w-0 flex-1 space-y-5">
+                    <DashboardHeader
+            workspaceName={profile?.businessName ?? "MarketForge Workspace"}
+            logoUrl={profile?.logoUrl ?? null}
+          />
           <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
               Action Detail
@@ -111,11 +116,14 @@ const profile = await prisma.businessProfile.findUnique({
   logoUrl={profile?.logoUrl ?? null}
 />
 
-          <CampaignAssetsReview
-            campaignId={campaign.id}
-            status={campaign.status}
-            assets={campaign.assets}
-          />
+  <CampaignAssetsReview
+  campaignId={campaign.id}
+  status={campaign.status}
+  assets={campaign.assets}
+  logoUrl={profile?.logoUrl ?? null}
+  businessName={profile?.businessName ?? null}
+  websiteUrl={profile?.website ?? null}
+/>
         </main>
       </div>
     </div>

@@ -81,20 +81,70 @@ function faviconFromWebsite(website: string | null): string | null {
   if (!website) return null;
 
   try {
-    const url = new URL(website);
+    const url = new URL(
+      website.startsWith("http://") || website.startsWith("https://")
+        ? website
+        : `https://${website}`
+    );
+
     return `${url.origin}/favicon.ico`;
   } catch {
     return null;
   }
 }
 
-async function extractHomepageLogoCandidate(
-  website: string | null
-): Promise<string | null> {
+function absolutizeUrl(raw: string, base: string): string | null {
+  try {
+    return new URL(raw, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+function looksLikeGoodLogo(url: string | null): boolean {
+  if (!url) return false;
+
+  const lower = url.toLowerCase();
+
+  if (
+    lower.includes("favicon") ||
+    lower.includes("apple-touch-icon") ||
+    lower.includes("site-icon") ||
+    lower.includes("mask-icon") ||
+    lower.includes("/icon-") ||
+    lower.includes("/icons/")
+  ) {
+    return false;
+  }
+
+  if (
+    lower.includes("logo") ||
+    lower.includes("brand") ||
+    lower.includes("header") ||
+    lower.includes("navbar") ||
+    lower.includes("site-title")
+  ) {
+    return true;
+  }
+
+  if (lower.endsWith(".svg")) return true;
+  if (lower.endsWith(".png")) return true;
+  if (lower.endsWith(".webp")) return true;
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return true;
+
+  return false;
+}
+
+async function fetchWebsiteHtml(website: string | null): Promise<string | null> {
   if (!website) return null;
 
   try {
-    const response = await fetch(website, {
+    const normalized =
+      website.startsWith("http://") || website.startsWith("https://")
+        ? website
+        : `https://${website}`;
+
+    const response = await fetch(normalized, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; MarketForgeCompetitorBot/1.0; +https://marketforge.local)",
@@ -104,34 +154,163 @@ async function extractHomepageLogoCandidate(
     });
 
     if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
 
-    const html = await response.text();
-    const matches = [
-      ...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi),
-      ...html.matchAll(/<img[^>]+data-src=["']([^"']+)["'][^>]*>/gi),
-    ];
+async function extractHomepageLogoCandidate(
+  website: string | null
+): Promise<string | null> {
+  const html = await fetchWebsiteHtml(website);
+  if (!html || !website) return null;
 
-    for (const match of matches) {
-      const raw = match[1] ?? "";
-      const lower = raw.toLowerCase();
+  const strongCandidates: string[] = [];
+  const weakCandidates: string[] = [];
 
-      if (
-        lower.includes("logo") ||
-        lower.includes("brand") ||
-        lower.includes("header")
-      ) {
-        try {
-          return new URL(raw, website).toString();
-        } catch {
-          continue;
+  const imgTagMatches = [...html.matchAll(/<img\b[^>]*>/gi)];
+
+  for (const match of imgTagMatches) {
+    const tag = match[0] ?? "";
+    const lowerTag = tag.toLowerCase();
+
+    const looksLikeLogoTag =
+      lowerTag.includes("logo") ||
+      lowerTag.includes("brand") ||
+      lowerTag.includes("header") ||
+      lowerTag.includes("navbar") ||
+      lowerTag.includes("site-title");
+
+    const srcMatch =
+      tag.match(/\ssrc=["']([^"']+)["']/i) ??
+      tag.match(/\sdata-src=["']([^"']+)["']/i);
+
+    if (srcMatch?.[1]) {
+      const url = absolutizeUrl(srcMatch[1], website);
+      if (url) {
+        if (looksLikeLogoTag || looksLikeGoodLogo(url)) {
+          strongCandidates.push(url);
+        } else {
+          weakCandidates.push(url);
         }
       }
     }
 
-    return null;
-  } catch {
-    return null;
+    const srcsetMatch = tag.match(/\ssrcset=["']([^"']+)["']/i);
+    if (srcsetMatch?.[1]) {
+      const firstSrcsetUrl = srcsetMatch[1].split(",")[0]?.trim().split(" ")[0];
+      if (firstSrcsetUrl) {
+        const url = absolutizeUrl(firstSrcsetUrl, website);
+        if (url) {
+          if (looksLikeLogoTag || looksLikeGoodLogo(url)) {
+            strongCandidates.push(url);
+          } else {
+            weakCandidates.push(url);
+          }
+        }
+      }
+    }
   }
+
+  const logoMetaMatches = [
+    ...html.matchAll(
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/gi
+    ),
+    ...html.matchAll(
+      /<meta[^>]+name=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/gi
+    ),
+    ...html.matchAll(
+      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/gi
+    ),
+  ];
+
+  for (const match of logoMetaMatches) {
+    const url = absolutizeUrl(match[1] ?? "", website);
+    if (!url) continue;
+
+    if (looksLikeGoodLogo(url)) {
+      strongCandidates.push(url);
+    } else {
+      weakCandidates.push(url);
+    }
+  }
+
+  const firstStrong = strongCandidates.find(looksLikeGoodLogo);
+  if (firstStrong) return firstStrong;
+
+  return null;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferServiceFocusFromWebsite(params: {
+  industry: DiscoverCompetitorsInput["industry"];
+  website: string | null;
+  html: string | null;
+}): string[] {
+  const text = stripHtml(params.html ?? "").toLowerCase();
+
+  const addIf = (condition: boolean, label: string, bucket: Set<string>) => {
+    if (condition) bucket.add(label);
+  };
+
+  const services = new Set<string>();
+
+  if (params.industry === "PLUMBING") {
+    addIf(text.includes("drain"), "Drain cleaning", services);
+    addIf(text.includes("hydro jet") || text.includes("jetting"), "Hydro jetting", services);
+    addIf(text.includes("water heater"), "Water heater service", services);
+    addIf(text.includes("tankless"), "Tankless water heater", services);
+    addIf(text.includes("leak"), "Leak repair", services);
+    addIf(text.includes("slab leak"), "Slab leak repair", services);
+    addIf(text.includes("burst pipe"), "Burst pipe repair", services);
+    addIf(text.includes("toilet"), "Toilet repair", services);
+    addIf(text.includes("garbage disposal"), "Garbage disposal repair & installation", services);
+    addIf(text.includes("faucet") || text.includes("fixture"), "Faucets & fixtures", services);
+    addIf(text.includes("gas line"), "Gas line service", services);
+    addIf(text.includes("repipe"), "Repiping", services);
+    addIf(text.includes("water softener"), "Water softener installation", services);
+    addIf(text.includes("emergency"), "Emergency plumbing", services);
+    addIf(text.includes("sewer line"), "Sewer line service", services);
+  }
+
+  if (params.industry === "SEPTIC") {
+    addIf(text.includes("septic pumping"), "Septic tank pumping", services);
+    addIf(text.includes("septic inspection") || text.includes("inspection"), "Septic system inspection", services);
+    addIf(text.includes("drain field") || text.includes("leach field"), "Drain field repair", services);
+    addIf(text.includes("riser") || text.includes("lid"), "Riser & lid installation", services);
+    addIf(text.includes("lift pump"), "Lift pump service", services);
+    addIf(text.includes("grease trap"), "Grease trap cleaning", services);
+    addIf(text.includes("septic installation"), "Septic system installation", services);
+  }
+
+  if (params.industry === "TREE_SERVICE") {
+    addIf(text.includes("tree removal"), "Tree removal", services);
+    addIf(text.includes("trimming") || text.includes("pruning"), "Pruning & trimming", services);
+    addIf(text.includes("stump"), "Stump grinding", services);
+    addIf(text.includes("storm"), "Emergency storm service", services);
+    addIf(text.includes("lot clearing") || text.includes("land clearing"), "Lot clearing", services);
+    addIf(text.includes("arborist"), "Arborist consultations", services);
+    addIf(text.includes("plant health"), "Plant health care", services);
+  }
+
+  if (params.industry === "HVAC") {
+    addIf(text.includes("ac repair") || text.includes("air conditioning"), "AC repair", services);
+    addIf(text.includes("furnace") || text.includes("heating repair"), "Heating repair", services);
+    addIf(text.includes("maintenance") || text.includes("tune up"), "HVAC maintenance", services);
+    addIf(text.includes("replacement"), "System replacement", services);
+    addIf(text.includes("heat pump"), "Heat pump service", services);
+  }
+
+  return Array.from(services).slice(0, 8);
 }
 
 function inferServiceFocusFromTypes(
@@ -149,17 +328,14 @@ function inferServiceFocusFromTypes(
 
   if (industry === "SEPTIC") {
     results.push("Septic service");
-    if (joined.includes("contractor")) results.push("Residential service");
   }
 
   if (industry === "TREE_SERVICE") {
     results.push("Tree service");
-    if (joined.includes("contractor")) results.push("Local service");
   }
 
   if (industry === "HVAC") {
     results.push("HVAC service");
-    if (joined.includes("repair")) results.push("Repair");
   }
 
   if (results.length === 0) {
@@ -301,6 +477,122 @@ async function getPlaceDetails(
   return (await response.json()) as GooglePlaceDetailsResponse;
 }
 
+export async function lookupSingleCompetitor(input: {
+  companyName: string;
+  industry: "PLUMBING" | "HVAC" | "SEPTIC" | "TREE_SERVICE";
+  city?: string | null;
+  state?: string | null;
+  website?: string | null;
+}): Promise<CompetitorCandidate | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    return null;
+  }
+
+  const location = [input.city, input.state].filter(Boolean).join(" ").trim();
+  const textQuery = location
+    ? `${input.companyName} ${location}`
+    : input.companyName;
+
+  let places: GooglePlacesTextSearchResponse["places"];
+
+  try {
+    places = await searchText(apiKey, textQuery);
+  } catch (error) {
+    console.error("Single competitor lookup failed", {
+      companyName: input.companyName,
+      error,
+    });
+    return null;
+  }
+
+  if (!places || places.length === 0) {
+    return null;
+  }
+
+  const targetDomain = normalizeDomain(input.website);
+  const targetName = slugifyComparable(input.companyName);
+
+  const sortedPlaces = [...places].sort((a, b) => {
+    const aHasWebsite = Boolean(cleanString(a.websiteUri));
+    const bHasWebsite = Boolean(cleanString(b.websiteUri));
+
+    if (aHasWebsite !== bHasWebsite) {
+      return aHasWebsite ? -1 : 1;
+    }
+
+    return 0;
+  });
+
+  const bestPlace =
+    sortedPlaces.find((place) => {
+      const candidateWebsite = cleanString(place.websiteUri);
+      const candidateDomain = normalizeDomain(candidateWebsite);
+      const candidateName = slugifyComparable(place.displayName?.text ?? null);
+
+      if (targetDomain && candidateDomain && targetDomain === candidateDomain) {
+        return true;
+      }
+
+      if (!targetName || !candidateName) {
+        return false;
+      }
+
+      return (
+        candidateName === targetName ||
+        candidateName.includes(targetName) ||
+        targetName.includes(candidateName)
+      );
+    }) ?? sortedPlaces[0];
+
+  const placeId = cleanString(bestPlace.id);
+  const details = placeId ? await getPlaceDetails(apiKey, placeId) : null;
+
+  const websiteUrl =
+    cleanString(details?.websiteUri) ?? cleanString(bestPlace.websiteUri);
+  const googleBusinessUrl =
+    cleanString(details?.googleMapsUri) ?? cleanString(bestPlace.googleMapsUri);
+  const formattedAddress =
+    cleanString(details?.formattedAddress) ??
+    cleanString(bestPlace.formattedAddress);
+  const phone =
+    cleanString(details?.nationalPhoneNumber) ??
+    cleanString(bestPlace.nationalPhoneNumber);
+
+  const html = await fetchWebsiteHtml(websiteUrl);
+  const homepageLogo = await extractHomepageLogoCandidate(websiteUrl);
+  const types = details?.types ?? bestPlace.types ?? [];
+
+  const serviceFocusFromWebsite = inferServiceFocusFromWebsite({
+    industry: input.industry,
+    website: websiteUrl,
+    html,
+  });
+
+  return {
+    name:
+      cleanString(details?.displayName?.text) ??
+      cleanString(bestPlace.displayName?.text) ??
+      input.companyName,
+    websiteUrl,
+    googleBusinessUrl,
+    logoUrl: homepageLogo ?? null,
+    whyItMatters: defaultWhyItMatters(
+      input.companyName,
+      input.city ?? null,
+      input.state ?? null
+    ),
+    serviceFocus:
+      serviceFocusFromWebsite.length > 0
+        ? serviceFocusFromWebsite
+        : inferServiceFocusFromTypes(types, input.industry),
+    formattedAddress,
+    phone,
+    placeId,
+  };
+}
+
 export async function discoverLocalCompetitors(
   input: DiscoverCompetitorsInput
 ): Promise<CompetitorCandidate[]> {
@@ -330,7 +622,18 @@ export async function discoverLocalCompetitors(
       continue;
     }
 
-    for (const place of places) {
+    const sortedPlaces = [...places].sort((a, b) => {
+      const aHasWebsite = Boolean(cleanString(a.websiteUri));
+      const bHasWebsite = Boolean(cleanString(b.websiteUri));
+
+      if (aHasWebsite !== bHasWebsite) {
+        return aHasWebsite ? -1 : 1;
+      }
+
+      return 0;
+    });
+
+    for (const place of sortedPlaces) {
       const placeId = cleanString(place.id);
       const name = cleanString(place.displayName?.text);
 
@@ -361,7 +664,7 @@ export async function discoverLocalCompetitors(
           name,
           websiteUrl,
           googleBusinessUrl,
-          logoUrl: faviconFromWebsite(websiteUrl),
+          logoUrl: null,
           whyItMatters: defaultWhyItMatters(
             name,
             input.city ?? null,
@@ -376,7 +679,9 @@ export async function discoverLocalCompetitors(
     }
   }
 
-  const baseCandidates = Array.from(collected.values()).slice(0, 8);
+  const baseCandidates = Array.from(collected.values())
+    .filter((candidate) => Boolean(candidate.websiteUrl))
+    .slice(0, 8);
 
   const enriched = await Promise.all(
     baseCandidates.map(async (candidate) => {
@@ -395,21 +700,27 @@ export async function discoverLocalCompetitors(
         cleanString(details.googleMapsUri) ?? candidate.googleBusinessUrl;
       const types = details.types ?? [];
 
+      const html = await fetchWebsiteHtml(websiteUrl);
+      const homepageLogo = await extractHomepageLogoCandidate(websiteUrl);
+      
+      const serviceFocusFromWebsite = inferServiceFocusFromWebsite({
+        industry: input.industry,
+        website: websiteUrl,
+        html,
+      });
+
       return {
         ...candidate,
         websiteUrl,
         googleBusinessUrl,
-        logoUrl:
-          (await extractHomepageLogoCandidate(websiteUrl)) ??
-          faviconFromWebsite(websiteUrl) ??
-          candidate.logoUrl,
+        logoUrl: homepageLogo ?? null,
         formattedAddress:
           cleanString(details.formattedAddress) ?? candidate.formattedAddress,
         phone: cleanString(details.nationalPhoneNumber) ?? candidate.phone,
         serviceFocus:
-          inferServiceFocusFromTypes(types, input.industry).length > 0
-            ? inferServiceFocusFromTypes(types, input.industry)
-            : candidate.serviceFocus,
+          serviceFocusFromWebsite.length > 0
+            ? serviceFocusFromWebsite
+            : inferServiceFocusFromTypes(types, input.industry),
       };
     })
   );

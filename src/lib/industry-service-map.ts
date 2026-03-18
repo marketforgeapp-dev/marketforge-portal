@@ -101,14 +101,58 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
     nicheLongCycle: false,
     backlogEligibleByDefault: true,
     aliases: [
-      "leak repair",
-      "leak detection",
-      "water leak repair",
-      "burst pipe",
-      "slab leak",
-      "pipe leak",
+    "leak repair",
+    "leak detection",
+    "water leak repair",
+    "pipe leak",
     ],
   },
+  {
+  industry: "PLUMBING",
+  familyKey: "burst-pipe-repair",
+  serviceName: "Burst pipe repair",
+  title: "Burst Pipe Repair Revenue Opportunity",
+  defaultOpportunityType: "COMPETITOR_INACTIVE",
+  defaultCampaignType: "EMERGENCY_SERVICE",
+  defaultBestMove: "Promote Burst Pipe Repair Service",
+  defaultActionFraming: "PAID_CAMPAIGN",
+  demandBias: 16,
+  valueBias: 6,
+  everydayBias: 10,
+  capacityBias: 3,
+  aeoBias: 0,
+  nicheLongCycle: false,
+  backlogEligibleByDefault: true,
+  aliases: [
+    "burst pipe",
+    "burst pipe repair",
+    "broken pipe repair",
+    "frozen pipe burst",
+  ],
+},
+{
+  industry: "PLUMBING",
+  familyKey: "slab-leak-repair",
+  serviceName: "Slab leak repair",
+  title: "Slab Leak Repair Revenue Opportunity",
+  defaultOpportunityType: "HIGH_VALUE_SERVICE",
+  defaultCampaignType: "CUSTOM",
+  defaultBestMove: "Promote Slab Leak Repair Service",
+  defaultActionFraming: "PAID_CAMPAIGN",
+  demandBias: 10,
+  valueBias: 12,
+  everydayBias: 4,
+  capacityBias: 3,
+  aeoBias: 0,
+  nicheLongCycle: false,
+  backlogEligibleByDefault: true,
+  aliases: [
+    "slab leak",
+    "slab leak repair",
+    "under slab leak",
+    "foundation leak repair",
+  ],
+},
   {
     industry: "PLUMBING",
     familyKey: "emergency-plumbing",
@@ -134,32 +178,76 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
     ],
   },
   {
-    industry: "PLUMBING",
-    familyKey: "water-heater",
-    serviceName: "Water heater service",
-    title: "Water Heater Revenue Opportunity",
-    defaultOpportunityType: "HIGH_VALUE_SERVICE",
-    defaultCampaignType: "WATER_HEATER",
-    defaultBestMove: "Promote Water Heater Service",
-    defaultActionFraming: "PAID_CAMPAIGN",
-    demandBias: 12,
-    valueBias: 12,
-    everydayBias: 8,
-    capacityBias: 4,
-    aeoBias: 0,
-    nicheLongCycle: false,
-    backlogEligibleByDefault: true,
-    aliases: [
-      "water heater",
-      "water heater service",
-      "water heater install",
-      "water heater replacement",
-      "water heater repair",
-      "tankless water heater",
-      "tankless install",
-      "tankless replacement",
-    ],
-  },
+  industry: "PLUMBING",
+  familyKey: "water-heater-repair-replacement",
+  serviceName: "Water heater repair & replacement",
+  title: "Water Heater Repair & Replacement Opportunity",
+  defaultOpportunityType: "HIGH_VALUE_SERVICE",
+  defaultCampaignType: "WATER_HEATER",
+  defaultBestMove: "Promote Water Heater Repair & Replacement",
+  defaultActionFraming: "PAID_CAMPAIGN",
+  demandBias: 12,
+  valueBias: 12,
+  everydayBias: 8,
+  capacityBias: 4,
+  aeoBias: 0,
+  nicheLongCycle: false,
+  backlogEligibleByDefault: true,
+  aliases: [
+    "water heater repair and replacement",
+    "water heater repair",
+    "water heater replacement",
+    "hot water heater repair",
+    "hot water heater replacement",
+  ],
+},
+{
+  industry: "PLUMBING",
+  familyKey: "water-heater-service",
+  serviceName: "Water heater service",
+  title: "Water Heater Service Revenue Opportunity",
+  defaultOpportunityType: "LOCAL_SEARCH_SPIKE",
+  defaultCampaignType: "MAINTENANCE_PUSH",
+  defaultBestMove: "Promote Water Heater Service",
+  defaultActionFraming: "SCHEDULE_FILL",
+  demandBias: 9,
+  valueBias: 6,
+  everydayBias: 8,
+  capacityBias: 10,
+  aeoBias: 0,
+  nicheLongCycle: false,
+  backlogEligibleByDefault: true,
+  aliases: [
+    "water heater service",
+    "water heater maintenance",
+    "water heater flush",
+    "water heater tune up",
+  ],
+},
+{
+  industry: "PLUMBING",
+  familyKey: "tankless-water-heater",
+  serviceName: "Tankless water heater",
+  title: "Tankless Water Heater Revenue Opportunity",
+  defaultOpportunityType: "HIGH_VALUE_SERVICE",
+  defaultCampaignType: "WATER_HEATER",
+  defaultBestMove: "Promote Tankless Water Heater Service",
+  defaultActionFraming: "PAID_CAMPAIGN",
+  demandBias: 10,
+  valueBias: 14,
+  everydayBias: 5,
+  capacityBias: 4,
+  aeoBias: 0,
+  nicheLongCycle: false,
+  backlogEligibleByDefault: true,
+  aliases: [
+    "tankless water heater",
+    "tankless hot water heater",
+    "tankless install",
+    "tankless replacement",
+    "tankless repair",
+  ],
+},
   {
     industry: "PLUMBING",
     familyKey: "toilet-repair",
@@ -180,6 +268,7 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
       "toilet repair",
       "toilet service",
       "toilet replacement",
+      "toilet repair and replacement",
       "running toilet",
       "toilet install",
     ],
@@ -210,6 +299,31 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
       "plumbing fixture",
     ],
   },
+  {
+  industry: "PLUMBING",
+  familyKey: "garbage-disposal",
+  serviceName: "Garbage disposal repair & installation",
+  title: "Garbage Disposal Revenue Opportunity",
+  defaultOpportunityType: "LOCAL_SEARCH_SPIKE",
+  defaultCampaignType: "CUSTOM",
+  defaultBestMove: "Promote Garbage Disposal Service",
+  defaultActionFraming: "PAID_CAMPAIGN",
+  demandBias: 9,
+  valueBias: 3,
+  everydayBias: 9,
+  capacityBias: 7,
+  aeoBias: 0,
+  nicheLongCycle: false,
+  backlogEligibleByDefault: true,
+  aliases: [
+    "garbage disposal",
+    "garbage disposal repair",
+    "garbage disposal installation",
+    "garbage disposal repair and installation",
+    "disposal repair",
+    "disposal installation",
+  ],
+},
   {
     industry: "PLUMBING",
     familyKey: "sump-pump",
@@ -308,6 +422,53 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
       "gas leak repair",
     ],
   },
+  {
+  industry: "PLUMBING",
+  familyKey: "water-softener",
+  serviceName: "Water softener installation",
+  title: "Water Softener Installation Opportunity",
+  defaultOpportunityType: "HIGH_VALUE_SERVICE",
+  defaultCampaignType: "CUSTOM",
+  defaultBestMove: "Promote Water Softener Installation",
+  defaultActionFraming: "PAID_CAMPAIGN",
+  demandBias: 7,
+  valueBias: 10,
+  everydayBias: 4,
+  capacityBias: 5,
+  aeoBias: 0,
+  nicheLongCycle: false,
+  backlogEligibleByDefault: true,
+  aliases: [
+    "water softener",
+    "water softener installation",
+    "water softener install",
+    "softener installation",
+  ],
+},
+{
+  industry: "PLUMBING",
+  familyKey: "custom-home-plumbing-installation",
+  serviceName: "Custom home plumbing installation",
+  title: "Custom Home Plumbing Installation Opportunity",
+  defaultOpportunityType: "HIGH_VALUE_SERVICE",
+  defaultCampaignType: "CUSTOM",
+  defaultBestMove: "Promote Custom Home Plumbing Installation",
+  defaultActionFraming: "PAID_CAMPAIGN",
+  demandBias: 4,
+  valueBias: 16,
+  everydayBias: 1,
+  capacityBias: 2,
+  aeoBias: 0,
+  nicheLongCycle: true,
+  backlogEligibleByDefault: false,
+  aliases: [
+    "custom home plumbing installation",
+    "custom home plumbing",
+    "new construction plumbing",
+    "new build plumbing",
+    "rough in plumbing",
+  ],
+},
   {
     industry: "PLUMBING",
     familyKey: "repiping",
@@ -587,6 +748,78 @@ const SEPTIC_BLUEPRINTS: ServiceBlueprint[] = [
     backlogEligibleByDefault: true,
     aliases: ["riser installation", "lid installation", "riser and lid", "tank riser"],
   },
+    {
+    industry: "SEPTIC",
+    familyKey: "septic-repair",
+    serviceName: "Septic repair",
+    title: "Septic Repair Revenue Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Septic Repair Service",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 10,
+    valueBias: 12,
+    everydayBias: 5,
+    capacityBias: 5,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "septic repair",
+      "septic tank repair",
+      "septic system repair",
+      "baffle repair",
+      "tank repair",
+    ],
+  },
+  {
+    industry: "SEPTIC",
+    familyKey: "septic-maintenance",
+    serviceName: "Septic maintenance",
+    title: "Septic Maintenance Revenue Opportunity",
+    defaultOpportunityType: "CAPACITY_GAP",
+    defaultCampaignType: "MAINTENANCE_PUSH",
+    defaultBestMove: "Fill Schedule with Septic Maintenance",
+    defaultActionFraming: "SCHEDULE_FILL",
+    demandBias: 8,
+    valueBias: 4,
+    everydayBias: 9,
+    capacityBias: 15,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "septic maintenance",
+      "system maintenance",
+      "annual septic maintenance",
+      "septic tune up",
+      "maintenance plan",
+    ],
+  },
+  {
+    industry: "SEPTIC",
+    familyKey: "emergency-septic",
+    serviceName: "Emergency septic service",
+    title: "Emergency Septic Revenue Opportunity",
+    defaultOpportunityType: "COMPETITOR_INACTIVE",
+    defaultCampaignType: "EMERGENCY_SERVICE",
+    defaultBestMove: "Promote Emergency Septic Service",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 15,
+    valueBias: 8,
+    everydayBias: 3,
+    capacityBias: 3,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "emergency septic",
+      "emergency septic service",
+      "septic backup",
+      "septic overflow",
+      "sewage backup",
+    ],
+  },
   {
     industry: "SEPTIC",
     familyKey: "ai-search-visibility",
@@ -778,6 +1011,78 @@ const TREE_SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
     backlogEligibleByDefault: false,
     aliases: ["lot clearing", "land clearing", "site clearing", "vegetation clearing"],
   },
+    {
+    industry: "TREE_SERVICE",
+    familyKey: "tree-planting",
+    serviceName: "Tree planting & transplanting",
+    title: "Tree Planting Revenue Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Tree Planting & Transplanting",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 7,
+    valueBias: 8,
+    everydayBias: 4,
+    capacityBias: 6,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "tree planting",
+      "tree transplanting",
+      "tree installation",
+      "plant a tree",
+      "transplant tree",
+    ],
+  },
+  {
+    industry: "TREE_SERVICE",
+    familyKey: "tree-cabling",
+    serviceName: "Tree cabling & bracing",
+    title: "Tree Cabling Revenue Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Tree Cabling & Bracing",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 6,
+    valueBias: 11,
+    everydayBias: 2,
+    capacityBias: 5,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "tree cabling",
+      "tree bracing",
+      "tree support system",
+      "tree support systems",
+      "structural support",
+    ],
+  },
+  {
+    industry: "TREE_SERVICE",
+    familyKey: "brush-removal",
+    serviceName: "Brush removal & debris hauling",
+    title: "Brush Removal Revenue Opportunity",
+    defaultOpportunityType: "CAPACITY_GAP",
+    defaultCampaignType: "MAINTENANCE_PUSH",
+    defaultBestMove: "Fill Schedule with Brush Removal Jobs",
+    defaultActionFraming: "SCHEDULE_FILL",
+    demandBias: 8,
+    valueBias: 3,
+    everydayBias: 8,
+    capacityBias: 12,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "brush removal",
+      "debris hauling",
+      "yard debris removal",
+      "brush hauling",
+      "tree debris cleanup",
+    ],
+  },
   {
     industry: "TREE_SERVICE",
     familyKey: "ai-search-visibility",
@@ -932,26 +1237,32 @@ const GUARANTEED_FAMILIES_BY_INDUSTRY: Record<SupportedIndustry, string[]> = {
     "drain-cleaning",
     "leak-repair",
     "emergency-plumbing",
-    "water-heater",
+    "water-heater-repair-replacement",
     "toilet-repair",
     "faucets-fixtures",
     "sewer-line",
     "hydro-jetting",
     "maintenance",
   ],
-  SEPTIC: [
+    SEPTIC: [
     "septic-tank-pumping",
     "system-inspection",
+    "septic-repair",
+    "septic-maintenance",
     "drain-field-repair",
+    "emergency-septic",
     "sewer-line-septic",
     "lift-pump-service",
   ],
-  TREE_SERVICE: [
+    TREE_SERVICE: [
     "tree-removal",
     "tree-trimming",
     "storm-cleanup",
     "stump-grinding",
     "plant-health-care",
+    "tree-planting",
+    "tree-cabling",
+    "brush-removal",
   ],
   HVAC: [
     "ac-repair",
@@ -1101,6 +1412,72 @@ export function getServiceFamilyKey(
     ) {
       return "sewer-camera";
     }
+        if (
+      normalizedServiceName.includes("burst pipe") ||
+      normalizedServiceName.includes("broken pipe repair")
+    ) {
+      return "burst-pipe-repair";
+    }
+
+    if (
+      normalizedServiceName.includes("slab leak") ||
+      normalizedServiceName.includes("foundation leak")
+    ) {
+      return "slab-leak-repair";
+    }
+
+    if (
+      normalizedServiceName.includes("tankless water heater") ||
+      normalizedServiceName.includes("tankless hot water heater") ||
+      normalizedServiceName.includes("tankless install") ||
+      normalizedServiceName.includes("tankless replacement") ||
+      normalizedServiceName.includes("tankless repair")
+    ) {
+      return "tankless-water-heater";
+    }
+
+    if (
+      normalizedServiceName.includes("water heater service") ||
+      normalizedServiceName.includes("water heater maintenance") ||
+      normalizedServiceName.includes("water heater flush") ||
+      normalizedServiceName.includes("water heater tune up")
+    ) {
+      return "water-heater-service";
+    }
+
+    if (
+      normalizedServiceName.includes("water heater repair") ||
+      normalizedServiceName.includes("water heater replacement") ||
+      normalizedServiceName.includes("water heater repair and replacement") ||
+      normalizedServiceName.includes("hot water heater repair") ||
+      normalizedServiceName.includes("hot water heater replacement")
+    ) {
+      return "water-heater-repair-replacement";
+    }
+
+    if (
+      normalizedServiceName.includes("garbage disposal") ||
+      normalizedServiceName.includes("disposal repair") ||
+      normalizedServiceName.includes("disposal installation")
+    ) {
+      return "garbage-disposal";
+    }
+
+    if (
+      normalizedServiceName.includes("water softener") ||
+      normalizedServiceName.includes("softener installation")
+    ) {
+      return "water-softener";
+    }
+
+    if (
+      normalizedServiceName.includes("custom home plumbing") ||
+      normalizedServiceName.includes("new construction plumbing") ||
+      normalizedServiceName.includes("new build plumbing") ||
+      normalizedServiceName.includes("rough in plumbing")
+    ) {
+      return "custom-home-plumbing-installation";
+    }
     if (
       normalizedServiceName.includes("faucet") ||
       normalizedServiceName.includes("fixture")
@@ -1134,11 +1511,8 @@ export function getServiceFamilyKey(
     if (normalizedServiceName.includes("toilet")) {
       return "toilet-repair";
     }
-    if (
-      normalizedServiceName.includes("water heater") ||
-      normalizedServiceName.includes("tankless")
-    ) {
-      return "water-heater";
+        if (normalizedServiceName.includes("water heater")) {
+      return "water-heater-repair-replacement";
     }
     if (
       normalizedServiceName.includes("drain") ||
@@ -1147,10 +1521,7 @@ export function getServiceFamilyKey(
     ) {
       return "drain-cleaning";
     }
-    if (
-      normalizedServiceName.includes("leak") ||
-      normalizedServiceName.includes("burst pipe")
-    ) {
+        if (normalizedServiceName.includes("leak")) {
       return "leak-repair";
     }
     if (
@@ -1173,6 +1544,34 @@ export function getServiceFamilyKey(
   if (industry === "SEPTIC") {
     if (normalizedServiceName.includes("grease trap")) return "grease-trap-cleaning";
     if (normalizedServiceName.includes("lift pump")) return "lift-pump-service";
+        if (
+      normalizedServiceName.includes("emergency septic") ||
+      normalizedServiceName.includes("septic backup") ||
+      normalizedServiceName.includes("septic overflow") ||
+      normalizedServiceName.includes("sewage backup")
+    ) {
+      return "emergency-septic";
+    }
+
+    if (
+      normalizedServiceName.includes("septic repair") ||
+      normalizedServiceName.includes("septic tank repair") ||
+      normalizedServiceName.includes("septic system repair") ||
+      normalizedServiceName.includes("baffle repair") ||
+      normalizedServiceName.includes("tank repair")
+    ) {
+      return "septic-repair";
+    }
+
+    if (
+      normalizedServiceName.includes("septic maintenance") ||
+      normalizedServiceName.includes("system maintenance") ||
+      normalizedServiceName.includes("annual septic maintenance") ||
+      normalizedServiceName.includes("septic tune up") ||
+      normalizedServiceName.includes("maintenance plan")
+    ) {
+      return "septic-maintenance";
+    }
     if (
       normalizedServiceName.includes("drain field") ||
       normalizedServiceName.includes("leach field")
@@ -1209,6 +1608,34 @@ export function getServiceFamilyKey(
   if (industry === "TREE_SERVICE") {
     if (normalizedServiceName.includes("storm")) return "storm-cleanup";
     if (normalizedServiceName.includes("stump")) return "stump-grinding";
+        if (
+      normalizedServiceName.includes("tree cabling") ||
+      normalizedServiceName.includes("tree bracing") ||
+      normalizedServiceName.includes("tree support system") ||
+      normalizedServiceName.includes("structural support")
+    ) {
+      return "tree-cabling";
+    }
+
+    if (
+      normalizedServiceName.includes("tree planting") ||
+      normalizedServiceName.includes("tree transplanting") ||
+      normalizedServiceName.includes("tree installation") ||
+      normalizedServiceName.includes("plant a tree") ||
+      normalizedServiceName.includes("transplant tree")
+    ) {
+      return "tree-planting";
+    }
+
+    if (
+      normalizedServiceName.includes("brush removal") ||
+      normalizedServiceName.includes("debris hauling") ||
+      normalizedServiceName.includes("yard debris removal") ||
+      normalizedServiceName.includes("brush hauling") ||
+      normalizedServiceName.includes("tree debris cleanup")
+    ) {
+      return "brush-removal";
+    }
     if (
       normalizedServiceName.includes("arborist") ||
       normalizedServiceName.includes("risk assessment")

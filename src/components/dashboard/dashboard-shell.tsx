@@ -87,46 +87,39 @@ function formatStatusLabel(status?: string | null) {
   }
 }
 
-function getActionReadinessSummary(heroCampaign: HeroCampaignData) {
-  if (!heroCampaign) {
+function getActionReadinessSummary(
+  heroCampaign: HeroCampaignData,
+  revenueCaptured: RevenueCapturedData
+) {
+  if (revenueCaptured.campaignsLaunched > 0 && revenueCaptured.bookedJobs > 0) {
     return {
-      label: "Not Generated",
-      detail: "No execution package exists yet. Generate this action to prepare the launch materials.",
+      label: "Revenue Generating",
+      detail: `${revenueCaptured.bookedJobs} booked jobs have been captured from ${revenueCaptured.campaignsLaunched} launched actions.`,
     };
   }
 
-  switch (heroCampaign.status) {
-    case "DRAFT":
-      return {
-        label: "Draft Ready",
-        detail: "Execution assets are prepared and ready for review.",
-      };
-    case "APPROVED":
-      return {
-        label: "Approved",
-        detail: "This action is approved and ready to move into execution.",
-      };
-    case "SCHEDULED":
-      return {
-        label: "Queued",
-        detail: "This action is already queued for launch.",
-      };
-    case "LAUNCHED":
-      return {
-        label: "Launched",
-        detail: "This action is live and now being tracked.",
-      };
-    case "COMPLETED":
-      return {
-        label: "Completed",
-        detail: "This action has completed execution.",
-      };
-    default:
-      return {
-        label: formatStatusLabel(heroCampaign.status),
-        detail: "Execution materials are attached and available.",
-      };
+  if (revenueCaptured.campaignsLaunched > 0) {
+    return {
+      label: "Actions Live",
+      detail: `${revenueCaptured.campaignsLaunched} actions have been launched and are now being tracked.`,
+    };
   }
+
+  if (heroCampaign) {
+    return {
+      label: formatStatusLabel(heroCampaign.status),
+      detail:
+        heroCampaign.assets.length > 0
+          ? "The current top action has launch materials prepared and ready for review."
+          : "The current top action exists, but its execution package has not been generated yet.",
+    };
+  }
+
+  return {
+    label: "No Action Generated",
+    detail:
+      "No execution package exists yet. Generate and approve an action to move work into launch.",
+  };
 }
 
 export function DashboardShell({
@@ -138,7 +131,10 @@ export function DashboardShell({
   revenueCaptured,
 }: Props) {
   const recentEntries = revenueCaptured.entries.slice(0, 3);
-  const actionReadiness = getActionReadinessSummary(heroCampaign);
+  const actionReadiness = getActionReadinessSummary(
+  heroCampaign,
+  revenueCaptured
+);
 
   return (
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
@@ -193,7 +189,7 @@ export function DashboardShell({
                       Package
                     </p>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {heroCampaign?.assets.length ?? 0} assets prepared
+                      {heroCampaign?.assets.length ?? 0} assets for current top action
                     </p>
                   </div>
 

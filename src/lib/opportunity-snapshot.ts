@@ -31,14 +31,6 @@ function isSnapshotUsable(snapshot: {
   return snapshot.expiresAt.getTime() > Date.now();
 }
 
-function isSnapshotOlderThanProfile(params: {
-  generatedAt: Date;
-  profileUpdatedAt: Date | null | undefined;
-}) {
-  if (!params.profileUpdatedAt) return false;
-  return params.generatedAt.getTime() < params.profileUpdatedAt.getTime();
-}
-
 function parseHero(value: unknown): RevenueOpportunityHero {
   return value as RevenueOpportunityHero;
 }
@@ -64,25 +56,17 @@ export async function invalidateWorkspaceOpportunitySnapshot(workspaceId: string
 export async function getOrCreateWorkspaceOpportunitySnapshot(
   workspaceId: string
 ): Promise<WorkspaceOpportunitySnapshotPayload> {
-  const [existing, profileFreshness] = await Promise.all([
-    prisma.workspaceOpportunitySnapshot.findUnique({
-      where: { workspaceId },
-    }),
-    prisma.businessProfile.findUnique({
-      where: { workspaceId },
-      select: { updatedAt: true },
-    }),
-  ]);
+    const existing = await prisma.workspaceOpportunitySnapshot.findUnique({
+    where: { workspaceId },
+  });
 
-  const snapshotIsFresh =
-    !!existing &&
-    isSnapshotUsable(existing) &&
-    !isSnapshotOlderThanProfile({
-      generatedAt: existing.generatedAt,
-      profileUpdatedAt: profileFreshness?.updatedAt,
-    });
+    const snapshotIsFresh = !!existing && isSnapshotUsable(existing);
 
   if (snapshotIsFresh && existing) {
+  console.log("[snapshot] USING CACHE", {
+    workspaceId,
+    generatedAt: existing.generatedAt,
+  });
     return {
       hero: parseHero(existing.heroJson),
       topOpportunity: parseTopOpportunity(existing.topOpportunityJson),
@@ -105,7 +89,7 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
       where: { workspaceId },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.campaign.findMany({
+        prisma.campaign.findMany({
       where: { workspaceId },
       select: {
         id: true,
@@ -113,6 +97,7 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
         status: true,
         targetService: true,
         briefJson: true,
+        updatedAt: true,
       },
     }),
     getCampaignPerformanceSignals(workspaceId),
@@ -141,6 +126,9 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
     fromCache: false,
   };
 
+  console.log("[snapshot] REGENERATING", {
+  workspaceId,
+});
   await prisma.workspaceOpportunitySnapshot.upsert({
     where: { workspaceId },
     update: {

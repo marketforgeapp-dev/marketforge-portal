@@ -11,6 +11,7 @@ type ExecutionPatch = {
   launchPlatform?: string | null;
   credentialsReceived?: boolean;
   launchNotes?: string | null;
+  approvedAssetTypes?: string[];
 };
 
 function mergeExecutionIntoBriefJson(
@@ -66,6 +67,13 @@ export async function queueCampaignWithExecutionDetails(input: {
 
   await ensureCampaignBaselineSnapshot(input.campaignId);
 
+  const approvedAssets = await prisma.campaignAsset.findMany({
+  where: {
+    campaignId: input.campaignId,
+    isApproved: true,
+  },
+});
+
   await prisma.campaign.update({
     where: { id: input.campaignId },
     data: {
@@ -76,6 +84,7 @@ export async function queueCampaignWithExecutionDetails(input: {
         launchPlatform: input.launchPlatform ?? null,
         credentialsReceived: input.credentialsReceived ?? false,
         launchNotes: input.launchNotes ?? null,
+        approvedAssetTypes: approvedAssets.map((a) => a.assetType),
       }),
     },
   });

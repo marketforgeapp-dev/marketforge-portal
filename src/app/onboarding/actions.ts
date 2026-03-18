@@ -7,6 +7,7 @@ import { slugify } from "@/lib/slugify";
 import { onboardingSchema } from "@/lib/onboarding-schema";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
+import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
 
 function toNullableString(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -282,30 +283,68 @@ export async function saveOnboarding(input: unknown) {
     where: { workspaceId: workspace.id },
   });
 
-  const competitors = values.competitors
+  const enrichedCompetitors = await Promise.all(
+  values.competitors
     .filter((competitor) => competitor.name.trim().length > 0)
-    .map((competitor, index) => ({
-      workspaceId: workspace.id,
-      name: competitor.name.trim(),
-      websiteUrl: toNullableString(competitor.websiteUrl),
-      googleBusinessUrl: toNullableString(competitor.googleBusinessUrl),
-      logoUrl: toNullableString(competitor.logoUrl),
-      isPrimaryCompetitor:
-        competitor.isPrimaryCompetitor ?? index === 0,
-      notes: null,
-      serviceFocus: [],
-      rating: null,
-      reviewCount: null,
-      isRunningAds: null,
-      isPostingActively: null,
-      hasActivePromo: null,
-      reviewVelocity: null,
-      signalSummary: null,
-    }));
+    .map(async (competitor, index) => {
+      // Try enrichment using Google Places
+      let enriched = null;
 
-  if (competitors.length > 0) {
+      try {
+        const results = await discoverLocalCompetitors({
+          companyName: values.businessName,
+          industry: values.industry,
+          city: values.city,
+          state: values.state,
+          website: values.website,
+        });
+
+        enriched = results.find(
+          (c) =>
+            c.name.toLowerCase() === competitor.name.trim().toLowerCase()
+        );
+      } catch {
+        enriched = null;
+      }
+
+      return {
+        workspaceId: workspace.id,
+        name: competitor.name.trim(),
+
+        websiteUrl:
+          toNullableString(competitor.websiteUrl) ??
+          enriched?.websiteUrl ??
+          null,
+
+        googleBusinessUrl:
+          toNullableString(competitor.googleBusinessUrl) ??
+          enriched?.googleBusinessUrl ??
+          null,
+
+        logoUrl:
+          toNullableString(competitor.logoUrl) ??
+          enriched?.logoUrl ??
+          null,
+
+        isPrimaryCompetitor:
+          competitor.isPrimaryCompetitor ?? index === 0,
+
+        notes: null,
+        serviceFocus: enriched?.serviceFocus ?? [],
+        rating: null,
+        reviewCount: null,
+        isRunningAds: null,
+        isPostingActively: null,
+        hasActivePromo: null,
+        reviewVelocity: null,
+        signalSummary: null,
+      };
+    })
+);
+
+  if (enrichedCompetitors.length > 0) {
   await prisma.competitor.createMany({
-    data: competitors,
+    data: enrichedCompetitors,
   });
 }
 

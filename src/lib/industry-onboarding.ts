@@ -266,9 +266,9 @@ export function inferGoogleVisibilitySignals(params: {
 
   return {
     hasFaqContent:
-      combinedText.includes("faq") ||
-      combinedText.includes("frequently asked") ||
-      combinedText.includes("common questions"),
+      combinedText.includes(" faq ") ||
+      combinedText.includes("/faq") ||
+      combinedText.includes("frequently asked questions"),
     hasServicePages: servicePageCount > 0,
     hasBlog:
       combinedText.includes("blog") ||

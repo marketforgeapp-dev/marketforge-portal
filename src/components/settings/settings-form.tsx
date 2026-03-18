@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { OnboardingFormData } from "@/types/onboarding";
 import { saveSettings } from "@/app/settings/actions";
 
@@ -35,6 +36,31 @@ function Field({
         <p className="mt-2 text-xs leading-5 text-gray-500">{helpText}</p>
       ) : null}
     </label>
+  );
+}
+
+function SectionSaveButton({
+  onSave,
+  isPending,
+}: {
+  onSave: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <div className="mt-5 flex justify-end">
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={isPending}
+        className={`rounded-lg px-4 py-2.5 text-sm font-medium text-white ${
+          isPending
+            ? "cursor-not-allowed bg-blue-400"
+            : "bg-blue-600 hover:bg-blue-700"
+        }`}
+      >
+        {isPending ? "Saving..." : "Save Settings"}
+      </button>
+    </div>
   );
 }
 
@@ -105,12 +131,30 @@ function normalizeServicePricingRows(
   return [...merged, ...extras];
 }
 
+function buildPreferredServicesFromPricingRows(
+  rows: ServicePricingRow[] | undefined,
+  fallbackPreferredServices: string[]
+): string[] {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+
+  const pricingServices = normalizedRows
+    .map((row) => row.serviceName.trim())
+    .filter(Boolean);
+
+  if (pricingServices.length > 0) {
+    return pricingServices;
+  }
+
+  return fallbackPreferredServices.map((service) => service.trim()).filter(Boolean);
+}
+
 export function SettingsForm({
   workspaceName,
   isDemo,
   initialData,
   primaryEmail,
 }: Props) {
+  const router = useRouter();
   const [formData, setFormData] = useState<OnboardingFormData>(() => ({
     ...initialData,
     servicePricing: normalizeServicePricingRows(
@@ -208,7 +252,7 @@ export function SettingsForm({
     }));
   }
 
-  function updateServicePricing(
+    function updateServicePricing(
     index: number,
     field: keyof ServicePricingRow,
     value: string | number | ""
@@ -223,14 +267,39 @@ export function SettingsForm({
         [field]: value,
       };
 
+      const nextPreferredServices = buildPreferredServicesFromPricingRows(
+        currentRows,
+        prev.preferredServices ?? []
+      );
+
       return {
         ...prev,
+        preferredServices: nextPreferredServices,
+        primaryServices: nextPreferredServices,
         servicePricing: currentRows,
       };
     });
+
+    setPreferredServicesInput((prevInput) => {
+      const currentRows = Array.isArray(formData.servicePricing)
+        ? [...formData.servicePricing]
+        : [];
+
+      currentRows[index] = {
+        ...currentRows[index],
+        [field]: value,
+      };
+
+      return arrayToCommaSeparated(
+        buildPreferredServicesFromPricingRows(
+          currentRows,
+          parseCommaSeparated(prevInput)
+        )
+      );
+    });
   }
 
-  function addServicePricingRow() {
+    function addServicePricingRow() {
     setFormData((prev) => ({
       ...prev,
       servicePricing: [
@@ -243,11 +312,34 @@ export function SettingsForm({
     }));
   }
 
-  function removeServicePricingRow(index: number) {
-    setFormData((prev) => ({
-      ...prev,
-      servicePricing: (prev.servicePricing ?? []).filter((_, i) => i !== index),
-    }));
+    function removeServicePricingRow(index: number) {
+    setFormData((prev) => {
+      const nextServicePricing = (prev.servicePricing ?? []).filter(
+        (_, i) => i !== index
+      );
+
+      const nextPreferredServices = buildPreferredServicesFromPricingRows(
+        nextServicePricing,
+        []
+      );
+
+      return {
+        ...prev,
+        preferredServices: nextPreferredServices,
+        primaryServices: nextPreferredServices,
+        servicePricing: nextServicePricing,
+      };
+    });
+
+    setPreferredServicesInput((prevInput) => {
+      const currentRows = (formData.servicePricing ?? []).filter(
+        (_, i) => i !== index
+      );
+
+      return arrayToCommaSeparated(
+        buildPreferredServicesFromPricingRows(currentRows, parseCommaSeparated(prevInput))
+      );
+    });
   }
 
   function handleSave() {
@@ -274,7 +366,9 @@ export function SettingsForm({
           return;
         }
 
-        setSaveMessage("Settings saved successfully.");
+        setSaveMessage("Settings saved successfully. Redirecting to Command Center...");
+        router.push("/dashboard");
+        router.refresh();
       } catch (error) {
         console.error(error);
         setSaveError("Something went wrong while saving settings.");
@@ -297,13 +391,13 @@ export function SettingsForm({
         </p>
 
         <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 md:flex-row md:items-center">
-          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                    <div className="flex h-24 min-w-[140px] max-w-[220px] items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-white px-3">
             {formData.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={formData.logoUrl}
                 alt={`${formData.businessName || workspaceName} logo`}
-                className="h-full w-full object-contain p-2"
+                className="max-h-16 w-auto max-w-full object-contain"
               />
             ) : (
               <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
@@ -370,6 +464,7 @@ export function SettingsForm({
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Business Profile</h2>
+            <SectionSaveButton onSave={handleSave} isPending={isPending} />
         <p className="mt-1 text-sm text-gray-600">
   These details define how MarketForge understands your business and local market.
 </p>
@@ -474,6 +569,7 @@ export function SettingsForm({
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Capacity and Goals</h2>
+            <SectionSaveButton onSave={handleSave} isPending={isPending} />
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field
             label="Average Job Value"
@@ -588,6 +684,7 @@ export function SettingsForm({
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Service Pricing</h2>
+                <SectionSaveButton onSave={handleSave} isPending={isPending} />
             <p className="mt-1 text-sm text-gray-600">
   Set average revenue by service so MarketForge can calculate realistic
   opportunity value. If a service does not have a specific price,
@@ -660,6 +757,7 @@ export function SettingsForm({
         <h2 className="text-xl font-bold text-gray-900">
           Services and Seasonality
         </h2>
+            <SectionSaveButton onSave={handleSave} isPending={isPending} />
         <div className="mt-6 grid grid-cols-1 gap-4">
           <Field
   label="Preferred Services (comma separated)"
@@ -669,9 +767,19 @@ export function SettingsForm({
     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
     value={preferredServicesInput}
     onChange={(e) => setPreferredServicesInput(e.target.value)}
-    onBlur={() =>
-      updateField("preferredServices", parseCommaSeparated(preferredServicesInput))
-    }
+        onBlur={() => {
+      const nextPreferredServices = parseCommaSeparated(preferredServicesInput);
+
+      setFormData((prev) => ({
+        ...prev,
+        preferredServices: nextPreferredServices,
+        primaryServices: nextPreferredServices,
+        servicePricing: normalizeServicePricingRows(
+          nextPreferredServices,
+          prev.servicePricing ?? []
+        ),
+      }));
+    }}
   />
 </Field>
 
@@ -724,6 +832,7 @@ export function SettingsForm({
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Web Presence</h2>
+            <SectionSaveButton onSave={handleSave} isPending={isPending} />
         <p className="mt-1 text-sm text-gray-600">
   These signals help MarketForge evaluate your digital visibility and
   identify SEO, AEO, and local search opportunities.
@@ -784,6 +893,7 @@ export function SettingsForm({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Competitors</h2>
+                <SectionSaveButton onSave={handleSave} isPending={isPending} />
             <p className="mt-1 text-sm text-gray-600">
   Refine the competitor list detected during onboarding so MarketForge
   can better understand your local competitive landscape and identify

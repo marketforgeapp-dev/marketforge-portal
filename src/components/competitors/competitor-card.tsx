@@ -13,30 +13,50 @@ function signalLabel(
   return value ? positive : negative;
 }
 
+function normalizeWebsiteForDisplay(url: string | null | undefined): string {
+  if (!url) {
+    return "No website listed";
+  }
+
+  return url
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "");
+}
+
+function hasRenderableLogo(url: string | null | undefined): boolean {
+  return typeof url === "string" && url.trim().length > 0;
+}
+
 export function CompetitorCard({ competitor }: Props) {
   return (
     <div className="mf-card rounded-2xl p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          {competitor.logoUrl ? (
-            <img
-              src={competitor.logoUrl}
-              alt={competitor.name}
-              className="h-12 w-12 rounded-xl border border-gray-200 bg-white p-1 object-contain"
-            />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-500">
-              {competitor.name.charAt(0)}
-            </div>
-          )}
+          {hasRenderableLogo(competitor.logoUrl) ? (
+  // eslint-disable-next-line @next/next/no-img-element
+  <img
+    src={competitor.logoUrl!}
+    alt={competitor.name}
+    className="h-12 w-12 rounded-xl border border-gray-200 bg-white p-1 object-contain"
+  />
+) : (
+  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-500">
+    {competitor.name.charAt(0)}
+  </div>
+)}
 
           <div>
             <p className="text-base font-semibold text-gray-900">
               {competitor.name}
             </p>
             <p className="mt-1 text-sm text-gray-600">
-              {competitor.websiteUrl ?? "No website listed"}
+              {normalizeWebsiteForDisplay(competitor.websiteUrl)}
             </p>
+            {competitor.googleBusinessUrl ? (
+              <p className="mt-1 text-xs text-blue-700">
+                Google Business Profile linked
+              </p>
+            ) : null}
           </div>
         </div>
 

@@ -21,13 +21,24 @@ export default async function AeoPage() {
     redirect("/dashboard");
   }
 
-  const recommendations = [
-    "Add structured FAQ content for high-intent plumbing questions.",
-    "Expand service pages with answer-ready local service copy.",
-    "Publish more local educational content tied to plumbing problems.",
-    "Improve entity clarity across core service and location pages.",
-    "Create answer snippets for drain, water heater, and emergency queries.",
-  ];
+    const aeoScore = profile.aeoReadinessScore ?? 0;
+
+  const recommendations =
+    aeoScore >= 90
+      ? []
+      : aeoScore >= 80
+        ? [
+            "Review core answer-ready pages monthly to keep service details and local coverage current.",
+            "Refresh FAQs and service-page answers as search behavior and customer questions evolve.",
+            "Monitor your Google Business Profile and service-page consistency across top revenue services.",
+          ]
+        : [
+            "Add structured FAQ content for high-intent local service questions.",
+            "Expand service pages with answer-ready local service copy.",
+            "Publish more local educational content tied to core service problems.",
+            "Improve entity clarity across core service and location pages.",
+            "Create answer snippets for your highest-value and highest-intent service queries.",
+          ];
 
   return (
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
@@ -62,7 +73,16 @@ export default async function AeoPage() {
             />
           </div>
 
-          <AeoRecommendations recommendations={recommendations} />
+                    <AeoRecommendations
+            industry={profile.industryLabel as
+              | "PLUMBING"
+              | "SEPTIC"
+              | "TREE_SERVICE"
+              | "HVAC"
+              | null}
+            score={aeoScore}
+            recommendations={recommendations}
+          />
         </main>
       </div>
     </div>

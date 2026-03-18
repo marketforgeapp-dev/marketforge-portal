@@ -87,7 +87,7 @@ export default async function SettingsPage() {
 
     hasServicePages: profile.hasServicePages ?? false,
     hasFaqContent: profile.hasFaqContent ?? false,
-    hasFaqPage: profile.hasFaqContent ?? false,
+    hasFaqPage: false,
     hasBlog: profile.hasBlog ?? false,
     hasGoogleBusinessPage: profile.hasGoogleBusinessPage ?? false,
     googleBusinessProfileUrl: toFormString(profile.googleBusinessProfileUrl),

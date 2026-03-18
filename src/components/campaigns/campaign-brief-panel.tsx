@@ -9,12 +9,16 @@ import { getActionImage } from "@/lib/action-imagery";
 
 type CampaignBriefData = {
   userPrompt?: string;
+  matchedFamilyKey?: string | null;
+  structuredIndustry?: string | null;
+  imageKey?: string | null;
+  imageMode?: "SERVICE_IMAGE" | "LOGO" | null;
   parsedIntent?: {
-    serviceCategory?: string;
-    intent?: string;
-    urgency?: string;
-    timeframe?: string;
-    promotionType?: string;
+  serviceCategory?: string;
+  intent?: string;
+  urgency?: string;
+  timeframe?: string;
+  promotionType?: string;
   };
   opportunityCheck?: {
     matchedOpportunityTitle?: string | null;
@@ -125,8 +129,19 @@ export function CampaignBriefPanel({
   );
 
   const image = getActionImage({
-  imageKey: actionThesis?.imageKey,
-  imageMode: actionThesis?.imageMode,
+    industry: parsed?.structuredIndustry ?? undefined,
+    familyKey:
+      parsed?.matchedFamilyKey ??
+      parsedIntent?.serviceCategory ??
+      null,
+    imageKey:
+    parsed?.imageKey ??
+      actionThesis?.imageKey ??
+      null,
+    imageMode:
+      parsed?.imageMode ??
+      actionThesis?.imageMode ??
+      "SERVICE_IMAGE",
   logoUrl,
 });
 
