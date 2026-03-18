@@ -1,9 +1,15 @@
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(_: Request, { params }: { params: { assetId: string } }) {
+export async function POST(
+  _: NextRequest,
+  context: { params: Promise<{ assetid: string }> }
+) {
+  const { assetid } = await context.params;
+
   await prisma.campaignAsset.delete({
-    where: { id: params.assetId },
+    where: { id: assetid },
   });
 
-  return new Response(JSON.stringify({ success: true }));
+  return Response.json({ success: true });
 }
