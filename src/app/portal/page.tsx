@@ -1,10 +1,6 @@
 import { redirect } from "next/navigation";
-import {
-  Show,
-  SignInButton,
-  SignUpButton,
-  UserButton,
-} from "@clerk/nextjs";
+import Link from "next/link";
+import { UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 
@@ -22,57 +18,55 @@ export default async function PortalHome() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 px-8 py-10">
+    <main className="min-h-screen bg-[#081018] px-8 py-10 text-white">
       <div className="mx-auto max-w-5xl">
         <header className="mb-12 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">MarketForge</h1>
+          <h1 className="text-2xl font-bold text-white">MarketForge</h1>
 
           <div className="flex items-center gap-4">
-            <Show when="signed-out">
-              <SignInButton mode="redirect" forceRedirectUrl="/portal">
-                <button className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 hover:bg-gray-50">
-                  Sign In
-                </button>
-              </SignInButton>
+            <Link
+              href="/sign-in"
+              className="rounded-lg border border-white/20 bg-white/5 px-4 py-2 font-medium text-white/80 hover:bg-white/10"
+            >
+              Sign In
+            </Link>
 
-              <SignUpButton mode="redirect" forceRedirectUrl="/portal">
-                <button className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">
-                  Sign Up
-                </button>
-              </SignUpButton>
-            </Show>
-
-            <Show when="signed-in">
-              <UserButton />
-            </Show>
+            <Link
+              href="/sign-up"
+              className="rounded-lg bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-4 py-2 font-medium text-white hover:from-blue-500 hover:to-indigo-500"
+            >
+              Get Started
+            </Link>
           </div>
         </header>
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-            Revenue Intelligence for Local Service Businesses
+        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-wide text-cyan-300">
+            Revenue Opportunity System
           </p>
-          <h2 className="mt-3 text-4xl font-bold text-gray-900">
-            Turn demand signals into booked jobs.
+          <h2 className="mt-3 text-4xl font-bold text-white">
+            Turn demand into booked jobs.
           </h2>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
-            MarketForge helps local service businesses identify revenue
-            opportunities, generate campaigns, launch execution workflows, track
-            leads, and attribute revenue back to performance.
+          <p className="mt-4 max-w-3xl text-base leading-7 text-white/70">
+            MarketForge helps home service businesses identify revenue
+            opportunities, generate launch-ready actions, guide execution, track
+            leads, and tie work directly to booked revenue.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-4">
-            <SignUpButton mode="redirect" forceRedirectUrl="/portal">
-              <button className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700">
-                Create Account
-              </button>
-            </SignUpButton>
+            <Link
+              href="/sign-up"
+              className="rounded-lg bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-5 py-3 font-medium text-white hover:from-blue-500 hover:to-indigo-500"
+            >
+              Get Started
+            </Link>
 
-            <SignInButton mode="redirect" forceRedirectUrl="/portal">
-              <button className="rounded-lg border border-gray-300 bg-white px-5 py-3 font-medium text-gray-700 hover:bg-gray-50">
-                Sign In
-              </button>
-            </SignInButton>
+            <Link
+              href="/sign-in"
+              className="rounded-lg border border-white/20 bg-white/5 px-5 py-3 font-medium text-white/80 hover:bg-white/10"
+            >
+              Sign In
+            </Link>
           </div>
         </section>
       </div>

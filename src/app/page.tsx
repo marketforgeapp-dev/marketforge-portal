@@ -60,7 +60,7 @@ export default function HomePage() {
               href="/onboarding"
               className="rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
             >
-              Start Using MarketForge
+              Sign Up
             </Link>
           </div>
         </div>
@@ -101,7 +101,7 @@ export default function HomePage() {
               href="/onboarding"
               className="rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-6 py-3.5 text-base font-semibold text-white shadow-[0_12px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
             >
-              Start Using MarketForge
+              Sign Up
             </Link>
 
             <Link
@@ -414,7 +414,7 @@ export default function HomePage() {
               href="/onboarding"
               className="rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-7 py-3.5 text-base font-semibold text-white shadow-[0_12px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
             >
-              Start Using MarketForge
+              Sign Up
             </Link>
             <Link
               href="/portal"
