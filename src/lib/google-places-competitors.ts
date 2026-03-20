@@ -213,10 +213,55 @@ function absolutizeUrl(raw: string, base: string): string | null {
   }
 }
 
+function looksLikeBadgeOrTrustAsset(url: string): boolean {
+  const lower = url.toLowerCase();
+
+  return (
+    lower.includes("bbb") ||
+    lower.includes("better-business-bureau") ||
+    lower.includes("accredited-business") ||
+    lower.includes("badge") ||
+    lower.includes("seal") ||
+    lower.includes("award") ||
+    lower.includes("review-badge") ||
+    lower.includes("google-review") ||
+    lower.includes("stars") ||
+    lower.includes("rating") ||
+    lower.includes("testimonial") ||
+    lower.includes("veteran") ||
+    lower.includes("veteren") ||
+    lower.includes("owned") ||
+    lower.includes("american-flag") ||
+    lower.includes("flag") ||
+    lower.includes("patriot") ||
+    lower.includes("usa")
+  );
+}
+
+function looksLikeDecorativeAsset(url: string): boolean {
+  const lower = url.toLowerCase();
+
+  return (
+    lower.includes("hero") ||
+    lower.includes("banner") ||
+    lower.includes("background") ||
+    lower.includes("wave") ||
+    lower.includes("truck") ||
+    lower.includes("team") ||
+    lower.includes("review") ||
+    lower.includes("plumber-reviews") ||
+    lower.includes("near-") ||
+    lower.includes("service-area")
+  );
+}
+
 function looksLikeGoodLogo(url: string | null): boolean {
   if (!url) return false;
 
   const lower = url.toLowerCase();
+
+  if (looksLikeBadgeOrTrustAsset(lower)) return false;
+  if (looksLikeDecorativeAsset(lower)) return false;
 
   if (
     lower.includes("favicon") ||
@@ -232,9 +277,9 @@ function looksLikeGoodLogo(url: string | null): boolean {
   if (
     lower.includes("logo") ||
     lower.includes("brand") ||
-    lower.includes("header") ||
-    lower.includes("navbar") ||
-    lower.includes("site-title")
+    lower.includes("header-logo") ||
+    lower.includes("site-title") ||
+    lower.includes("navbar")
   ) {
     return true;
   }
@@ -278,8 +323,35 @@ async function extractHomepageLogoCandidate(
   const html = await fetchWebsiteHtml(website);
   if (!html || !website) return null;
 
-  const strongCandidates: string[] = [];
-  const weakCandidates: string[] = [];
+  const candidates = new Map<string, number>();
+
+  const addCandidate = (url: string | null, isStrongTagMatch: boolean) => {
+    if (!url) return;
+
+    const lower = url.toLowerCase();
+
+    if (!looksLikeGoodLogo(url)) return;
+
+    let score = 0;
+
+    if (isStrongTagMatch) score += 40;
+    if (lower.includes("logo")) score += 35;
+    if (lower.includes("brand")) score += 20;
+    if (lower.includes("header")) score += 10;
+    if (lower.includes("navbar")) score += 10;
+    if (lower.includes("site-title")) score += 10;
+    if (lower.endsWith(".svg")) score += 25;
+    if (lower.endsWith(".png")) score += 8;
+
+    if (looksLikeBadgeOrTrustAsset(lower)) score -= 100;
+    if (looksLikeDecorativeAsset(lower)) score -= 50;
+    if (lower.includes("og-image")) score -= 15;
+
+    const existing = candidates.get(url) ?? Number.NEGATIVE_INFINITY;
+    if (score > existing) {
+      candidates.set(url, score);
+    }
+  };
 
   const imgTagMatches = [...html.matchAll(/<img\b[^>]*>/gi)];
 
@@ -300,13 +372,7 @@ async function extractHomepageLogoCandidate(
 
     if (srcMatch?.[1]) {
       const url = absolutizeUrl(srcMatch[1], website);
-      if (url) {
-        if (looksLikeLogoTag || looksLikeGoodLogo(url)) {
-          strongCandidates.push(url);
-        } else {
-          weakCandidates.push(url);
-        }
-      }
+      addCandidate(url, looksLikeLogoTag);
     }
 
     const srcsetMatch = tag.match(/\ssrcset=["']([^"']+)["']/i);
@@ -314,13 +380,7 @@ async function extractHomepageLogoCandidate(
       const firstSrcsetUrl = srcsetMatch[1].split(",")[0]?.trim().split(" ")[0];
       if (firstSrcsetUrl) {
         const url = absolutizeUrl(firstSrcsetUrl, website);
-        if (url) {
-          if (looksLikeLogoTag || looksLikeGoodLogo(url)) {
-            strongCandidates.push(url);
-          } else {
-            weakCandidates.push(url);
-          }
-        }
+        addCandidate(url, looksLikeLogoTag);
       }
     }
   }
@@ -341,17 +401,22 @@ async function extractHomepageLogoCandidate(
     const url = absolutizeUrl(match[1] ?? "", website);
     if (!url) continue;
 
-    if (looksLikeGoodLogo(url)) {
-      strongCandidates.push(url);
-    } else {
-      weakCandidates.push(url);
-    }
+    if (!looksLikeGoodLogo(url)) continue;
+
+    addCandidate(url, false);
   }
 
-  const firstStrong = strongCandidates.find(looksLikeGoodLogo);
-  if (firstStrong) return firstStrong;
+  const best = Array.from(candidates.entries()).sort((a, b) => b[1] - a[1])[0];
 
-  return null;
+    console.info("Competitor logo candidate selection", {
+    website,
+    candidates: Array.from(candidates.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([url, score]) => ({ url, score })),
+    selected: best?.[0] ?? null,
+  });
+
+  return best?.[0] ?? null;
 }
 
 function stripHtml(html: string): string {
