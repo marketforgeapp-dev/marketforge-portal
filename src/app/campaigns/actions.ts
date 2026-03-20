@@ -218,6 +218,148 @@ function extractRequestedServiceLabel(prompt: string): string | null {
   return null;
 }
 
+function getBroadServiceLabelsForIndustry(industry: string): string[] {
+  switch (industry) {
+    case "septic":
+      return ["septic", "septic service", "septic services"];
+    case "tree-service":
+      return ["tree service", "tree services", "tree work"];
+    case "hvac":
+      return [
+        "hvac",
+        "hvac service",
+        "hvac services",
+        "heating and cooling",
+        "air conditioning and heating",
+      ];
+    default:
+      return ["plumbing", "general plumbing", "plumbing service", "plumbing services"];
+  }
+}
+
+function isBroadServiceIntent(params: {
+  prompt: string;
+  industry: string;
+  requestedService: string | null;
+}): boolean {
+  const lower = normalize(params.prompt);
+  const requested = normalize(params.requestedService ?? "");
+  const broadLabels = getBroadServiceLabelsForIndustry(params.industry);
+
+  if (broadLabels.some((label) => lower.includes(label))) {
+    return true;
+  }
+
+  return broadLabels.some((label) => requested === label);
+}
+
+function isSpecificSubserviceFamily(params: {
+  familyKey: string;
+  industry: string;
+}): boolean {
+  const plumbingSpecific = new Set([
+    "water-heater-service",
+    "water-heater-repair-replacement",
+    "tankless-water-heater",
+    "repiping",
+    "slab-leak-repair",
+    "burst-pipe-repair",
+    "water-softener",
+    "gas-line-service",
+    "sewer-line-service",
+  ]);
+
+  const septicSpecific = new Set([
+    "septic-tank-pumping",
+    "drain-field-repair",
+    "lift-pump-service",
+    "septic-system-installation",
+    "grease-trap-cleaning",
+  ]);
+
+  const treeSpecific = new Set([
+    "tree-removal",
+    "stump-grinding",
+    "pruning-and-trimming",
+    "emergency-storm-service",
+    "lot-clearing",
+  ]);
+
+  const hvacSpecific = new Set([
+    "ac-repair",
+    "heating-repair",
+    "system-replacement",
+    "heat-pump-service",
+    "hvac-maintenance",
+  ]);
+
+  const familyMap: Record<string, Set<string>> = {
+    plumbing: plumbingSpecific,
+    septic: septicSpecific,
+    "tree-service": treeSpecific,
+    hvac: hvacSpecific,
+  };
+
+  return familyMap[params.industry]?.has(params.familyKey) ?? false;
+}
+
+function getBroadServiceDescriptor(industry: string): {
+  serviceName: string;
+  familyKey: string;
+  displayMoveLabel: string;
+  summary: string;
+  audienceLabel: string;
+  ctaHint: string;
+  imageKey: string;
+} {
+  switch (industry) {
+    case "septic":
+      return {
+        serviceName: "General Septic Service",
+        familyKey: "general-septic-service",
+        displayMoveLabel: "Promote General Septic Services",
+        summary:
+          "Create a broad septic action that captures everyday service demand without collapsing into one specific repair type.",
+        audienceLabel: "septic service",
+        ctaHint: "Book septic service",
+        imageKey: "septic-pumping",
+      };
+    case "tree-service":
+      return {
+        serviceName: "General Tree Service",
+        familyKey: "general-tree-service",
+        displayMoveLabel: "Promote General Tree Services",
+        summary:
+          "Create a broad tree-service action that captures everyday demand without collapsing into one specific tree job.",
+        audienceLabel: "tree service",
+        ctaHint: "Book tree service",
+        imageKey: "tree-removal",
+      };
+    case "hvac":
+      return {
+        serviceName: "General HVAC Service",
+        familyKey: "general-hvac-service",
+        displayMoveLabel: "Promote General HVAC Services",
+        summary:
+          "Create a broad HVAC action that captures everyday heating and cooling demand without collapsing into one specific repair type.",
+        audienceLabel: "HVAC service",
+        ctaHint: "Book HVAC service",
+        imageKey: "ac-repair",
+      };
+    default:
+      return {
+        serviceName: "General Plumbing",
+        familyKey: "general-plumbing",
+        displayMoveLabel: "Promote General Plumbing Services",
+        summary:
+          "Create a broad plumbing action that captures everyday service demand without collapsing into one premium plumbing category.",
+        audienceLabel: "plumbing help",
+        ctaHint: "Book plumbing service",
+        imageKey: "general-plumbing",
+      };
+  }
+}
+
 function inferIndustryFromContext(params: {
   prompt: string;
   familyKey?: string | null;
@@ -1319,6 +1461,72 @@ function shouldInvalidateOpportunitySnapshotOnCampaignCreate(_: {
   return false;
 }
 
+function buildBroadServiceSyntheticOpportunity(params: {
+  industry: string;
+  profile: {
+    serviceArea: string;
+    averageJobValue: unknown;
+    servicePricingJson?: unknown;
+  };
+}): ResolvedOpportunity {
+  const descriptor = getBroadServiceDescriptor(params.industry);
+  const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
+
+  const resolvedJobValue = resolveSyntheticJobValue({
+    profile: params.profile,
+    familyKey: descriptor.familyKey,
+    serviceName: descriptor.serviceName,
+    primaryService: descriptor.serviceName,
+  });
+
+  return {
+    opportunityKey: buildSyntheticOpportunityKey({
+      serviceName: descriptor.serviceName,
+      opportunityType,
+      bestMove: descriptor.displayMoveLabel,
+    }),
+    familyKey: descriptor.familyKey,
+    title: `${descriptor.serviceName} Opportunity`,
+    serviceName: descriptor.serviceName,
+    opportunityType,
+    bestMove: descriptor.displayMoveLabel,
+    displayMoveLabel: descriptor.displayMoveLabel,
+    displaySummary: descriptor.summary,
+    imageKey: descriptor.imageKey,
+    imageMode: "SERVICE_IMAGE",
+    actionThesis: {
+      familyKey: descriptor.familyKey,
+      primaryService: descriptor.serviceName,
+      angle: "broad service demand",
+      title: descriptor.displayMoveLabel,
+      summary: descriptor.summary,
+      audience: `Homeowners in ${params.profile.serviceArea} who need ${descriptor.audienceLabel.toLowerCase()}`,
+      offerHint: `Broad ${descriptor.serviceName.toLowerCase()} offer`,
+      ctaHint: descriptor.ctaHint,
+      imageKey: descriptor.imageKey,
+      imageMode: "SERVICE_IMAGE",
+    },
+    recommendedCampaignType: "CUSTOM",
+    jobsLow: 2,
+    jobsHigh: 3,
+    revenueLow: Math.round(resolvedJobValue * 2),
+    revenueHigh: Math.round(resolvedJobValue * 3),
+    rawOpportunityScore: 72,
+    confidenceLabel: "Medium",
+    confidenceScore: 72,
+    whyNowBullets: [
+      "The request is broad service demand, not a specific premium subservice.",
+      "This keeps the action aligned to what the user actually asked for.",
+      "A broad service campaign should use broad service framing and matching imagery.",
+    ],
+    whyThisMatters:
+      "Broad service intent should remain broad instead of drifting into a specific high-ticket or narrow subservice.",
+    sourceTags: ["Demand"],
+    source: "generated",
+    fitScore: 90,
+  };
+}
+
 export async function createCampaignFromPrompt(
   prompt: string,
   options: CreateCampaignFromPromptOptions = {}
@@ -1406,13 +1614,38 @@ export async function createCampaignFromPrompt(
         b.opportunity.rawOpportunityScore - a.opportunity.rawOpportunityScore
     );
 
-  const bestExistingMatch = scoredExistingMatches[0] ?? null;
+    const bestExistingMatch = scoredExistingMatches[0] ?? null;
   const strongMatchThreshold = getStrongMatchThreshold(routedIntent.lane);
   const forcedOpportunity = options.linkedOpportunity ?? null;
 
+  const requestedService = extractRequestedServiceLabel(cleanedPrompt);
+  const inferredIndustry = inferIndustryFromContext({
+    prompt: cleanedPrompt,
+    familyKey: requestedService ? slugify(requestedService) : null,
+    serviceName: requestedService,
+  });
+
+  const broadServiceIntent =
+    routedIntent.lane === "SERVICE" &&
+    isBroadServiceIntent({
+      prompt: cleanedPrompt,
+      industry: inferredIndustry,
+      requestedService,
+    });
+
+  const shouldRejectSpecificExistingMatch =
+    broadServiceIntent &&
+    bestExistingMatch &&
+    isSpecificSubserviceFamily({
+      familyKey: bestExistingMatch.opportunity.familyKey,
+      industry: inferredIndustry,
+    });
+
   const resolvedOpportunity: ResolvedOpportunity =
     forcedOpportunity ??
-    (bestExistingMatch && bestExistingMatch.fitScore >= strongMatchThreshold
+        (bestExistingMatch &&
+    bestExistingMatch.fitScore >= strongMatchThreshold &&
+    !shouldRejectSpecificExistingMatch
       ? {
           opportunityKey: bestExistingMatch.opportunity.opportunityKey,
           familyKey: bestExistingMatch.opportunity.familyKey,
@@ -1440,18 +1673,27 @@ export async function createCampaignFromPrompt(
           source: "existing",
           fitScore: bestExistingMatch.fitScore,
         }
-      : buildSyntheticOpportunity({
-          prompt: cleanedPrompt,
-          routedIntent,
-          profile: {
-            businessName: profile.businessName,
-            serviceArea: profile.serviceArea,
-            averageJobValue: profile.averageJobValue,
-            servicePricingJson: profile.servicePricingJson,
-            hasFaqContent: profile.hasFaqContent,
-            servicePageUrls: profile.servicePageUrls,
-          },
-        }));
+                  : broadServiceIntent
+        ? buildBroadServiceSyntheticOpportunity({
+            industry: inferredIndustry,
+            profile: {
+              serviceArea: profile.serviceArea,
+              averageJobValue: profile.averageJobValue,
+              servicePricingJson: profile.servicePricingJson,
+            },
+          })
+        : buildSyntheticOpportunity({
+            prompt: cleanedPrompt,
+            routedIntent,
+            profile: {
+              businessName: profile.businessName,
+              serviceArea: profile.serviceArea,
+              averageJobValue: profile.averageJobValue,
+              servicePricingJson: profile.servicePricingJson,
+              hasFaqContent: profile.hasFaqContent,
+              servicePageUrls: profile.servicePageUrls,
+            },
+          }));
 
   const refinedActionThesis = buildPromptRefinedActionThesis({
     prompt: cleanedPrompt,
