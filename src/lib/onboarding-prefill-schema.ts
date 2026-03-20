@@ -23,13 +23,15 @@ export const onboardingPrefillSchema = z.object({
   averageJobValueHint: z.number().nullable(),
   competitors: z
     .array(
-      z.object({
+            z.object({
         name: z.string(),
         websiteUrl: z.string().nullable(),
         googleBusinessUrl: z.string().nullable(),
         logoUrl: z.string().nullable(),
         whyItMatters: z.string(),
         serviceFocus: z.array(z.string()).max(6).default([]),
+        formattedAddress: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
       })
     )
     .max(5)

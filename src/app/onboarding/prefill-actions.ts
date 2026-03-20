@@ -149,6 +149,12 @@ export async function generateOnboardingPrefill(input: {
   try {
     const websiteContext = await getWebsitePrefillContext(website);
 
+        console.info("Onboarding website logo candidates", {
+      companyName,
+      website,
+      logoCandidates: websiteContext?.logoCandidates ?? [],
+    });
+
     const inferredIndustry: SupportedIndustry = inferIndustryFromBusinessContext({
       companyName,
       websiteText:
@@ -165,6 +171,23 @@ export async function generateOnboardingPrefill(input: {
       state: websiteContext?.state ?? null,
       serviceArea: websiteContext?.address ?? null,
       website,
+    });
+
+        console.info("Onboarding competitor discovery", {
+      companyName,
+      website,
+      inferredIndustry,
+      city: websiteContext?.city ?? null,
+      state: websiteContext?.state ?? null,
+      serviceArea: websiteContext?.address ?? null,
+      competitors: competitorCandidates.map((candidate) => ({
+        name: candidate.name,
+        websiteUrl: candidate.websiteUrl,
+        formattedAddress: candidate.formattedAddress,
+        phone: candidate.phone,
+        serviceFocus: candidate.serviceFocus,
+        whyItMatters: candidate.whyItMatters,
+      })),
     });
 
     const googleBusinessProfileUrl = await lookupBusinessGoogleBusinessProfile({
@@ -325,7 +348,7 @@ Return best-effort onboarding suggestions for MarketForge.
       links: websiteContext?.internalLinks ?? [],
     });
 
-    const mergedCompetitors =
+        const mergedCompetitors =
       competitorCandidates.length > 0
         ? competitorCandidates.slice(0, 5).map((candidate) => ({
             name: candidate.name,
@@ -334,6 +357,8 @@ Return best-effort onboarding suggestions for MarketForge.
             logoUrl: candidate.logoUrl ?? null,
             whyItMatters: candidate.whyItMatters,
             serviceFocus: candidate.serviceFocus.slice(0, 6),
+            formattedAddress: candidate.formattedAddress ?? null,
+            phone: candidate.phone ?? null,
           }))
         : (parsed.competitors ?? []).map((competitor) => ({
             name: competitor.name,
@@ -342,6 +367,8 @@ Return best-effort onboarding suggestions for MarketForge.
             logoUrl: cleanString(competitor.logoUrl),
             whyItMatters: competitor.whyItMatters,
             serviceFocus: uniqueStrings(competitor.serviceFocus ?? []).slice(0, 6),
+            formattedAddress: cleanString(competitor.formattedAddress),
+            phone: cleanString(competitor.phone),
           }));
 
     const visibilitySignals = inferGoogleVisibilitySignals({
@@ -361,7 +388,7 @@ Return best-effort onboarding suggestions for MarketForge.
     const data: OnboardingPrefillResult = {
       ...parsed,
       website: normalizedWebsite,
-      logoUrl: cleanString(parsed.logoUrl) ?? websiteContext?.logoCandidates?.[0] ?? null,
+            logoUrl: websiteContext?.logoCandidates?.[0] ?? cleanString(parsed.logoUrl) ?? null,
       phone: cleanString(parsed.phone) ?? websiteContext?.phone ?? null,
       googleBusinessProfileUrl:
         cleanString(parsed.googleBusinessProfileUrl) ??

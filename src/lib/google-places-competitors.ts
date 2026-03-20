@@ -47,8 +47,50 @@ type DiscoverCompetitorsInput = {
   website?: string | null;
 };
 
+type RawPlaceCandidate = {
+  placeId: string | null;
+  name: string;
+  websiteUrl: string | null;
+  googleBusinessUrl: string | null;
+  formattedAddress: string | null;
+  phone: string | null;
+  types: string[];
+  primaryType: string | null;
+};
+
 const GOOGLE_PLACES_TEXT_SEARCH_URL =
   "https://places.googleapis.com/v1/places:searchText";
+
+const GENERIC_BUSINESS_WORDS = new Set([
+  "plumbing",
+  "plumber",
+  "services",
+  "service",
+  "heating",
+  "cooling",
+  "air",
+  "conditioning",
+  "company",
+  "co",
+  "corp",
+  "corporation",
+  "inc",
+  "llc",
+  "ltd",
+  "contractor",
+  "contractors",
+  "solutions",
+  "solution",
+  "experts",
+  "expert",
+  "pros",
+  "pro",
+  "systems",
+  "system",
+  "and",
+  "the",
+  "of",
+]);
 
 function cleanString(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -75,6 +117,76 @@ function normalizeDomain(url: string | null | undefined): string | null {
 
 function slugifyComparable(value: string | null | undefined): string {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function tokenizeBusinessName(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function getDistinctiveBusinessTokens(
+  value: string | null | undefined
+): string[] {
+  return tokenizeBusinessName(value).filter(
+    (token) => token.length >= 4 && !GENERIC_BUSINESS_WORDS.has(token)
+  );
+}
+
+function stringsAreVeryClose(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  const minLength = Math.min(a.length, b.length);
+  if (minLength < 5) return false;
+
+  let mismatches = 0;
+  const maxLength = Math.max(a.length, b.length);
+  const min = Math.min(a.length, b.length);
+
+  for (let i = 0; i < min; i += 1) {
+    if (a[i] !== b[i]) mismatches += 1;
+    if (mismatches > 2) break;
+  }
+
+  mismatches += maxLength - min;
+
+  return mismatches <= 2;
+}
+
+function hasStrongBrandOverlap(
+  candidateName: string,
+  companyName: string
+): boolean {
+  const companyTokens = getDistinctiveBusinessTokens(companyName);
+  const candidateTokens = getDistinctiveBusinessTokens(candidateName);
+
+  if (companyTokens.length === 0 || candidateTokens.length === 0) {
+    return false;
+  }
+
+  let overlapCount = 0;
+
+  for (const companyToken of companyTokens) {
+    const matched = candidateTokens.some(
+      (candidateToken) =>
+        candidateToken === companyToken ||
+        stringsAreVeryClose(candidateToken, companyToken)
+    );
+
+    if (matched) {
+      overlapCount += 1;
+    }
+  }
+
+  const overlapRatio = overlapCount / companyTokens.length;
+
+  return overlapCount >= 1 && overlapRatio >= 0.5;
 }
 
 function faviconFromWebsite(website: string | null): string | null {
@@ -345,20 +457,6 @@ function inferServiceFocusFromTypes(
   return results.slice(0, 4);
 }
 
-function defaultWhyItMatters(
-  name: string,
-  city: string | null,
-  state: string | null
-): string {
-  const location = [city, state].filter(Boolean).join(", ");
-
-  if (location) {
-    return `Local ${location} competitor likely competing for the same service-area demand.`;
-  }
-
-  return `${name} appears to be a relevant local competitor in the same category.`;
-}
-
 function isLikelySameBusiness(
   candidateName: string,
   companyName: string,
@@ -385,28 +483,31 @@ function isLikelySameBusiness(
     }
   }
 
+  if (hasStrongBrandOverlap(candidateName, companyName)) {
+    return true;
+  }
+
   return false;
+}
+
+function getIndustryLabel(industry: DiscoverCompetitorsInput["industry"]): string {
+  if (industry === "PLUMBING") return "plumber";
+  if (industry === "HVAC") return "hvac contractor";
+  if (industry === "SEPTIC") return "septic service";
+  return "tree service";
 }
 
 function getSearchQueries(input: DiscoverCompetitorsInput): string[] {
   const location = [input.city, input.state].filter(Boolean).join(" ").trim();
   const serviceArea = cleanString(input.serviceArea);
-
-  const industryLabel =
-    input.industry === "PLUMBING"
-      ? "plumber"
-      : input.industry === "HVAC"
-        ? "hvac"
-        : input.industry === "SEPTIC"
-          ? "septic service"
-          : "tree service";
+  const industryLabel = getIndustryLabel(input.industry);
 
   const queries = new Set<string>();
 
   if (location) {
     queries.add(`${industryLabel} in ${location}`);
     queries.add(`best ${industryLabel} in ${location}`);
-    queries.add(`top ${industryLabel} in ${location}`);
+    queries.add(`${industryLabel} ${location}`);
   }
 
   if (serviceArea) {
@@ -417,7 +518,139 @@ function getSearchQueries(input: DiscoverCompetitorsInput): string[] {
     queries.add(`${industryLabel} near me`);
   }
 
-  return Array.from(queries).slice(0, 3);
+  return Array.from(queries).slice(0, 4);
+}
+
+function matchesIndustryEnough(
+  types: string[],
+  primaryType: string | null,
+  industry: DiscoverCompetitorsInput["industry"]
+): boolean {
+  const haystack = [...types, primaryType ?? ""].join(" ").toLowerCase();
+
+  if (industry === "PLUMBING") {
+    return (
+      haystack.includes("plumber") ||
+      haystack.includes("plumbing") ||
+      haystack.includes("drain")
+    );
+  }
+
+  if (industry === "HVAC") {
+    return (
+      haystack.includes("hvac") ||
+      haystack.includes("heating") ||
+      haystack.includes("air_conditioning") ||
+      haystack.includes("air conditioning")
+    );
+  }
+
+  if (industry === "SEPTIC") {
+    return (
+      haystack.includes("septic") ||
+      haystack.includes("sewer") ||
+      haystack.includes("waste") ||
+      haystack.includes("plumber")
+    );
+  }
+
+  return (
+    haystack.includes("tree") ||
+    haystack.includes("arbor") ||
+    haystack.includes("landscap")
+  );
+}
+
+function locationMatchesEnough(
+  formattedAddress: string | null,
+  city: string | null | undefined,
+  state: string | null | undefined
+): boolean {
+  const address = (formattedAddress ?? "").toLowerCase();
+  const cityLower = (city ?? "").trim().toLowerCase();
+  const stateLower = (state ?? "").trim().toLowerCase();
+
+  if (!address) return false;
+
+  if (cityLower && address.includes(cityLower)) return true;
+  if (stateLower && address.includes(stateLower)) return true;
+
+  return false;
+}
+
+function scoreCompetitorCandidate(
+  candidate: RawPlaceCandidate,
+  input: DiscoverCompetitorsInput
+): number {
+  let score = 0;
+
+  if (matchesIndustryEnough(candidate.types, candidate.primaryType, input.industry)) {
+    score += 50;
+  } else {
+    score -= 40;
+  }
+
+  if (candidate.websiteUrl) score += 15;
+  if (candidate.formattedAddress) score += 8;
+  if (candidate.phone) score += 6;
+  if (candidate.googleBusinessUrl) score += 4;
+
+  if (
+    locationMatchesEnough(
+      candidate.formattedAddress,
+      input.city ?? null,
+      input.state ?? null
+    )
+  ) {
+    score += 12;
+  }
+
+  if (hasStrongBrandOverlap(candidate.name, input.companyName)) {
+    score -= 60;
+  }
+
+  return score;
+}
+
+function buildCompetitorSummary(params: {
+  industry: DiscoverCompetitorsInput["industry"];
+  formattedAddress: string | null;
+  phone: string | null;
+  websiteUrl: string | null;
+  serviceFocus: string[];
+}): string {
+  const industryLabel =
+    params.industry === "PLUMBING"
+      ? "Plumbing company"
+      : params.industry === "HVAC"
+        ? "HVAC company"
+        : params.industry === "SEPTIC"
+          ? "Septic service company"
+          : "Tree service company";
+
+  const parts: string[] = [];
+
+  if (params.formattedAddress) {
+    parts.push(`${industryLabel} at ${params.formattedAddress}.`);
+  } else {
+    parts.push(`${industryLabel} in the local market.`);
+  }
+
+  if (params.serviceFocus.length > 0) {
+    parts.push(
+      `Service signals: ${params.serviceFocus.slice(0, 3).join(", ")}.`
+    );
+  }
+
+  if (params.phone) {
+    parts.push("Phone contact available.");
+  }
+
+  if (params.websiteUrl) {
+    parts.push("Website available.");
+  }
+
+  return parts.join(" ");
 }
 
 async function searchText(
@@ -570,6 +803,11 @@ export async function lookupSingleCompetitor(input: {
     html,
   });
 
+  const serviceFocus =
+    serviceFocusFromWebsite.length > 0
+      ? serviceFocusFromWebsite
+      : inferServiceFocusFromTypes(types, input.industry);
+
   return {
     name:
       cleanString(details?.displayName?.text) ??
@@ -577,16 +815,15 @@ export async function lookupSingleCompetitor(input: {
       input.companyName,
     websiteUrl,
     googleBusinessUrl,
-    logoUrl: homepageLogo ?? null,
-    whyItMatters: defaultWhyItMatters(
-      input.companyName,
-      input.city ?? null,
-      input.state ?? null
-    ),
-    serviceFocus:
-      serviceFocusFromWebsite.length > 0
-        ? serviceFocusFromWebsite
-        : inferServiceFocusFromTypes(types, input.industry),
+    logoUrl: homepageLogo ?? faviconFromWebsite(websiteUrl),
+    whyItMatters: buildCompetitorSummary({
+      industry: input.industry,
+      formattedAddress,
+      phone,
+      websiteUrl,
+      serviceFocus,
+    }),
+    serviceFocus,
     formattedAddress,
     phone,
     placeId,
@@ -606,7 +843,7 @@ export async function discoverLocalCompetitors(
   }
 
   const queries = getSearchQueries(input);
-  const collected = new Map<string, CompetitorCandidate>();
+  const collected = new Map<string, RawPlaceCandidate>();
 
   for (const query of queries) {
     let places: GooglePlacesTextSearchResponse["places"];
@@ -622,18 +859,7 @@ export async function discoverLocalCompetitors(
       continue;
     }
 
-    const sortedPlaces = [...places].sort((a, b) => {
-      const aHasWebsite = Boolean(cleanString(a.websiteUri));
-      const bHasWebsite = Boolean(cleanString(b.websiteUri));
-
-      if (aHasWebsite !== bHasWebsite) {
-        return aHasWebsite ? -1 : 1;
-      }
-
-      return 0;
-    });
-
-    for (const place of sortedPlaces) {
+    for (const place of places) {
       const placeId = cleanString(place.id);
       const name = cleanString(place.displayName?.text);
 
@@ -642,8 +868,9 @@ export async function discoverLocalCompetitors(
       const websiteUrl = cleanString(place.websiteUri);
       const googleBusinessUrl = cleanString(place.googleMapsUri);
       const formattedAddress = cleanString(place.formattedAddress);
-      const nationalPhoneNumber = cleanString(place.nationalPhoneNumber);
+      const phone = cleanString(place.nationalPhoneNumber);
       const types = place.types ?? [];
+      const primaryType = cleanString(place.primaryType);
 
       if (
         isLikelySameBusiness(
@@ -656,72 +883,100 @@ export async function discoverLocalCompetitors(
         continue;
       }
 
-      const key =
-        placeId ?? `${slugifyComparable(name)}::${normalizeDomain(websiteUrl) ?? "no-domain"}`;
+      if (!matchesIndustryEnough(types, primaryType, input.industry)) {
+        continue;
+      }
 
-      if (!collected.has(key)) {
-        collected.set(key, {
-          name,
-          websiteUrl,
-          googleBusinessUrl,
-          logoUrl: null,
-          whyItMatters: defaultWhyItMatters(
-            name,
-            input.city ?? null,
-            input.state ?? null
-          ),
-          serviceFocus: inferServiceFocusFromTypes(types, input.industry),
-          formattedAddress,
-          phone: nationalPhoneNumber,
-          placeId,
-        });
+      const key =
+        placeId ??
+        `${slugifyComparable(name)}::${normalizeDomain(websiteUrl) ?? "no-domain"}::${
+          formattedAddress ?? "no-address"
+        }`;
+
+      const existing = collected.get(key);
+
+      const candidate: RawPlaceCandidate = {
+        placeId,
+        name,
+        websiteUrl,
+        googleBusinessUrl,
+        formattedAddress,
+        phone,
+        types,
+        primaryType,
+      };
+
+      if (!existing) {
+        collected.set(key, candidate);
+        continue;
+      }
+
+      const existingScore = scoreCompetitorCandidate(existing, input);
+      const nextScore = scoreCompetitorCandidate(candidate, input);
+
+      if (nextScore > existingScore) {
+        collected.set(key, candidate);
       }
     }
   }
 
-  const baseCandidates = Array.from(collected.values())
-    .filter((candidate) => Boolean(candidate.websiteUrl))
-    .slice(0, 8);
+  const rankedBaseCandidates = Array.from(collected.values())
+    .map((candidate) => ({
+      candidate,
+      score: scoreCompetitorCandidate(candidate, input),
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(({ candidate }) => candidate);
 
   const enriched = await Promise.all(
-    baseCandidates.map(async (candidate) => {
-      if (!candidate.placeId) {
-        return candidate;
-      }
+    rankedBaseCandidates.map(async (candidate) => {
+      const details =
+        candidate.placeId ? await getPlaceDetails(apiKey, candidate.placeId) : null;
 
-      const details = await getPlaceDetails(apiKey, candidate.placeId);
-
-      if (!details) {
-        return candidate;
-      }
-
-      const websiteUrl = cleanString(details.websiteUri) ?? candidate.websiteUrl;
+      const websiteUrl =
+        cleanString(details?.websiteUri) ?? candidate.websiteUrl;
       const googleBusinessUrl =
-        cleanString(details.googleMapsUri) ?? candidate.googleBusinessUrl;
-      const types = details.types ?? [];
+        cleanString(details?.googleMapsUri) ?? candidate.googleBusinessUrl;
+      const formattedAddress =
+        cleanString(details?.formattedAddress) ?? candidate.formattedAddress;
+      const phone =
+        cleanString(details?.nationalPhoneNumber) ?? candidate.phone;
+      const types = details?.types ?? candidate.types;
 
       const html = await fetchWebsiteHtml(websiteUrl);
       const homepageLogo = await extractHomepageLogoCandidate(websiteUrl);
-      
+
       const serviceFocusFromWebsite = inferServiceFocusFromWebsite({
         industry: input.industry,
         website: websiteUrl,
         html,
       });
 
+      const serviceFocus =
+        serviceFocusFromWebsite.length > 0
+          ? serviceFocusFromWebsite
+          : inferServiceFocusFromTypes(types, input.industry);
+
       return {
-        ...candidate,
+        name:
+          cleanString(details?.displayName?.text) ?? candidate.name,
         websiteUrl,
         googleBusinessUrl,
-        logoUrl: homepageLogo ?? null,
-        formattedAddress:
-          cleanString(details.formattedAddress) ?? candidate.formattedAddress,
-        phone: cleanString(details.nationalPhoneNumber) ?? candidate.phone,
-        serviceFocus:
-          serviceFocusFromWebsite.length > 0
-            ? serviceFocusFromWebsite
-            : inferServiceFocusFromTypes(types, input.industry),
-      };
+        logoUrl: homepageLogo ?? faviconFromWebsite(websiteUrl),
+        whyItMatters: buildCompetitorSummary({
+          industry: input.industry,
+          formattedAddress,
+          phone,
+          websiteUrl,
+          serviceFocus,
+        }),
+        serviceFocus,
+        formattedAddress,
+        phone,
+        placeId: candidate.placeId,
+      } satisfies CompetitorCandidate;
     })
   );
 
@@ -743,7 +998,42 @@ export async function discoverLocalCompetitors(
       normalizeDomain(candidate.websiteUrl) ??
       `${slugifyComparable(candidate.name)}::${candidate.formattedAddress ?? "no-address"}`;
 
-    if (!deduped.has(key)) {
+    const existing = deduped.get(key);
+
+    if (!existing) {
+      deduped.set(key, candidate);
+      continue;
+    }
+
+    const existingScore = scoreCompetitorCandidate(
+      {
+        placeId: existing.placeId,
+        name: existing.name,
+        websiteUrl: existing.websiteUrl,
+        googleBusinessUrl: existing.googleBusinessUrl,
+        formattedAddress: existing.formattedAddress,
+        phone: existing.phone,
+        types: [],
+        primaryType: null,
+      },
+      input
+    );
+
+    const nextScore = scoreCompetitorCandidate(
+      {
+        placeId: candidate.placeId,
+        name: candidate.name,
+        websiteUrl: candidate.websiteUrl,
+        googleBusinessUrl: candidate.googleBusinessUrl,
+        formattedAddress: candidate.formattedAddress,
+        phone: candidate.phone,
+        types: [],
+        primaryType: null,
+      },
+      input
+    );
+
+    if (nextScore > existingScore) {
       deduped.set(key, candidate);
     }
   }

@@ -97,6 +97,65 @@ function absolutizeUrl(href: string, baseUrl: string): string | null {
   }
 }
 
+function looksLikeBadgeOrTrustAsset(url: string): boolean {
+  const lower = url.toLowerCase();
+
+  return (
+    lower.includes("bbb") ||
+    lower.includes("better-business-bureau") ||
+    lower.includes("accredited-business") ||
+    lower.includes("a-plus") ||
+    lower.includes("a%2b") ||
+    lower.includes("badge") ||
+    lower.includes("seal") ||
+    lower.includes("award") ||
+    lower.includes("review-badge") ||
+    lower.includes("google-review") ||
+    lower.includes("stars") ||
+    lower.includes("rating") ||
+    lower.includes("testimonial")
+  );
+}
+
+function looksLikeLogoFile(url: string): boolean {
+  const lower = url.toLowerCase();
+
+  if (looksLikeBadgeOrTrustAsset(lower)) {
+    return false;
+  }
+
+  return (
+    lower.includes("logo") ||
+    lower.includes("brand") ||
+    lower.includes("site-title") ||
+    lower.includes("navbar") ||
+    lower.includes("header-logo") ||
+    lower.endsWith(".svg")
+  );
+}
+
+function scoreLogoCandidate(url: string, isStrongTagMatch: boolean): number {
+  const lower = url.toLowerCase();
+  let score = 0;
+
+  if (looksLikeBadgeOrTrustAsset(lower)) score -= 100;
+  if (isStrongTagMatch) score += 40;
+  if (lower.includes("logo")) score += 35;
+  if (lower.includes("brand")) score += 20;
+  if (lower.includes("header")) score += 10;
+  if (lower.includes("navbar")) score += 10;
+  if (lower.includes("site-title")) score += 10;
+  if (lower.endsWith(".svg")) score += 25;
+  if (lower.endsWith(".png")) score += 8;
+  if (lower.includes("og-image")) score -= 15;
+  if (lower.includes("hero")) score -= 15;
+  if (lower.includes("banner")) score -= 15;
+  if (lower.includes("truck")) score -= 10;
+  if (lower.includes("team")) score -= 10;
+
+  return score;
+}
+
 function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
   const matches = [
     ...html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi),
@@ -143,8 +202,31 @@ function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
 }
 
 function extractLogoCandidates(html: string, baseUrl: string): string[] {
-  const strongCandidates: string[] = [];
-  const weakCandidates: string[] = [];
+  const candidates = new Map<string, number>();
+
+  const addCandidate = (url: string | null, isStrongTagMatch: boolean) => {
+    if (!url) return;
+
+    const lowerSrc = url.toLowerCase();
+
+    const isWeakIcon =
+      lowerSrc.includes("favicon") ||
+      lowerSrc.includes("apple-touch-icon") ||
+      lowerSrc.includes("site-icon") ||
+      lowerSrc.includes("mask-icon") ||
+      lowerSrc.includes("/icon-") ||
+      lowerSrc.includes("/icons/");
+
+    if (isWeakIcon) return;
+    if (looksLikeBadgeOrTrustAsset(lowerSrc)) return;
+
+    const score = scoreLogoCandidate(url, isStrongTagMatch);
+    const existing = candidates.get(url) ?? Number.NEGATIVE_INFINITY;
+
+    if (score > existing) {
+      candidates.set(url, score);
+    }
+  };
 
   const imgTagMatches = [...html.matchAll(/<img\b[^>]*>/gi)];
 
@@ -165,55 +247,15 @@ function extractLogoCandidates(html: string, baseUrl: string): string[] {
 
     if (srcMatch?.[1]) {
       const absolute = absolutizeUrl(srcMatch[1], baseUrl);
-      if (!absolute) continue;
-
-      const lowerSrc = absolute.toLowerCase();
-
-      const isWeakIcon =
-        lowerSrc.includes("favicon") ||
-        lowerSrc.includes("apple-touch-icon") ||
-        lowerSrc.includes("site-icon") ||
-        lowerSrc.includes("mask-icon") ||
-        lowerSrc.includes("/icon-") ||
-        lowerSrc.includes("/icons/");
-
-      if (isWeakIcon) {
-        continue;
-      }
-
-      if (looksLikeLogoTag) {
-        strongCandidates.push(absolute);
-      } else {
-        weakCandidates.push(absolute);
-      }
+      addCandidate(absolute, looksLikeLogoTag || looksLikeLogoFile(absolute ?? ""));
     }
 
     const srcsetMatch = tag.match(/\ssrcset=["']([^"']+)["']/i);
     if (srcsetMatch?.[1]) {
       const firstSrcsetUrl = srcsetMatch[1].split(",")[0]?.trim().split(" ")[0];
-      if (!firstSrcsetUrl) continue;
-
-      const absolute = absolutizeUrl(firstSrcsetUrl, baseUrl);
-      if (!absolute) continue;
-
-      const lowerSrc = absolute.toLowerCase();
-
-      const isWeakIcon =
-        lowerSrc.includes("favicon") ||
-        lowerSrc.includes("apple-touch-icon") ||
-        lowerSrc.includes("site-icon") ||
-        lowerSrc.includes("mask-icon") ||
-        lowerSrc.includes("/icon-") ||
-        lowerSrc.includes("/icons/");
-
-      if (isWeakIcon) {
-        continue;
-      }
-
-      if (looksLikeLogoTag) {
-        strongCandidates.push(absolute);
-      } else {
-        weakCandidates.push(absolute);
+      if (firstSrcsetUrl) {
+        const absolute = absolutizeUrl(firstSrcsetUrl, baseUrl);
+        addCandidate(absolute, looksLikeLogoTag || looksLikeLogoFile(absolute ?? ""));
       }
     }
   }
@@ -234,24 +276,16 @@ function extractLogoCandidates(html: string, baseUrl: string): string[] {
     const absolute = absolutizeUrl(match[1] ?? "", baseUrl);
     if (!absolute) continue;
 
-    const lowerSrc = absolute.toLowerCase();
+    // Meta images are fallback-only and should only survive if they actually
+    // look like a logo asset.
+    if (!looksLikeLogoFile(absolute)) continue;
 
-    const isWeakIcon =
-      lowerSrc.includes("favicon") ||
-      lowerSrc.includes("apple-touch-icon") ||
-      lowerSrc.includes("site-icon") ||
-      lowerSrc.includes("mask-icon") ||
-      lowerSrc.includes("/icon-") ||
-      lowerSrc.includes("/icons/");
-
-    if (isWeakIcon) {
-      continue;
-    }
-
-    weakCandidates.push(absolute);
+    addCandidate(absolute, false);
   }
 
-  return Array.from(new Set([...strongCandidates, ...weakCandidates]));
+  return Array.from(candidates.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([url]) => url);
 }
 
 function extractPhone(text: string): string | null {

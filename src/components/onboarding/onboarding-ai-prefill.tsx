@@ -55,6 +55,16 @@ function ListCard({
   );
 }
 
+function CompetitorMetaLine({
+  value,
+}: {
+  value: string | null | undefined;
+}) {
+  if (!value) return null;
+
+  return <p className="mt-1 text-sm text-gray-600">{value}</p>;
+}
+
 export function OnboardingAiPrefill({ onApply }: Props) {
   const [companyName, setCompanyName] = useState("");
   const [website, setWebsite] = useState("");
@@ -271,7 +281,7 @@ export function OnboardingAiPrefill({ onApply }: Props) {
                         </div>
                       )}
 
-                      <div className="min-w-0 flex-1">
+                                            <div className="min-w-0 flex-1">
                         <p className="font-semibold text-gray-900">
                           {competitor.name}
                         </p>
@@ -282,6 +292,9 @@ export function OnboardingAiPrefill({ onApply }: Props) {
                           </p>
                         ) : null}
 
+                        <CompetitorMetaLine value={competitor.formattedAddress} />
+                        <CompetitorMetaLine value={competitor.phone} />
+
                         <p className="mt-2 text-sm text-gray-600">
                           {competitor.whyItMatters}
                         </p>
@@ -291,7 +304,7 @@ export function OnboardingAiPrefill({ onApply }: Props) {
                             {competitor.serviceFocus.map((focus) => (
                               <span
                                 key={focus}
-                                className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200"
+                                className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700"
                               >
                                 {focus}
                               </span>
