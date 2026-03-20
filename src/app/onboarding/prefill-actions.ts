@@ -60,6 +60,40 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
   );
 }
 
+function sanitizeLocationValue(
+  value: string | null | undefined,
+  kind: "city" | "state"
+): string | null {
+  const cleaned = cleanString(value);
+
+  if (!cleaned) return null;
+
+  if (kind === "state") {
+    return /^[A-Z]{2}$/.test(cleaned) ? cleaned : null;
+  }
+
+  if (cleaned.length > 40) return null;
+  if (cleaned.split(" ").length > 4) return null;
+
+  const lower = cleaned.toLowerCase();
+
+  if (
+    lower.includes("contact us") ||
+    lower.includes("schedule") ||
+    lower.includes("appointment") ||
+    lower.includes("plumbing") ||
+    lower.includes("services") ||
+    lower.includes("solutions") ||
+    lower.includes("near") ||
+    lower.includes("today") ||
+    lower.includes("free")
+  ) {
+    return null;
+  }
+
+  return /^[A-Za-z .'\-]+$/.test(cleaned) ? cleaned : null;
+}
+
 function normalizeDomain(url: string | null | undefined): string | null {
   if (!url) return null;
 
@@ -164,11 +198,14 @@ export async function generateOnboardingPrefill(input: {
       linkTexts: websiteContext?.internalLinks ?? [],
     });
 
+        const resolvedCity = sanitizeLocationValue(websiteContext?.city ?? null, "city");
+    const resolvedState = sanitizeLocationValue(websiteContext?.state ?? null, "state");
+
     const competitorCandidates = await discoverLocalCompetitors({
       companyName,
       industry: inferredIndustry,
-      city: websiteContext?.city ?? null,
-      state: websiteContext?.state ?? null,
+      city: resolvedCity,
+      state: resolvedState,
       serviceArea: websiteContext?.address ?? null,
       website,
     });
@@ -177,8 +214,10 @@ export async function generateOnboardingPrefill(input: {
       companyName,
       website,
       inferredIndustry,
-      city: websiteContext?.city ?? null,
-      state: websiteContext?.state ?? null,
+            rawCity: websiteContext?.city ?? null,
+      rawState: websiteContext?.state ?? null,
+      city: resolvedCity,
+      state: resolvedState,
       serviceArea: websiteContext?.address ?? null,
       competitors: competitorCandidates.map((candidate) => ({
         name: candidate.name,
@@ -190,11 +229,11 @@ export async function generateOnboardingPrefill(input: {
       })),
     });
 
-    const googleBusinessProfileUrl = await lookupBusinessGoogleBusinessProfile({
+        const googleBusinessProfileUrl = await lookupBusinessGoogleBusinessProfile({
       companyName,
       website,
-      city: websiteContext?.city ?? null,
-      state: websiteContext?.state ?? null,
+      city: resolvedCity,
+      state: resolvedState,
     });
 
     const completion = await openai.chat.completions.parse({

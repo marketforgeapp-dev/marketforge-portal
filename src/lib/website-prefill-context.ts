@@ -309,24 +309,65 @@ function extractAddress(text: string): string | null {
   return match ? cleanWhitespace(match[0]) : null;
 }
 
+function isLikelyRealCity(value: string | null | undefined): boolean {
+  const city = cleanWhitespace(value ?? "");
+
+  if (!city) return false;
+  if (city.length > 40) return false;
+  if (city.split(" ").length > 4) return false;
+
+  const lower = city.toLowerCase();
+
+  if (
+    lower.includes("contact us") ||
+    lower.includes("schedule") ||
+    lower.includes("appointment") ||
+    lower.includes("estimates") ||
+    lower.includes("plumbing") ||
+    lower.includes("solutions") ||
+    lower.includes("services") ||
+    lower.includes("near") ||
+    lower.includes("today") ||
+    lower.includes("free")
+  ) {
+    return false;
+  }
+
+  return /^[A-Za-z .'\-]+$/.test(city);
+}
+
 function extractCityState(text: string): { city: string | null; state: string | null } {
   const addressMatch = text.match(
     /\b\d{1,6}\s+[A-Za-z0-9.#'\- ]+,\s*([A-Za-z .'\-]+),\s*([A-Z]{2})\s+\d{5}(?:-\d{4})?\b/
   );
 
   if (addressMatch) {
-    return {
-      city: cleanWhitespace(addressMatch[1]),
-      state: cleanWhitespace(addressMatch[2]),
-    };
+    const city = cleanWhitespace(addressMatch[1]);
+    const state = cleanWhitespace(addressMatch[2]);
+
+    if (isLikelyRealCity(city)) {
+      return {
+        city,
+        state,
+      };
+    }
   }
 
-  const cityStateMatch = text.match(/\b([A-Z][A-Za-z .'\-]+),\s*([A-Z]{2})\b/);
+  const cityStateMatches = [
+    ...text.matchAll(/\b([A-Z][A-Za-z.'\-]{1,24}(?:\s+[A-Z][A-Za-z.'\-]{1,24}){0,2}),\s*([A-Z]{2})\b/g),
+  ];
 
-  if (cityStateMatch) {
+  for (const match of cityStateMatches) {
+    const city = cleanWhitespace(match[1]);
+    const state = cleanWhitespace(match[2]);
+
+    if (!isLikelyRealCity(city)) {
+      continue;
+    }
+
     return {
-      city: cleanWhitespace(cityStateMatch[1]),
-      state: cleanWhitespace(cityStateMatch[2]),
+      city,
+      state,
     };
   }
 
