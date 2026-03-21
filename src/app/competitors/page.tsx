@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { CompetitorsGrid } from "@/components/competitors/competitors-grid";
 import { AlertsFeed } from "@/components/competitors/alerts-feed";
 
@@ -11,6 +12,11 @@ export default async function CompetitorsPage() {
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
   }
+
+  const profile = await prisma.businessProfile.findUnique({
+    where: { workspaceId: workspace.id },
+    select: { logoUrl: true, businessName: true },
+  });
 
   const competitors = await prisma.competitor.findMany({
     where: { workspaceId: workspace.id },
@@ -31,6 +37,10 @@ export default async function CompetitorsPage() {
         <DashboardSidebar />
 
         <main className="min-w-0 flex-1 space-y-5">
+                    <DashboardHeader
+            workspaceName={profile?.businessName ?? workspace.name}
+            logoUrl={profile?.logoUrl ?? null}
+          />
           <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
               Competitors
