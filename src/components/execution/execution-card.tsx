@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Campaign, Prisma } from "@/generated/prisma";
+import { Campaign, CampaignAsset, Prisma } from "@/generated/prisma";
 import { ExecutionStatusActions } from "./execution-status-actions";
 
 type ExecutionMeta = {
@@ -8,10 +8,12 @@ type ExecutionMeta = {
   launchPlatform?: string | null;
   credentialsReceived?: boolean;
   launchNotes?: string | null;
+  approvedAssetTypes?: string[];
 };
 
 type CampaignWithExecution = Campaign & {
   briefJson: Prisma.JsonValue | null;
+  campaignAssets: Pick<CampaignAsset, "id" | "assetType" | "isApproved">[];
 };
 
 type EstimatedRange = {
@@ -87,51 +89,71 @@ function statusLabel(status: Campaign["status"]) {
   return labels[status];
 }
 
-export function ExecutionCard({ campaign }: Props) {
-  const execution = getExecutionMeta(campaign.briefJson);
-  function extractEstimatedRange(
-  briefJson: Prisma.JsonValue | null
-): EstimatedRange | null {
-  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
-    return null;
-  }
+function mapAssetTypesToPlatforms(assetTypes?: string[]): string[] {
+  if (!assetTypes || assetTypes.length === 0) return [];
 
-  const record = briefJson as Record<string, unknown>;
-  const range = record.estimatedRange;
-
-  if (!range || typeof range !== "object" || Array.isArray(range)) {
-    return null;
-  }
-
-  const estimatedRange = range as Record<string, unknown>;
-
-  return {
-    jobsLow:
-      typeof estimatedRange.jobsLow === "number" ? estimatedRange.jobsLow : null,
-    jobsHigh:
-      typeof estimatedRange.jobsHigh === "number" ? estimatedRange.jobsHigh : null,
-    revenueLow:
-      typeof estimatedRange.revenueLow === "number"
-        ? estimatedRange.revenueLow
-        : null,
-    revenueHigh:
-      typeof estimatedRange.revenueHigh === "number"
-        ? estimatedRange.revenueHigh
-        : null,
+  const mapping: Record<string, string> = {
+    GOOGLE_BUSINESS: "Google Business Profile",
+    META: "Facebook & Instagram",
+    GOOGLE_ADS: "Google Ads",
+    YELP: "Yelp",
+    EMAIL: "Email",
+    BLOG: "Blog",
+    AEO_FAQ: "AEO / FAQ",
+    ANSWER_SNIPPET: "Answer Snippet",
+    SEO: "SEO Content",
   };
+
+  return Array.from(new Set(assetTypes.map((type) => mapping[type] ?? type)));
 }
 
-const estimatedRange = extractEstimatedRange(campaign.briefJson);
+function getApprovedPlatforms(
+  campaign: CampaignWithExecution,
+  execution: ExecutionMeta | null
+): string[] {
+  const approvedAssetTypesFromAssets = campaign.campaignAssets
+    .filter((asset) => asset.isApproved)
+    .map((asset) => asset.assetType);
 
-const jobsDisplay =
-  estimatedRange?.jobsLow != null && estimatedRange?.jobsHigh != null
-    ? `${estimatedRange.jobsLow}–${estimatedRange.jobsHigh}`
-    : campaign.estimatedBookedJobs ?? 0;
+  const approvedPlatformsFromAssets = mapAssetTypesToPlatforms(
+    approvedAssetTypesFromAssets
+  );
+  if (approvedPlatformsFromAssets.length > 0) {
+    return approvedPlatformsFromAssets;
+  }
 
-const revenueDisplay =
-  estimatedRange?.revenueHigh != null
-    ? estimatedRange.revenueHigh
-    : Number(campaign.estimatedRevenue ?? 0);
+  const approvedPlatformsFromExecution = mapAssetTypesToPlatforms(
+    execution?.approvedAssetTypes
+  );
+  if (approvedPlatformsFromExecution.length > 0) {
+    return approvedPlatformsFromExecution;
+  }
+
+  if (execution?.launchPlatform) {
+    return [execution.launchPlatform];
+  }
+
+  return [];
+}
+
+export function ExecutionCard({ campaign }: Props) {
+  const execution = getExecutionMeta(campaign.briefJson);
+  const estimatedRange = extractEstimatedRange(campaign.briefJson);
+  const approvedPlatforms = getApprovedPlatforms(campaign, execution);
+
+  const jobsDisplay =
+    estimatedRange?.jobsLow != null && estimatedRange?.jobsHigh != null
+      ? `${estimatedRange.jobsLow}–${estimatedRange.jobsHigh}`
+      : campaign.estimatedBookedJobs != null
+        ? String(campaign.estimatedBookedJobs)
+        : "—";
+
+  const revenueDisplay =
+    estimatedRange?.revenueHigh != null
+      ? estimatedRange.revenueHigh
+      : typeof campaign.estimatedRevenue === "number"
+        ? campaign.estimatedRevenue
+        : 0;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -189,8 +211,10 @@ const revenueDisplay =
 
       <div className="mt-4 space-y-2 text-sm text-gray-700">
         <p>
-          <span className="font-semibold text-gray-900">Platform:</span>{" "}
-          {execution?.launchPlatform ?? "Not set"}
+          <span className="font-semibold text-gray-900">Platforms:</span>{" "}
+          {approvedPlatforms.length > 0
+            ? approvedPlatforms.join(", ")
+            : "No approved platforms yet"}
         </p>
         <p>
           <span className="font-semibold text-gray-900">Owner:</span>{" "}

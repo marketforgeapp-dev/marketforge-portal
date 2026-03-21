@@ -18,7 +18,6 @@ export function ExecutionStatusActions({ campaignId, status }: Props) {
 
   const [scheduledLaunchDate, setScheduledLaunchDate] = useState("");
   const [launchOwner, setLaunchOwner] = useState("MarketForge Team");
-  const [launchPlatform, setLaunchPlatform] = useState("Google Business");
   const [credentialsReceived, setCredentialsReceived] = useState(false);
   const [launchNotes, setLaunchNotes] = useState("");
 
@@ -34,36 +33,43 @@ export function ExecutionStatusActions({ campaignId, status }: Props) {
 
       {canQueue ? (
         <div className="grid gap-3">
-          <input
-            type="date"
-            value={scheduledLaunchDate}
-            onChange={(e) => setScheduledLaunchDate(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          />
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+              Scheduled launch date
+            </label>
+            <input
+              type="date"
+              value={scheduledLaunchDate}
+              onChange={(e) => setScheduledLaunchDate(e.target.value)}
+              className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            />
+          </div>
 
-          <input
-            type="text"
-            value={launchOwner}
-            onChange={(e) => setLaunchOwner(e.target.value)}
-            placeholder="Launch owner"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          />
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+              Launch owner
+            </label>
+            <input
+              type="text"
+              value={launchOwner}
+              onChange={(e) => setLaunchOwner(e.target.value)}
+              placeholder="MarketForge Team"
+              className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            />
+          </div>
 
-          <input
-            type="text"
-            value={launchPlatform}
-            onChange={(e) => setLaunchPlatform(e.target.value)}
-            placeholder="Launch platform"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          />
-
-          <textarea
-            value={launchNotes}
-            onChange={(e) => setLaunchNotes(e.target.value)}
-            placeholder="Launch notes"
-            rows={3}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          />
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+              Launch notes
+            </label>
+            <textarea
+              value={launchNotes}
+              onChange={(e) => setLaunchNotes(e.target.value)}
+              placeholder="Add any launch instructions or context"
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            />
+          </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input
@@ -80,13 +86,12 @@ export function ExecutionStatusActions({ campaignId, status }: Props) {
             onClick={() =>
               startTransition(async () => {
                 await queueCampaignWithExecutionDetails({
-                  campaignId,
-                  scheduledLaunchDate,
-                  launchOwner,
-                  launchPlatform,
-                  credentialsReceived,
-                  launchNotes,
-                });
+  campaignId,
+  scheduledLaunchDate,
+  launchOwner,
+  credentialsReceived,
+  launchNotes,
+});
               })
             }
             className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"

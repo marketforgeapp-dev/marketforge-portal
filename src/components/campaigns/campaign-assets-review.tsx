@@ -1146,6 +1146,16 @@ export function CampaignAssetsReview({
             Approve, remove, or edit each channel while viewing a high-fidelity
             preview of what the customer is actually approving.
           </p>
+                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+              Approval Required for Execution
+            </p>
+            <p className="mt-1 text-sm leading-6 text-amber-900">
+              Approve or remove every platform before moving this action into execution.
+              Only approved platforms become executable and only approved platform assets
+              are included in export packs.
+            </p>
+          </div>
         </div>
 
         {canEdit ? (

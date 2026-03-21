@@ -17,7 +17,7 @@ export default async function ExecutionPage() {
     select: { logoUrl: true, businessName: true },
   });
 
-  const campaigns = await prisma.campaign.findMany({
+      const campaigns = await prisma.campaign.findMany({
     where: {
       workspaceId: workspace.id,
     },
@@ -25,6 +25,31 @@ export default async function ExecutionPage() {
       createdAt: "desc",
     },
   });
+
+  const campaignAssets = await prisma.campaignAsset.findMany({
+    where: {
+      campaignId: {
+        in: campaigns.map((campaign) => campaign.id),
+      },
+    },
+    select: {
+      id: true,
+      campaignId: true,
+      assetType: true,
+      isApproved: true,
+    },
+  });
+
+  const campaignsWithAssets = campaigns.map((campaign) => ({
+    ...campaign,
+    campaignAssets: campaignAssets
+      .filter((asset) => asset.campaignId === campaign.id)
+      .map(({ id, assetType, isApproved }) => ({
+        id,
+        assetType,
+        isApproved,
+      })),
+  }));
 
   const approvedCount = campaigns.filter((c) => c.status === "APPROVED").length;
   const queuedCount = campaigns.filter((c) => c.status === "SCHEDULED").length;
@@ -106,7 +131,7 @@ export default async function ExecutionPage() {
             </div>
           </section>
 
-          <ExecutionBoard campaigns={campaigns} />
+                    <ExecutionBoard campaigns={campaignsWithAssets} />
         </main>
       </div>
     </div>

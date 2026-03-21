@@ -8,7 +8,6 @@ import { ensureCampaignBaselineSnapshot } from "@/lib/campaign-baseline";
 type ExecutionPatch = {
   scheduledLaunchDate?: string | null;
   launchOwner?: string | null;
-  launchPlatform?: string | null;
   credentialsReceived?: boolean;
   launchNotes?: string | null;
   approvedAssetTypes?: string[];
@@ -51,7 +50,6 @@ export async function queueCampaignWithExecutionDetails(input: {
   campaignId: string;
   scheduledLaunchDate?: string;
   launchOwner?: string;
-  launchPlatform?: string;
   credentialsReceived?: boolean;
   launchNotes?: string;
 }) {
@@ -81,7 +79,6 @@ export async function queueCampaignWithExecutionDetails(input: {
       briefJson: mergeExecutionIntoBriefJson(campaign.briefJson, {
         scheduledLaunchDate: input.scheduledLaunchDate ?? null,
         launchOwner: input.launchOwner ?? null,
-        launchPlatform: input.launchPlatform ?? null,
         credentialsReceived: input.credentialsReceived ?? false,
         launchNotes: input.launchNotes ?? null,
         approvedAssetTypes: approvedAssets.map((a) => a.assetType),

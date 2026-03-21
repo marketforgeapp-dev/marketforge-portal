@@ -1,8 +1,9 @@
-import { Campaign, Prisma } from "@/generated/prisma";
+import { Campaign, CampaignAsset, Prisma } from "@/generated/prisma";
 import { ExecutionColumn } from "./execution-column";
 
 type CampaignWithExecution = Campaign & {
   briefJson: Prisma.JsonValue | null;
+  campaignAssets: Pick<CampaignAsset, "id" | "assetType" | "isApproved">[];
 };
 
 type Props = {
