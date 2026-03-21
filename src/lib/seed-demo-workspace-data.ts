@@ -240,7 +240,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
         technicians: 4,
         jobsPerTechnicianPerDay: 3,
         weeklyCapacity: 48,
-        targetBookedJobsPerWeek: 36,
         targetWeeklyRevenue: 17100,
 
         preferredServices: [
@@ -301,7 +300,6 @@ export async function seedDemoWorkspaceData(workspaceId: string) {
         technicians: 4,
         jobsPerTechnicianPerDay: 3,
         weeklyCapacity: 48,
-        targetBookedJobsPerWeek: 36,
         targetWeeklyRevenue: 17100,
 
         preferredServices: [
