@@ -1,8 +1,11 @@
 "use client";
 
+"use client";
+
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { OnboardingFormData } from "@/types/onboarding";
+import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 import { OnboardingProgress } from "./onboarding-progress";
 import { BusinessInfoStep } from "./steps/business-info-step";
 import { ServicesStep } from "./steps/services-step";
@@ -53,8 +56,7 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   jobsPerTechnicianPerDay: 3,
   weeklyCapacity: 45,
   targetWeeklyRevenue: 12000,
-  targetBookedJobsPerWeek: null,
-
+  
   competitors: [],
 
   hasServicePages: false,
@@ -93,6 +95,7 @@ export function OnboardingFlow() {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<OnboardingFormData>(INITIAL_FORM_DATA);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showGeneratingOverlay, setShowGeneratingOverlay] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const totalSteps = STEP_LABELS.length;
@@ -235,8 +238,9 @@ export function OnboardingFlow() {
     if (!isFirstStep) setCurrentStep((prev) => prev - 1);
   };
 
-  const handleFinish = () => {
+    const handleFinish = () => {
     setSubmitError(null);
+    setShowGeneratingOverlay(true);
 
     startTransition(async () => {
       try {
@@ -250,6 +254,7 @@ export function OnboardingFlow() {
 
         if (!result?.success) {
           setSubmitError("Something went wrong while saving onboarding.");
+          setShowGeneratingOverlay(false);
           return;
         }
 
@@ -257,12 +262,14 @@ export function OnboardingFlow() {
       } catch (error) {
         console.error(error);
         setSubmitError("Something went wrong while saving onboarding.");
+        setShowGeneratingOverlay(false);
       }
     });
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 px-6 py-10">
+    return (
+    <>
+      <div className="min-h-screen bg-slate-950 px-6 py-10">
       <div className="mx-auto max-w-5xl">
         <OnboardingTopbar />
 
@@ -365,7 +372,13 @@ export function OnboardingFlow() {
             )}
           </div>
         </div>
-      </div>
+            </div>
     </div>
+
+    <SystemStatusOverlay
+      mode="generating"
+      visible={showGeneratingOverlay}
+    />
+  </>
   );
 }

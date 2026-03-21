@@ -107,7 +107,6 @@ model BusinessProfile {
   technicians             Int?
   jobsPerTechnicianPerDay Int?
   weeklyCapacity          Int?
-  targetBookedJobsPerWeek Int?
   targetWeeklyRevenue     Decimal? @db.Decimal(10, 2)
 
   preferredServices     String[]

@@ -8,12 +8,16 @@ type Props = {
   opportunityKey: string;
   linkedCampaignId?: string | null;
   className?: string;
+  onStart?: () => void;
+  onError?: () => void;
 };
 
 export function ActionLaunchButton({
   opportunityKey,
   linkedCampaignId,
   className,
+  onStart,
+  onError,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -22,25 +26,32 @@ export function ActionLaunchButton({
     <button
       type="button"
       disabled={isPending}
-      onClick={() =>
+      onClick={() => {
+        onStart?.();
+
         startTransition(async () => {
-          if (linkedCampaignId) {
-            router.push(`/campaigns/${linkedCampaignId}`);
-            return;
-          }
+          try {
+            if (linkedCampaignId) {
+              router.push(`/campaigns/${linkedCampaignId}`);
+              return;
+            }
 
-          const result = await createCampaignFromOpportunity(opportunityKey);
+            const result = await createCampaignFromOpportunity(opportunityKey);
 
-          if (result.success) {
-            router.push(`/campaigns/${result.campaignId}`);
+            if (result.success) {
+              router.push(`/campaigns/${result.campaignId}`);
+            } else {
+              onError?.();
+            }
+          } catch (error) {
+            console.error(error);
+            onError?.();
           }
-        })
-      }
+        });
+      }}
       className={className}
     >
-      {isPending
-        ? "Opening..."
-        : "Review Action"}
+      {isPending ? "Opening..." : "Review Action"}
     </button>
   );
 }

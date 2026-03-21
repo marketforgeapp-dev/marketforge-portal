@@ -42,8 +42,7 @@ type RawSettingsInput = {
   jobsPerTechnicianPerDay?: unknown;
   weeklyCapacity?: unknown;
   targetWeeklyRevenue?: unknown;
-  targetBookedJobsPerWeek?: unknown;
-
+  
   competitors?: unknown;
 
   hasServicePages?: unknown;
@@ -227,8 +226,7 @@ function normalizeSettingsInput(input: unknown) {
     jobsPerTechnicianPerDay: toNumberOrNull(raw.jobsPerTechnicianPerDay),
     weeklyCapacity: toNumberOrNull(raw.weeklyCapacity),
     targetWeeklyRevenue: toNumberOrNull(raw.targetWeeklyRevenue),
-    targetBookedJobsPerWeek: toNumberOrNull(raw.targetBookedJobsPerWeek),
-
+    
     competitors: normalizeCompetitors(raw.competitors),
 
     hasServicePages: toBoolean(raw.hasServicePages),
@@ -339,8 +337,7 @@ export async function saveSettings(input: unknown) {
     technicians: values.technicians,
     jobsPerTechnicianPerDay: values.jobsPerTechnicianPerDay,
     weeklyCapacity: values.weeklyCapacity,
-    targetBookedJobsPerWeek: values.targetBookedJobsPerWeek,
-
+    
     preferredServices,
     deprioritizedServices,
 

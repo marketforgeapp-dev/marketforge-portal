@@ -1,8 +1,12 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { RevenueOpportunityHero } from "@/lib/revenue-opportunity-engine";
 import { getActionImage } from "@/lib/action-imagery";
 import { ActionLaunchButton } from "@/components/campaigns/action-launch-button";
+import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 
 type HeroCampaignData = {
   id: string;
@@ -81,6 +85,7 @@ function getStatusLabel(heroCampaign: HeroCampaignData) {
 
 export function TopCommandBand({ hero, heroCampaign, logoUrl }: Props) {
   const brief = getBriefData(heroCampaign?.briefJson);
+    const [showGeneratingOverlay, setShowGeneratingOverlay] = useState(false);
 
   const offerText =
     heroCampaign?.offer ??
@@ -105,177 +110,186 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl }: Props) {
     logoUrl,
   });
   return (
-    <section className="mf-card mf-card-highlight rounded-3xl p-4 md:p-5">
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#B07A12]">
-              Top Priority Action
-            </p>
-
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-            MarketForge Action Score {hero.rawOpportunityScore}
-            </span>
-
-            <span className="rounded-full bg-white/70 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
-              {getStatusLabel(heroCampaign)}
-            </span>
-          </div>
-
-          <div>
-            <p className="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
-              {hero.displayMoveLabel}
-            </p>
-
-            <p className="mt-1.5 text-base text-gray-700 md:text-lg">
-              {hero.displaySummary}
-            </p>
-
-            <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <p className="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
-                {hero.jobsLow}–{hero.jobsHigh} Jobs
+        <>
+      <section className="mf-card mf-card-highlight rounded-3xl p-4 md:p-5">
+        <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#B07A12]">
+                Top Priority Action
               </p>
 
-              <p className="text-base font-semibold text-gray-700">
-                • {formatCurrencyRange(hero.revenueLow, hero.revenueHigh)}
-              </p>
-            </div>
-          </div>
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                MarketForge Action Score {hero.rawOpportunityScore}
+              </span>
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-              Why Now
-            </p>
-
-            <ul className="mt-2 space-y-1.5 text-sm leading-5 text-gray-800">
-              {hero.whyNowBullets.slice(0, 3).map((bullet) => (
-                <li key={bullet} className="flex gap-2">
-                  <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                  <span>{bullet}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                Urgency
-              </p>
-              <p className="mt-1 text-sm font-semibold text-gray-900">
-                {hero.urgencyRelevance}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                Intent
-              </p>
-              <p className="mt-1 text-sm font-semibold text-gray-900">
-                {hero.homeownerIntentStrength}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                Capacity
-              </p>
-              <p className="mt-1 text-sm font-semibold text-gray-900">
-                {hero.capacityFit}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                Action Type
-              </p>
-              <p className="mt-1 text-sm font-semibold text-gray-900">
-                {formatActionFraming(hero.actionFraming)}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <ActionLaunchButton
-              opportunityKey={hero.opportunityKey}
-              linkedCampaignId={heroCampaign?.id}
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                Execution Package
-              </p>
-
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
-                {heroCampaign?.assets.length ?? 0} assets
+              <span className="rounded-full bg-white/70 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
+                {getStatusLabel(heroCampaign)}
               </span>
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <div className="relative aspect-[4/3]">
-  {image.src.startsWith("http") ? (
-    <img src={image.src} alt={image.alt} className="h-full w-full object-cover" />
-  ) : (
-    <Image src={image.src} alt={image.alt} fill className="object-cover" />
-  )}
-  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-  <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-                  <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
-                    Launch-Ready
-                  </span>
-                  <p className="mt-3 max-w-[16rem] text-lg font-semibold leading-tight">
-                    {hero.displayMoveLabel}
-                  </p>
-                  <p className="mt-2 max-w-[17rem] text-sm leading-5 text-white/90">
-                    {brief?.actionThesis?.summary ?? hero.displaySummary}
-                  </p>
-                  <div className="pt-3">
-                    <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
-                      {heroCampaign ? ctaText : "Ready to Generate"}
+            <div>
+              <p className="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
+                {hero.displayMoveLabel}
+              </p>
+
+              <p className="mt-1.5 text-base text-gray-700 md:text-lg">
+                {hero.displaySummary}
+              </p>
+
+              <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p className="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
+                  {hero.jobsLow}–{hero.jobsHigh} Jobs
+                </p>
+
+                <p className="text-base font-semibold text-gray-700">
+                  • {formatCurrencyRange(hero.revenueLow, hero.revenueHigh)}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                Why Now
+              </p>
+
+              <ul className="mt-2 space-y-1.5 text-sm leading-5 text-gray-800">
+                {hero.whyNowBullets.slice(0, 3).map((bullet) => (
+                  <li key={bullet} className="flex gap-2">
+                    <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                    <span>{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  Urgency
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">
+                  {hero.urgencyRelevance}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  Intent
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">
+                  {hero.homeownerIntentStrength}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  Capacity
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">
+                  {hero.capacityFit}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  Action Type
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">
+                  {formatActionFraming(hero.actionFraming)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <ActionLaunchButton
+                opportunityKey={hero.opportunityKey}
+                linkedCampaignId={heroCampaign?.id}
+                onStart={() => setShowGeneratingOverlay(true)}
+                onError={() => setShowGeneratingOverlay(false)}
+                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                  Execution Package
+                </p>
+
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
+                  {heroCampaign?.assets.length ?? 0} assets
+                </span>
+              </div>
+
+              <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="relative aspect-[4/3]">
+                  {image.src.startsWith("http") ? (
+                    <img src={image.src} alt={image.alt} className="h-full w-full object-cover" />
+                  ) : (
+                    <Image src={image.src} alt={image.alt} fill className="object-cover" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">
+                      Launch-Ready
                     </span>
+                    <p className="mt-3 max-w-[16rem] text-lg font-semibold leading-tight">
+                      {hero.displayMoveLabel}
+                    </p>
+                    <p className="mt-2 max-w-[17rem] text-sm leading-5 text-white/90">
+                      {brief?.actionThesis?.summary ?? hero.displaySummary}
+                    </p>
+                    <div className="pt-3">
+                      <span className="inline-flex rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-900">
+                        {heroCampaign ? ctaText : "Ready to Generate"}
+                      </span>
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl bg-gray-50 p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                    Offer
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-gray-900">
+                    {offerText}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-gray-50 p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                    Audience
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-gray-900">
+                    {audienceText}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <div className="rounded-xl bg-gray-50 p-3">
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                  Offer
-                </p>
-                <p className="mt-1 text-sm font-medium text-gray-900">
-                  {offerText}
-                </p>
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3.5 shadow-sm">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                Intelligence Readout
+              </p>
+              <div className="mt-2 space-y-1.5 text-sm leading-5 text-gray-700">
+                <p>{hero.seasonalityReason}</p>
+                <p>{hero.homeownerIntentReason}</p>
+                <p>{hero.actionFramingReason}</p>
               </div>
-
-              <div className="rounded-xl bg-gray-50 p-3">
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                  Audience
-                </p>
-                <p className="mt-1 text-sm font-medium text-gray-900">
-                  {audienceText}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3.5 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-              Intelligence Readout
-            </p>
-            <div className="mt-2 space-y-1.5 text-sm leading-5 text-gray-700">
-              <p>{hero.seasonalityReason}</p>
-              <p>{hero.homeownerIntentReason}</p>
-              <p>{hero.actionFramingReason}</p>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <SystemStatusOverlay
+        mode="generating"
+        visible={showGeneratingOverlay}
+      />
+    </>
   );
 }

@@ -242,7 +242,6 @@ export async function getOpportunitySignalEnrichment(params: {
     | "aeoReadinessScore"
     | "technicians"
     | "weeklyCapacity"
-    | "targetBookedJobsPerWeek"
   >;
   serviceNames: string[];
 }): Promise<Map<string, OpportunitySignalEnrichment>> {
@@ -288,7 +287,6 @@ export async function getOpportunitySignalEnrichment(params: {
                 highestMarginService: profile.highestMarginService,
                 technicians: profile.technicians,
                 weeklyCapacity: profile.weeklyCapacity,
-                targetBookedJobsPerWeek: profile.targetBookedJobsPerWeek,
                 hasFaqContent: profile.hasFaqContent,
                 hasServicePages: profile.hasServicePages,
                 hasGoogleBusinessPage: profile.hasGoogleBusinessPage,

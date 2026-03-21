@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { OnboardingFormData } from "@/types/onboarding";
 import { saveSettings } from "@/app/settings/actions";
+import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 
 type Props = {
   workspaceName: string;
@@ -167,6 +168,7 @@ export function SettingsForm({
 
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showRefreshingOverlay, setShowRefreshingOverlay] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [preferredServicesInput, setPreferredServicesInput] = useState(() =>
     arrayToCommaSeparated(initialData.preferredServices ?? [])
@@ -342,9 +344,10 @@ export function SettingsForm({
     });
   }
 
-  function handleSave() {
+    function handleSave() {
     setSaveMessage(null);
     setSaveError(null);
+    setShowRefreshingOverlay(true);
 
     startTransition(async () => {
       try {
@@ -363,6 +366,7 @@ export function SettingsForm({
 
         if (!result?.success) {
           setSaveError("Something went wrong while saving settings.");
+          setShowRefreshingOverlay(false);
           return;
         }
 
@@ -372,11 +376,13 @@ export function SettingsForm({
       } catch (error) {
         console.error(error);
         setSaveError("Something went wrong while saving settings.");
+        setShowRefreshingOverlay(false);
       }
     });
   }
 
   return (
+    <>
     <div className="space-y-6">
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
@@ -466,8 +472,8 @@ export function SettingsForm({
         <h2 className="text-xl font-bold text-gray-900">Business Profile</h2>
             <SectionSaveButton onSave={handleSave} isPending={isPending} />
         <p className="mt-1 text-sm text-gray-600">
-  These details define how MarketForge understands your business and local market.
-</p>
+          These details define how MarketForge understands your business and local market.
+        </p>
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Business Name">
             <input
@@ -663,20 +669,6 @@ export function SettingsForm({
               }
             />
           </Field>
-
-          <Field label="Target Booked Jobs per Week">
-            <input
-              type="number"
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-              value={formData.targetBookedJobsPerWeek ?? ""}
-              onChange={(e) =>
-                updateField(
-                  "targetBookedJobsPerWeek",
-                  e.target.value === "" ? null : Number(e.target.value)
-                )
-              }
-            />
-          </Field>
         </div>
       </section>
 
@@ -686,10 +678,10 @@ export function SettingsForm({
             <h2 className="text-xl font-bold text-gray-900">Service Pricing</h2>
                 <SectionSaveButton onSave={handleSave} isPending={isPending} />
             <p className="mt-1 text-sm text-gray-600">
-  Set average revenue by service so MarketForge can calculate realistic
-  opportunity value. If a service does not have a specific price,
-  the system falls back to your average job value.
-</p>
+                Set average revenue by service so MarketForge can calculate realistic
+                opportunity value. If a service does not have a specific price,
+                the system falls back to your average job value.
+            </p>
           </div>
 
           <button
@@ -1038,5 +1030,10 @@ export function SettingsForm({
         </button>
       </div>
     </div>
-  );
+    <SystemStatusOverlay
+      mode="refreshing"
+      visible={showRefreshingOverlay}
+    />
+  </>
+);
 }

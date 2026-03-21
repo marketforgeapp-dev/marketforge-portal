@@ -36,8 +36,7 @@ export type OnboardingFormData = {
   jobsPerTechnicianPerDay: number | "";
   weeklyCapacity: number | "";
   targetWeeklyRevenue: number | "";
-  targetBookedJobsPerWeek: number | "" | null;
-
+  
   competitors: CompetitorInput[];
 
   hasServicePages: boolean;

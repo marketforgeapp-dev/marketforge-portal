@@ -1,7 +1,11 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import { SelectedOpportunity } from "@/lib/select-revenue-opportunities";
 import { getActionImage } from "@/lib/action-imagery";
 import { ActionLaunchButton } from "@/components/campaigns/action-launch-button";
+import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 
 type Props = {
   opportunities: SelectedOpportunity[];
@@ -94,6 +98,7 @@ function OpportunityPreviewTile({
 }
 
 export function OpportunitiesGrid({ opportunities, logoUrl }: Props) {
+    const [showGeneratingOverlay, setShowGeneratingOverlay] = useState(false);
   if (opportunities.length === 0) {
     return (
       <div className="mf-card rounded-3xl p-5">
@@ -108,111 +113,120 @@ export function OpportunitiesGrid({ opportunities, logoUrl }: Props) {
     );
   }
 
-  return (
-    <div className="grid gap-4">
-      {opportunities.map((opportunity, index) => (
-        <section
-          key={opportunity.opportunityKey}
-          className="mf-card rounded-3xl p-4 md:p-5"
-        >
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-gray-900 px-2.5 py-1 text-[10px] font-semibold text-white">
-                  #{index + 1} Next Best Action
-                </span>
+    return (
+    <>
+      <div className="grid gap-4">
+        {opportunities.map((opportunity, index) => (
+          <section
+            key={opportunity.opportunityKey}
+            className="mf-card rounded-3xl p-4 md:p-5"
+          >
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-gray-900 px-2.5 py-1 text-[10px] font-semibold text-white">
+                    #{index + 1} Next Best Action
+                  </span>
 
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B07A12]">
-                  {getOpportunityLabel(opportunity.opportunityType)}
-                </span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B07A12]">
+                    {getOpportunityLabel(opportunity.opportunityType)}
+                  </span>
 
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-                MarketForge Action Score {opportunity.rawOpportunityScore}
-                </span>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                    MarketForge Action Score {opportunity.rawOpportunityScore}
+                  </span>
 
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
-                  {getStatusLabel(opportunity)}
-                </span>
-              </div>
+                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
+                    {getStatusLabel(opportunity)}
+                  </span>
+                </div>
 
-              <div>
-                <p className="text-xl font-bold tracking-tight text-gray-900">
-                  {opportunity.displayMoveLabel}
-                </p>
-
-                <p className="mt-1 text-base text-gray-700">
-                  {opportunity.displaySummary}
-                </p>
-
-                <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <p className="text-xl font-bold text-gray-900">
-                    {opportunity.jobsLow}–{opportunity.jobsHigh} Jobs
+                <div>
+                  <p className="text-xl font-bold tracking-tight text-gray-900">
+                    {opportunity.displayMoveLabel}
                   </p>
 
-                  <p className="text-base font-semibold text-gray-700">
-                    • ${opportunity.revenueLow.toLocaleString()}–$
-                    {opportunity.revenueHigh.toLocaleString()}
+                  <p className="mt-1 text-base text-gray-700">
+                    {opportunity.displaySummary}
                   </p>
+
+                  <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <p className="text-xl font-bold text-gray-900">
+                      {opportunity.jobsLow}–{opportunity.jobsHigh} Jobs
+                    </p>
+
+                    <p className="text-base font-semibold text-gray-700">
+                      • ${opportunity.revenueLow.toLocaleString()}–$
+                      {opportunity.revenueHigh.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                    Why Now
+                  </p>
+
+                  <ul className="mt-2 space-y-1 text-sm text-gray-800">
+                    {opportunity.whyNowBullets.slice(0, 3).map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Urgency
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {opportunity.urgencyRelevance}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Intent
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {opportunity.homeownerIntentStrength}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Action Type
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatActionType(opportunity.actionFraming)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <ActionLaunchButton
+                    opportunityKey={opportunity.opportunityKey}
+                    linkedCampaignId={opportunity.linkedCampaignId}
+                    onStart={() => setShowGeneratingOverlay(true)}
+                    onError={() => setShowGeneratingOverlay(false)}
+                    className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                  Why Now
-                </p>
-
-                <ul className="mt-2 space-y-1 text-sm text-gray-800">
-                  {opportunity.whyNowBullets.slice(0, 3).map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-gray-200 bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                    Urgency
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">
-                    {opportunity.urgencyRelevance}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-gray-200 bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                    Intent
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">
-                    {opportunity.homeownerIntentStrength}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-gray-200 bg-white p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                    Action Type
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">
-                    {formatActionType(opportunity.actionFraming)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <ActionLaunchButton
-                  opportunityKey={opportunity.opportunityKey}
-                  linkedCampaignId={opportunity.linkedCampaignId}
-                  className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                />
-              </div>
+              <OpportunityPreviewTile opportunity={opportunity} logoUrl={logoUrl} />
             </div>
+          </section>
+        ))}
+      </div>
 
-            <OpportunityPreviewTile opportunity={opportunity} logoUrl={logoUrl} />
-          </div>
-        </section>
-      ))}
-    </div>
+      <SystemStatusOverlay
+        mode="generating"
+        visible={showGeneratingOverlay}
+      />
+    </>
   );
 }

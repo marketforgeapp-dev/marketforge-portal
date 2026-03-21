@@ -61,8 +61,7 @@ export const onboardingSchema = z.object({
   technicians: nullableNumber,
   jobsPerTechnicianPerDay: nullableNumber,
   weeklyCapacity: nullableNumber,
-  targetBookedJobsPerWeek: nullableNumber,
-
+  
   preferredServices: stringArray,
   primaryServices: stringArray,
   deprioritizedServices: stringArray,

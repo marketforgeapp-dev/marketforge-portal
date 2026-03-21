@@ -76,8 +76,7 @@ export default async function SettingsPage() {
     targetWeeklyRevenue: toFormNumber(
       profile.targetWeeklyRevenue ? Number(profile.targetWeeklyRevenue) : null
     ),
-    targetBookedJobsPerWeek: profile.targetBookedJobsPerWeek ?? null,
-
+    
     competitors: fullWorkspace.competitors.map((competitor) => ({
       name: competitor.name ?? "",
       websiteUrl: competitor.websiteUrl ?? "",

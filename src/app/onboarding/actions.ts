@@ -210,9 +210,7 @@ export async function saveOnboarding(input: unknown) {
     toNullableString(values.slowSeason) ??
     (slowMonths.length > 0 ? slowMonths.join(", ") : null);
 
-  const targetBookedJobsPerWeek =
-    toNumberOrNull(values.targetBookedJobsPerWeek) ?? null;
-    const hasFaqContent = values.hasFaqContent || values.hasFaqPage || false;
+  const hasFaqContent = values.hasFaqContent || values.hasFaqPage || false;
   const hasGoogleBusinessPage = values.hasGoogleBusinessPage || false;
   const hasServicePages = values.hasServicePages || false;
   const servicePageUrls = cleanStringArray(values.servicePageUrls);
@@ -247,8 +245,7 @@ export async function saveOnboarding(input: unknown) {
     technicians: toNumberOrNull(values.technicians),
     jobsPerTechnicianPerDay: toNumberOrNull(values.jobsPerTechnicianPerDay),
     weeklyCapacity: toNumberOrNull(values.weeklyCapacity),
-    targetBookedJobsPerWeek,
-
+    
     preferredServices,
     deprioritizedServices,
 

@@ -256,17 +256,7 @@ function inferCapacity(profile: BusinessProfile): {
     };
   }
 
-  const targetBookedJobs = profile.targetBookedJobsPerWeek;
-  let availableJobsEstimate = 0;
-
-  if (
-    typeof targetBookedJobs === "number" &&
-    Number.isFinite(targetBookedJobs)
-  ) {
-    availableJobsEstimate = Math.max(weeklyCapacity - targetBookedJobs, 0);
-  } else {
-    availableJobsEstimate = Math.max(Math.round(weeklyCapacity * 0.18), 2);
-  }
+    let availableJobsEstimate = Math.max(Math.round(weeklyCapacity * 0.18), 2);
 
   availableJobsEstimate = clamp(availableJobsEstimate, 1, 10);
 
@@ -300,7 +290,6 @@ function inferConfidence(profile: BusinessProfile, competitors: Competitor[]) {
   if (profile.technicians) score += 6;
   if (profile.jobsPerTechnicianPerDay) score += 6;
   if (profile.weeklyCapacity) score += 6;
-  if (profile.targetBookedJobsPerWeek) score += 5;
   if ((profile.preferredServices?.length ?? 0) >= 3) score += 6;
   if ((profile.servicePageUrls?.length ?? 0) >= 3) score += 5;
   if (competitors.length >= 3) score += 8;
@@ -1487,7 +1476,7 @@ export async function buildRevenueOpportunityEngine(params: {
       aeoReadinessScore: profile.aeoReadinessScore,
       technicians: profile.technicians,
       weeklyCapacity: profile.weeklyCapacity,
-      targetBookedJobsPerWeek: profile.targetBookedJobsPerWeek,
+  
     },
     serviceNames: enrichmentRequestNames,
   });
