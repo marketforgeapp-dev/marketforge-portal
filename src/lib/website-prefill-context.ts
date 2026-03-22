@@ -97,6 +97,57 @@ function absolutizeUrl(href: string, baseUrl: string): string | null {
   }
 }
 
+function isBadLogoCandidate(url: string): boolean {
+  const lower = url.toLowerCase();
+
+  return (
+    lower.includes("/video") ||
+    lower.includes("/videos") ||
+    lower.includes(".mp4") ||
+    lower.includes(".mov") ||
+    lower.includes(".webm") ||
+    lower.includes("youtube") ||
+    lower.includes("vimeo") ||
+    lower.includes("bbb") ||
+    lower.includes("better-business-bureau") ||
+    lower.includes("accredited-business") ||
+    lower.includes("badge") ||
+    lower.includes("seal") ||
+    lower.includes("award") ||
+    lower.includes("review-badge") ||
+    lower.includes("google-review") ||
+    lower.includes("google_logo") ||
+    lower.includes("google-logo") ||
+    lower.includes("googlelogo") ||
+    lower.includes("stars") ||
+    lower.includes("rating") ||
+    lower.includes("testimonial")
+  );
+}
+
+function scorePreferredLogoCandidate(url: string): number {
+  const lower = url.toLowerCase();
+  let score = 0;
+
+  if (isBadLogoCandidate(lower)) return -100;
+
+  if (lower.includes("logo")) score += 80;
+  if (lower.includes("brand")) score += 20;
+
+  if (lower.endsWith(".svg")) score += 30;
+  if (lower.endsWith(".png")) score += 24;
+  if (lower.endsWith(".webp")) score += 10;
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) score -= 10;
+
+  // Important for GoDaddy / wsimg logos
+  if (lower.includes("blob-")) score += 40;
+  if (lower.includes("img1.wsimg.com")) score += 20;
+  if (lower.includes("rs=w:99") || lower.includes("rs=h:99")) score += 10;
+  if (lower.includes("cg:true")) score += 6;
+
+  return score;
+}
+
 function looksLikeBadgeOrTrustAsset(url: string): boolean {
   const lower = url.toLowerCase();
 
@@ -207,7 +258,10 @@ function extractLogoCandidates(html: string, baseUrl: string): string[] {
   const addCandidate = (url: string | null, isStrongTagMatch: boolean) => {
     if (!url) return;
 
-    const lowerSrc = url.toLowerCase();
+    const absolute = absolutizeUrl(url, baseUrl);
+    if (!absolute) return;
+
+    const lowerSrc = absolute.toLowerCase();
 
     const isWeakIcon =
       lowerSrc.includes("favicon") ||
@@ -218,13 +272,16 @@ function extractLogoCandidates(html: string, baseUrl: string): string[] {
       lowerSrc.includes("/icons/");
 
     if (isWeakIcon) return;
+    if (isBadLogoCandidate(lowerSrc)) return;
     if (looksLikeBadgeOrTrustAsset(lowerSrc)) return;
 
-    const score = scoreLogoCandidate(url, isStrongTagMatch);
-    const existing = candidates.get(url) ?? Number.NEGATIVE_INFINITY;
+    let score = scoreLogoCandidate(absolute, isStrongTagMatch);
+    score += scorePreferredLogoCandidate(absolute);
+
+    const existing = candidates.get(absolute) ?? Number.NEGATIVE_INFINITY;
 
     if (score > existing) {
-      candidates.set(url, score);
+      candidates.set(absolute, score);
     }
   };
 
@@ -246,16 +303,31 @@ function extractLogoCandidates(html: string, baseUrl: string): string[] {
       tag.match(/\sdata-src=["']([^"']+)["']/i);
 
     if (srcMatch?.[1]) {
-      const absolute = absolutizeUrl(srcMatch[1], baseUrl);
-      addCandidate(absolute, looksLikeLogoTag || looksLikeLogoFile(absolute ?? ""));
+      addCandidate(srcMatch[1], looksLikeLogoTag);
     }
 
     const srcsetMatch = tag.match(/\ssrcset=["']([^"']+)["']/i);
     if (srcsetMatch?.[1]) {
-      const firstSrcsetUrl = srcsetMatch[1].split(",")[0]?.trim().split(" ")[0];
-      if (firstSrcsetUrl) {
-        const absolute = absolutizeUrl(firstSrcsetUrl, baseUrl);
-        addCandidate(absolute, looksLikeLogoTag || looksLikeLogoFile(absolute ?? ""));
+      const srcsetValue = srcsetMatch[1].trim();
+
+      // Critical fix for GoDaddy / wsimg URLs:
+      // these URLs contain commas inside the URL itself, so naive .split(",")
+      // breaks them into junk fragments.
+      const wsimgMatch = srcsetValue.match(
+        /https:\/\/img1\.wsimg\.com\/[^"']+/i
+      );
+
+      if (wsimgMatch?.[0]) {
+        addCandidate(wsimgMatch[0], looksLikeLogoTag);
+      } else {
+        const srcsetUrls = srcsetValue
+          .split(",")
+          .map((part) => part.trim().split(" ")[0])
+          .filter(Boolean);
+
+        for (const srcsetUrl of srcsetUrls) {
+          addCandidate(srcsetUrl, looksLikeLogoTag);
+        }
       }
     }
   }
@@ -273,17 +345,19 @@ function extractLogoCandidates(html: string, baseUrl: string): string[] {
   ];
 
   for (const match of metaImageMatches) {
-    const absolute = absolutizeUrl(match[1] ?? "", baseUrl);
-    if (!absolute) continue;
+    const metaUrl = match[1] ?? "";
+    if (!metaUrl) continue;
 
-    // Meta images are fallback-only and should only survive if they actually
-    // look like a logo asset.
+    // Meta images should only survive if they actually look logo-like.
+    const absolute = absolutizeUrl(metaUrl, baseUrl);
+    if (!absolute) continue;
     if (!looksLikeLogoFile(absolute)) continue;
 
     addCandidate(absolute, false);
   }
 
   return Array.from(candidates.entries())
+    .filter(([url]) => !isBadLogoCandidate(url))
     .sort((a, b) => b[1] - a[1])
     .map(([url]) => url);
 }

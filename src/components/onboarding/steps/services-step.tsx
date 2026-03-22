@@ -126,7 +126,7 @@ export function ServicesStep({ formData, setFormData }: Props) {
           </p>
         </Field>
 
-        <Field label="Highest Margin Service">
+        <Field label="Highest Priority Service">
           <input
             className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
             value={formData.highestMarginService}

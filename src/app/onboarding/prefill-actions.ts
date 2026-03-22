@@ -389,7 +389,7 @@ Return best-effort onboarding suggestions for MarketForge.
 
         const mergedCompetitors =
       competitorCandidates.length > 0
-        ? competitorCandidates.slice(0, 5).map((candidate) => ({
+        ? competitorCandidates.slice(0, 10).map((candidate) => ({
             name: candidate.name,
             websiteUrl: candidate.websiteUrl,
             googleBusinessUrl: candidate.googleBusinessUrl,
