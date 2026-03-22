@@ -149,7 +149,7 @@ export function OnboardingFlow() {
 
         competitors:
           prefill.competitors.length > 0
-            ? prefill.competitors.slice(0, 5).map((competitor, index) => ({
+            ? prefill.competitors.slice(0, 10).map((competitor, index) => ({
                 name: competitor.name,
                 websiteUrl: competitor.websiteUrl ?? "",
                 googleBusinessUrl: competitor.googleBusinessUrl ?? "",
