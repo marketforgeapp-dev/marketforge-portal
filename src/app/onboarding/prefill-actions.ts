@@ -209,7 +209,13 @@ export async function generateOnboardingPrefill(input: {
       serviceArea: websiteContext?.address ?? null,
       website,
     });
-
+        console.info("Resolved competitor discovery iputs", {
+          companyName,
+          industry: inferredIndustry,
+          city: resolvedCity,
+          state: resolvedState,
+          serviceArea: websiteContext?.address ?? null,
+        })
         console.info("Onboarding competitor discovery", {
       companyName,
       website,
