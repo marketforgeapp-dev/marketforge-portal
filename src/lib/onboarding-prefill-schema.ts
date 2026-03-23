@@ -34,7 +34,7 @@ export const onboardingPrefillSchema = z.object({
         phone: z.string().nullable().optional(),
       })
     )
-    .max(5)
+    .max(10)
     .default([]),
 });
 
