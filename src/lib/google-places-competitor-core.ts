@@ -1440,6 +1440,9 @@ export async function lookupSingleCompetitorCore(input: {
 export async function discoverLocalCompetitorsCore(
   input: DiscoverCompetitorsInput
 ): Promise<CompetitorCandidate[]> {
+  console.info("Google Maps key fingerprint", {
+    keyPrefix: process.env.GOOGLE_MAPS_API_KEY?.slice(0,12) ?? null,
+  })
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
   if (!apiKey) {
