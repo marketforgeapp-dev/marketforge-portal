@@ -1451,6 +1451,9 @@ export async function discoverLocalCompetitorsCore(
 
   const origin = await resolveSearchOrigin(apiKey, input);
   const passes = buildSearchPasses(input);
+  console.info("Competitor engine fignerprint", {
+      version: "2026-03-23-local-bias-radis-50000",
+  })
 
   const collected = new Map<string, RawPlaceCandidate>();
   const rejectionStats = {
