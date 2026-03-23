@@ -375,6 +375,8 @@ function getIndustryConfig(
         "arborist",
         "landscaping",
         "roofing",
+        "heating",
+        "air",
       ],
       websiteTerms: [
         "plumbing",
@@ -455,6 +457,7 @@ function getIndustryConfig(
     return {
       broadQueries: [
         "tree service",
+        "tree expert",
         "tree company",
         "tree removal company",
         "local tree service",
@@ -476,6 +479,7 @@ function getIndustryConfig(
         "arborist",
         "lot clearing",
         "storm cleanup",
+        "tree expert",
       ],
       negativeTerms: [
         "septic",
@@ -483,6 +487,17 @@ function getIndustryConfig(
         "hvac",
         "heating",
         "air conditioning",
+        "landscap",
+        "lawn care",
+        "lawn service",
+        "yeard maintenance",
+        "grass cutting",
+        "fertilization",
+        "weed control",
+        "mulch",
+        "sod",
+        "irrigation",
+        "hardscape",
       ],
       websiteTerms: [
         "tree service",
@@ -670,6 +685,24 @@ function getIndustryEvidenceScore(params: {
   // Critical: septic must not drift into pure plumbing.
   if (params.industry === "SEPTIC" && blob.includes("plumber")) {
     score -= 20;
+  }
+  if (
+    params.industry === "TREE_SERVICE" &&
+    (
+      blob.includes("landscap") ||
+      blob.includes("lawn care") ||
+      blob.includes("lawn service") ||
+      blob.includes("yard maintenance") ||
+      blob.includes("grass cutting") ||
+      blob.includes("fertilization") ||
+      blob.includes("weed control") ||
+      blob.includes("mulch") ||
+      blob.includes("sod") ||
+      blob.includes("irrigation") ||
+      blob.includes("hardscape")
+  )
+) {
+  score -=40;
   }
 
   return score;

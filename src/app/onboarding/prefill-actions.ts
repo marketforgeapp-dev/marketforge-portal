@@ -7,6 +7,7 @@ import {
   type OnboardingPrefillResult,
 } from "@/lib/onboarding-prefill-schema";
 import { getWebsitePrefillContext } from "@/lib/website-prefill-context";
+import { resolveBusinessLocation } from "@/lib/business-location-resolution";
 import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
 import {
   inferGoogleVisibilitySignals,
@@ -25,15 +26,6 @@ type PrefillResponse =
       success: false;
       error: string;
     };
-
-type GooglePlacesBusinessLookupResponse = {
-  places?: Array<{
-    id?: string;
-    displayName?: { text?: string };
-    websiteUri?: string;
-    googleMapsUri?: string;
-  }>;
-};
 
 function normalizeWebsite(input: string): string | null {
   const trimmed = input.trim();
@@ -109,63 +101,6 @@ function normalizeDomain(url: string | null | undefined): string | null {
   }
 }
 
-async function lookupBusinessGoogleBusinessProfile(input: {
-  companyName: string;
-  website: string;
-  city?: string | null;
-  state?: string | null;
-}): Promise<string | null> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return null;
-
-  const location = [input.city, input.state].filter(Boolean).join(", ").trim();
-  const query = location ? `${input.companyName} ${location}` : input.companyName;
-
-  const response = await fetch(
-    "https://places.googleapis.com/v1/places:searchText",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask":
-          "places.id,places.displayName,places.websiteUri,places.googleMapsUri",
-      },
-      body: JSON.stringify({
-        textQuery: query,
-        pageSize: 5,
-        languageCode: "en",
-        regionCode: "US",
-      }),
-      cache: "no-store",
-    }
-  );
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = (await response.json()) as GooglePlacesBusinessLookupResponse;
-  const places = data.places ?? [];
-  const businessDomain = normalizeDomain(input.website);
-
-  const matchingPlace =
-    places.find((place) => {
-      const placeDomain = normalizeDomain(place.websiteUri ?? null);
-
-      if (businessDomain && placeDomain && businessDomain === placeDomain) {
-        return true;
-      }
-
-      const placeName = place.displayName?.text?.trim().toLowerCase() ?? "";
-      const companyName = input.companyName.trim().toLowerCase();
-
-      return placeName === companyName;
-    }) ?? null;
-
-  return cleanString(matchingPlace?.googleMapsUri) ?? null;
-}
-
 export async function generateOnboardingPrefill(input: {
   companyName: string;
   website: string;
@@ -182,6 +117,31 @@ export async function generateOnboardingPrefill(input: {
 
   try {
     const websiteContext = await getWebsitePrefillContext(website);
+
+        const resolvedLocation = await resolveBusinessLocation({
+      companyName,
+      website,
+      websiteContext,
+    });
+
+    console.info("Onboarding business location resolution", {
+      companyName,
+      website,
+      websiteAddress: resolvedLocation.websiteAddress,
+      websiteCity: resolvedLocation.websiteCity,
+      websiteState: resolvedLocation.websiteState,
+      googlePlaceAddress: resolvedLocation.googlePlaceAddress,
+      googlePlaceCity: resolvedLocation.googlePlaceCity,
+      googlePlaceState: resolvedLocation.googlePlaceState,
+      googlePlaceLocation: resolvedLocation.googlePlaceLocation,
+      resolvedAddress: resolvedLocation.resolvedAddress,
+      resolvedCity: resolvedLocation.resolvedCity,
+      resolvedState: resolvedLocation.resolvedState,
+      addressSource: resolvedLocation.addressSource,
+      citySource: resolvedLocation.citySource,
+      stateSource: resolvedLocation.stateSource,
+      googleBusinessProfileUrl: resolvedLocation.googleBusinessProfileUrl,
+    });
 
         console.info("Onboarding website logo candidates", {
       companyName,
@@ -201,30 +161,41 @@ export async function generateOnboardingPrefill(input: {
         const resolvedCity = sanitizeLocationValue(websiteContext?.city ?? null, "city");
     const resolvedState = sanitizeLocationValue(websiteContext?.state ?? null, "state");
 
+        console.info("Resolved competitor discovery inputs", {
+      companyName,
+      inferredIndustry,
+      city: resolvedLocation.resolvedCity,
+      state: resolvedLocation.resolvedState,
+      serviceArea: null,
+      website,
+      resolvedAddress: resolvedLocation.resolvedAddress,
+      googlePlaceLocation: resolvedLocation.googlePlaceLocation,
+      citySource: resolvedLocation.citySource,
+      stateSource: resolvedLocation.stateSource,
+      addressSource: resolvedLocation.addressSource,
+    });
+
     const competitorCandidates = await discoverLocalCompetitors({
       companyName,
       industry: inferredIndustry,
-      city: resolvedCity,
-      state: resolvedState,
-      serviceArea: websiteContext?.address ?? null,
+      city: resolvedLocation.resolvedCity,
+      state: resolvedLocation.resolvedState,
+      serviceArea: null,
       website,
     });
-        console.info("Resolved competitor discovery iputs", {
-          companyName,
-          industry: inferredIndustry,
-          city: resolvedCity,
-          state: resolvedState,
-          serviceArea: websiteContext?.address ?? null,
-        })
-        console.info("Onboarding competitor discovery", {
+
+    console.info("Onboarding competitor discovery", {
       companyName,
       website,
       inferredIndustry,
-            rawCity: websiteContext?.city ?? null,
+      rawCity: websiteContext?.city ?? null,
       rawState: websiteContext?.state ?? null,
-      city: resolvedCity,
-      state: resolvedState,
-      serviceArea: websiteContext?.address ?? null,
+      rawAddress: websiteContext?.address ?? null,
+      resolvedAddress: resolvedLocation.resolvedAddress,
+      city: resolvedLocation.resolvedCity,
+      state: resolvedLocation.resolvedState,
+      serviceArea: null,
+      googlePlaceLocation: resolvedLocation.googlePlaceLocation,
       competitors: competitorCandidates.map((candidate) => ({
         name: candidate.name,
         websiteUrl: candidate.websiteUrl,
@@ -233,13 +204,6 @@ export async function generateOnboardingPrefill(input: {
         serviceFocus: candidate.serviceFocus,
         whyItMatters: candidate.whyItMatters,
       })),
-    });
-
-        const googleBusinessProfileUrl = await lookupBusinessGoogleBusinessProfile({
-      companyName,
-      website,
-      city: resolvedCity,
-      state: resolvedState,
     });
 
     const completion = await openai.chat.completions.parse({
@@ -435,13 +399,21 @@ Return best-effort onboarding suggestions for MarketForge.
       website: normalizedWebsite,
             logoUrl: websiteContext?.logoCandidates?.[0] ?? cleanString(parsed.logoUrl) ?? null,
       phone: cleanString(parsed.phone) ?? websiteContext?.phone ?? null,
-      googleBusinessProfileUrl:
+            googleBusinessProfileUrl:
         cleanString(parsed.googleBusinessProfileUrl) ??
         cleanString(parsed.googleBusinessUrl) ??
-        googleBusinessProfileUrl ??
+        resolvedLocation.googleBusinessProfileUrl ??
         null,
-      city: cleanString(parsed.city) ?? websiteContext?.city ?? null,
-      state: cleanString(parsed.state) ?? websiteContext?.state ?? null,
+      city:
+        cleanString(parsed.city) ??
+        resolvedLocation.resolvedCity ??
+        websiteContext?.city ??
+        null,
+      state:
+        cleanString(parsed.state) ??
+        resolvedLocation.resolvedState ??
+        websiteContext?.state ??
+        null,
       serviceArea: cleanString(parsed.serviceArea),
       industry: inferredIndustry,
       preferredServices: finalPreferredServices,
@@ -453,12 +425,23 @@ Return best-effort onboarding suggestions for MarketForge.
         Boolean(
           cleanString(parsed.googleBusinessProfileUrl) ||
             cleanString(parsed.googleBusinessUrl) ||
-            googleBusinessProfileUrl
+            resolvedLocation.googleBusinessProfileUrl
         ),
       hasServicePages:
         visibilitySignals.hasServicePages || mergedServicePageUrls.length > 0,
       competitors: mergedCompetitors,
     };
+
+      console.info("Final onboarding prefill payload summary", {
+      companyName,
+      website,
+      inferredIndustry,
+      finalCity: data.city,
+      finalState: data.state,
+      finalGoogleBusinessProfileUrl: data.googleBusinessProfileUrl,
+      competitorCount: data.competitors.length,
+      competitorNames: data.competitors.map((competitor) => competitor.name),
+    });
 
     return {
       success: true,
