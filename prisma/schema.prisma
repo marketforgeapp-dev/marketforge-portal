@@ -28,28 +28,32 @@ model User {
 }
 
 model Workspace {
-  id                    String        @id @default(cuid())
-  name                  String
-  slug                  String        @unique
-  industry              IndustryType?
-  isDemo                Boolean       @default(false)
-  onboardingCompletedAt DateTime?
-  demoInitializedAt     DateTime?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  id                         String        @id @default(cuid())
+  name                       String
+  slug                       String        @unique
+  industry                   IndustryType?
+  isDemo                     Boolean       @default(false)
+  onboardingCompletedAt      DateTime?
+  demoInitializedAt          DateTime?
+  lastCompetitorRefreshAt    DateTime?
+  lastReputationRefreshAt    DateTime?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
 
-  members              WorkspaceMember[]
-  businessProfile      BusinessProfile?
-  competitors          Competitor[]
-  revenueOpportunities RevenueOpportunity[]
-  recommendations      Recommendation[]
-  intelligenceAlerts   IntelligenceAlert[]
-  opportunitySnapshot WorkspaceOpportunitySnapshot?
-  campaigns            Campaign[]
-  leads                Lead[]
-  attributions         AttributionEntry[]
-  exports              ExportLog[]
-  baselineSnapshots    CampaignBaselineSnapshot[]
+  members                    WorkspaceMember[]
+  businessProfile            BusinessProfile?
+  competitors                Competitor[]
+  revenueOpportunities       RevenueOpportunity[]
+  recommendations            Recommendation[]
+  intelligenceAlerts         IntelligenceAlert[]
+  opportunitySnapshot        WorkspaceOpportunitySnapshot?
+  campaigns                  Campaign[]
+  leads                      Lead[]
+  attributions               AttributionEntry[]
+  exports                    ExportLog[]
+  baselineSnapshots          CampaignBaselineSnapshot[]
+  businessReputationSnapshots BusinessReputationSnapshot[]
+  competitorMetricsSnapshots  CompetitorMetricsSnapshot[]
 }
 
 model WorkspaceOpportunitySnapshot {
@@ -119,6 +123,11 @@ model BusinessProfile {
   seasonalityNotes String?
 
   googleBusinessProfileUrl String?
+  googlePlaceId               String?
+  googleRating                Float?
+  googleReviewCount           Int?
+  lastReputationEnrichedAt    DateTime?
+  reputationSnapshots         BusinessReputationSnapshot[]
   servicePageUrls          String[]
   hasServicePages          Boolean  @default(false)
   hasFaqContent            Boolean  @default(false)
@@ -132,6 +141,22 @@ model BusinessProfile {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
+model BusinessReputationSnapshot {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  businessProfileId String
+
+  capturedAt        DateTime @default(now())
+  rating            Float?
+  reviewCount       Int?
+
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, capturedAt])
+  @@index([businessProfileId, capturedAt])
+}
+
 model Competitor {
   id          String @id @default(cuid())
   workspaceId String
@@ -140,10 +165,12 @@ model Competitor {
   websiteUrl          String?
   logoUrl             String?
   googleBusinessUrl   String?
+  googlePlaceId       String?
   notes               String?
   serviceFocus        String[]
   rating              Float?
   reviewCount         Int?
+  lastEnrichedAt      DateTime?
   isPrimaryCompetitor Boolean  @default(false)
 
   isRunningAds      Boolean?
@@ -156,8 +183,25 @@ model Competitor {
   updatedAt DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  metricSnapshots CompetitorMetricsSnapshot[]
 
   @@index([workspaceId])
+}
+
+model CompetitorMetricsSnapshot {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  competitorId String
+
+  capturedAt   DateTime @default(now())
+  rating       Float?
+  reviewCount  Int?
+
+  workspace    Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, capturedAt])
+  @@index([competitorId, capturedAt])
 }
 
 model RevenueOpportunity {

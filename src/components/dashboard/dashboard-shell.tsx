@@ -2,6 +2,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { CommandCenterKpis } from "@/components/dashboard/command-center-kpis";
 import { TopCommandBand } from "@/components/dashboard/top-command-band";
+import { CompetitivePositionCard } from "@/components/dashboard/competitive-position-card";
 import { RevenueOpportunityHero } from "@/lib/revenue-opportunity-engine";
 
 type HeroCampaignData = {
@@ -48,6 +49,15 @@ type RevenueCapturedData = {
   entries: RevenueCapturedEntry[];
 };
 
+type CompetitivePositionData = {
+  businessRating: number | null;
+  businessReviewCount: number | null;
+  competitorMedianRating: number | null;
+  competitorMedianReviewCount: number | null;
+  position: "LEADING" | "COMPETITIVE" | "LAGGING" | "UNKNOWN";
+  narrative: string | null;
+};
+
 type Props = {
   workspaceName: string;
   workspaceLogoUrl?: string | null;
@@ -55,6 +65,7 @@ type Props = {
   heroCampaign: HeroCampaignData;
   metrics: MetricsData;
   revenueCaptured: RevenueCapturedData;
+  competitivePosition: CompetitivePositionData;
 };
 
 function formatMaybeDate(value?: string | Date) {
@@ -129,12 +140,13 @@ export function DashboardShell({
   heroCampaign,
   metrics,
   revenueCaptured,
+  competitivePosition,
 }: Props) {
-  const recentEntries = revenueCaptured.entries.slice(0, 3);
+  const recentEntries = revenueCaptured.entries.slice(0, 2);
   const actionReadiness = getActionReadinessSummary(
-  heroCampaign,
-  revenueCaptured
-);
+    heroCampaign,
+    revenueCaptured
+  );
 
   return (
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
@@ -159,7 +171,7 @@ export function DashboardShell({
             leadToJobRate={metrics.leadToJobRate}
           />
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
               <TopCommandBand
                 hero={hero}
@@ -168,7 +180,16 @@ export function DashboardShell({
               />
             </div>
 
-            <aside className="space-y-5">
+            <aside className="space-y-4">
+              <CompetitivePositionCard
+                businessRating={competitivePosition.businessRating}
+                businessReviewCount={competitivePosition.businessReviewCount}
+                competitorMedianRating={competitivePosition.competitorMedianRating}
+                competitorMedianReviewCount={competitivePosition.competitorMedianReviewCount}
+                position={competitivePosition.position}
+                narrative={competitivePosition.narrative}
+              />
+
               <section className="mf-card rounded-3xl p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                   Action Readiness

@@ -25,6 +25,10 @@ import {
   hasStrongAeoBaseline,
   type CanonicalService,
 } from "@/lib/canonical-services";
+import {
+  deriveWorkspaceReputationSignal,
+  getReputationVariantAdjustment,
+} from "@/lib/reputation-signals";
 
 import { getSeasonalityTiming } from "@/lib/seasonality";
 
@@ -256,7 +260,7 @@ function inferCapacity(profile: BusinessProfile): {
     };
   }
 
-    let availableJobsEstimate = Math.max(Math.round(weeklyCapacity * 0.18), 2);
+  let availableJobsEstimate = Math.max(Math.round(weeklyCapacity * 0.18), 2);
 
   availableJobsEstimate = clamp(availableJobsEstimate, 1, 10);
 
@@ -298,6 +302,8 @@ function inferConfidence(profile: BusinessProfile, competitors: Competitor[]) {
   if (profile.state) score += 3;
   if (profile.hasGoogleBusinessPage) score += 3;
   if (profile.hasServicePages) score += 3;
+  if (profile.googleRating) score += 4;
+  if (profile.googleReviewCount) score += 4;
 
   return clamp(score, 38, 92);
 }
@@ -322,9 +328,6 @@ function inferCompetitorGap(
   const tokens = normalized.split(" ");
 
   let overlapCount = 0;
-  let activeCount = 0;
-  let promoCount = 0;
-  let inactiveCount = 0;
 
   for (const competitor of competitors) {
     const overlap = (competitor.serviceFocus ?? []).some((focus) => {
@@ -335,43 +338,37 @@ function inferCompetitorGap(
     });
 
     if (overlap) overlapCount += 1;
-
-    const active = Boolean(competitor.isPostingActively || competitor.isRunningAds);
-    const promo = Boolean(competitor.hasActivePromo);
-
-    if (active) activeCount += 1;
-    if (promo) promoCount += 1;
-    if (!active && !promo) inactiveCount += 1;
   }
 
-  let score = 50;
+  let score = 62;
 
-  if (overlapCount <= 1) score += 10;
-  if (inactiveCount >= 2) score += 8;
-  if (activeCount <= 2) score += 6;
-  if (promoCount === 0) score += 6;
-  if (activeCount >= 4) score -= 8;
+  if (overlapCount === 0) score += 12;
+  if (overlapCount === 1) score += 8;
+  if (overlapCount === 2) score += 2;
   if (overlapCount >= 4) score -= 8;
+  if (overlapCount >= 6) score -= 10;
 
-  score = clamp(score, 24, 88);
+  score = clamp(score, 28, 86);
 
-  if (score >= 70) {
+  if (score >= 74) {
     return {
       score,
-      narrative: "Competitor activity appears softer than normal for this service.",
+      narrative:
+        "Local competitor overlap appears relatively light for this service lane.",
     };
   }
 
-  if (score <= 40) {
+  if (score <= 45) {
     return {
       score,
-      narrative: "Competitors look active here, so sharper positioning matters more.",
+      narrative:
+        "This service lane looks crowded locally, so sharper positioning matters more.",
     };
   }
 
   return {
     score,
-    narrative: "Competition appears balanced for this service.",
+    narrative: "Local competitor overlap appears balanced for this service lane.",
   };
 }
 
@@ -401,38 +398,32 @@ function buildCompetitorSignal(
   const pool = overlappingCompetitors.length > 0 ? overlappingCompetitors : competitors;
   const signals: string[] = [];
 
-  const inactive = pool.filter(
-    (competitor) =>
-      !competitor.isRunningAds &&
-      !competitor.isPostingActively &&
-      !competitor.hasActivePromo
-  );
-
-  const lowPromo = pool.filter((competitor) => !competitor.hasActivePromo);
-
-  inactive.slice(0, 2).forEach((competitor) => {
-    signals.push(`${competitor.name} appears less active right now`);
-  });
-
-  lowPromo
+  const highTrust = pool
     .filter(
       (competitor) =>
-        !inactive.some((inactiveCompetitor) => inactiveCompetitor.id === competitor.id)
+        (competitor.rating ?? 0) >= 4.5 && (competitor.reviewCount ?? 0) >= 40
     )
-    .slice(0, 2)
-    .forEach((competitor) => {
-      signals.push(`${competitor.name} is not promoting this service heavily`);
-    });
+    .slice(0, 2);
+
+  highTrust.forEach((competitor) => {
+    signals.push(`${competitor.name} has strong review credibility in this lane`);
+  });
+
+  if (signals.length === 0 && pool.length >= 4) {
+    signals.push(
+      "This service lane looks crowded locally, so sharper positioning can create the edge."
+    );
+  }
 
   if (signals.length === 0 && pool.length > 0) {
     signals.push(
-      "Competitor activity appears balanced, so sharper positioning can create an edge"
+      "Local competitor overlap appears manageable, which creates a credible opening here."
     );
   }
 
   if (signals.length === 0) {
     signals.push(
-      "Competitor data is still limited, so this opportunity is driven more by demand and capacity signals"
+      "Competitor data is still limited, so this opportunity is driven more by demand and timing signals."
     );
   }
 
@@ -583,7 +574,6 @@ function getSeasonalityVariantAdjustment(params: {
     return 0;
   }
 
-  // primary
   if (timing.timing === "PEAK") return 8;
   if (timing.timing === "BUSY") return 5;
   if (timing.timing === "SHOULDER") return 2;
@@ -812,19 +802,24 @@ function getVariantScoreAdjustment(params: {
 
   switch (kind) {
     case "primary":
-      return 8;
+      return 6;
+
     case "urgent":
       return enrichment.urgencyRelevance === "HIGH"
-        ? 7
-        : canonicalService.familyKey === "burst-pipe-repair"
-          ? 6
-          : -3;
+        ? 10
+        : enrichment.urgencyRelevance === "MEDIUM"
+          ? 5
+          : -2;
+
     case "capacity":
-      return capacityFit === "HIGH" ? 5 : capacityFit === "MEDIUM" ? 2 : -6;
+      return capacityFit === "HIGH" ? 3 : capacityFit === "MEDIUM" ? 1 : -2;
+
     case "trust":
-      return 1;
+      return 4;
+
     case "premium":
       return canonicalService.blueprint.valueBias >= 10 ? 6 : 2;
+
     default:
       return 0;
   }
@@ -848,6 +843,123 @@ function getVariantTags(params: {
   ]);
 }
 
+function normalizeStrengthGapToScore(gap: number | null): number {
+  if (gap === null) return 50;
+
+  // Trailing the market should matter more in the base score
+  if (gap <= -18) return 90;
+  if (gap <= -10) return 82;
+  if (gap <= -4) return 72;
+
+  // Near parity
+  if (gap < 4) return 60;
+
+  // Leading still matters, but less aggressively than lagging
+  if (gap < 10) return 68;
+  if (gap < 18) return 74;
+  return 78;
+}
+
+function normalizeReviewDepthGapToScore(
+  businessReviewCount: number | null,
+  competitorMedianReviewCount: number | null
+): number {
+  if (
+    businessReviewCount === null ||
+    competitorMedianReviewCount === null
+  ) {
+    return 50;
+  }
+
+  const ratio =
+    (businessReviewCount + 1) / (competitorMedianReviewCount + 1);
+
+  if (ratio <= 0.35) return 86;
+  if (ratio <= 0.6) return 76;
+  if (ratio <= 0.9) return 66;
+  if (ratio <= 1.15) return 58;
+  if (ratio <= 1.6) return 70;
+  return 80;
+}
+
+function getPlaceholderCompetitivePressureScore(): number {
+  return 50;
+}
+
+function scoreRevenueValue(params: {
+  serviceDemandScore: number;
+  serviceValueScore: number;
+  preferredServiceBoost: number;
+  marginBoost: number;
+}) {
+  const score =
+    params.serviceDemandScore * 0.4 +
+    params.serviceValueScore * 0.35 +
+    params.preferredServiceBoost * 0.15 +
+    params.marginBoost * 0.1;
+
+  return clamp(score, 20, 95);
+}
+
+function scoreCompetitivePosition(params: {
+  competitorGapScore: number;
+  reputationSignal: ReturnType<typeof deriveWorkspaceReputationSignal>;
+}) {
+  const reputationStrengthScore = normalizeStrengthGapToScore(
+    params.reputationSignal.strengthGap
+  );
+
+  const reviewDepthScore = normalizeReviewDepthGapToScore(
+    params.reputationSignal.businessReviewCount,
+    params.reputationSignal.competitorMedianReviewCount
+  );
+
+  const saturationScore = params.competitorGapScore;
+  const placeholderPressureScore = getPlaceholderCompetitivePressureScore();
+
+  const score =
+    reputationStrengthScore * 0.55 +
+    reviewDepthScore * 0.2 +
+    saturationScore * 0.2 +
+    placeholderPressureScore * 0.05;
+
+  return clamp(score, 20, 95);
+}
+
+function scoreMarketTimingIntent(params: {
+  seasonalityRelevance: InferredSignalLevel;
+  urgencyRelevance: InferredSignalLevel;
+  homeownerIntentStrength: InferredSignalLevel;
+  seasonalityTimingAdjustment: number;
+}) {
+  const seasonalityScore =
+    52 +
+    levelToScore(params.seasonalityRelevance) +
+    params.seasonalityTimingAdjustment;
+
+  const urgencyScore = 50 + levelToScore(params.urgencyRelevance);
+  const intentScore = 50 + levelToScore(params.homeownerIntentStrength);
+
+  const score =
+    seasonalityScore * 0.4 +
+    urgencyScore * 0.3 +
+    intentScore * 0.3;
+
+  return clamp(score, 20, 95);
+}
+
+function scoreOperationalFit(capacityScore: number) {
+  return clamp(capacityScore, 20, 95);
+}
+
+// 🔴 NOTE: Only showing the UPDATED / CRITICAL SECTION
+// DO NOT DELETE YOUR FILE — replace ONLY the function below
+
+// FIND THIS FUNCTION IN YOUR FILE:
+// function buildWhyNowBullets(...)
+
+// REPLACE IT WITH THIS:
+
 function buildWhyNowBullets(params: {
   canonicalService: CanonicalService;
   kind: RevenueVariantKind;
@@ -857,6 +969,10 @@ function buildWhyNowBullets(params: {
   profile: BusinessProfile;
   performanceSignal: CampaignPerformanceSignal | null;
   seasonalityTiming: ReturnType<typeof getSeasonalityTiming>;
+  reputationSignal: ReturnType<typeof deriveWorkspaceReputationSignal>;
+  revenueValueScore: number;
+  competitivePositionScore: number;
+  marketTimingIntentScore: number;
 }): string[] {
   const {
     canonicalService,
@@ -864,88 +980,82 @@ function buildWhyNowBullets(params: {
     availableJobsEstimate,
     competitorNarrative,
     enrichment,
-    profile,
-    performanceSignal,
     seasonalityTiming,
+    reputationSignal,
+    revenueValueScore,
+    competitivePositionScore,
+    marketTimingIntentScore,
   } = params;
 
-  const prettyName = prettyServiceName(canonicalService.canonicalName);
-  const bullets: string[] = [];
+  const service = prettyServiceName(canonicalService.canonicalName);
 
-  bullets.push(
-    `${prettyName} is a credible revenue lane based on current service mix and market fit.`
-  );
+  // ----------------------------------------
+  // BULLET 1 — COMMERCIAL VALUE
+  // ----------------------------------------
+  let commercialBullet = "";
 
-  bullets.push(competitorNarrative);
-  bullets.push(seasonalityTiming.explanation);
-
-  if (
-    kind === "capacity" ||
-    canonicalService.blueprint.defaultActionFraming === "SCHEDULE_FILL"
-  ) {
-    bullets.push(
-      `Current capacity suggests room for roughly ${availableJobsEstimate} additional jobs this week.`
-    );
-
-    if (seasonalityTiming.timing === "SLOW") {
-      bullets.push(
-        "This slower seasonal window makes schedule-fill positioning more important right now."
-      );
-    }
-
-    if (seasonalityTiming.timing === "BUSY") {
-      bullets.push(
-        "This is a busier seasonal period, so prioritizing higher-value or urgent jobs may be more effective."
-      );
-    }
-  } else if (kind === "urgent" || enrichment.urgencyRelevance === "HIGH") {
-    bullets.push(
-      "Urgent homeowner intent can convert quickly when the offer is clear."
-    );
-
-    if (
-      seasonalityTiming.timing === "PEAK" ||
-      seasonalityTiming.timing === "BUSY"
-    ) {
-      bullets.push(
-        "Current timing conditions support faster demand capture for this service."
-      );
-    }
-  } else if (kind === "premium") {
-    bullets.push(
-      "This service supports a stronger commercial offer and higher-value booking mix."
-    );
-
-    if (
-      seasonalityTiming.timing === "PEAK" ||
-      seasonalityTiming.timing === "BUSY"
-    ) {
-      bullets.push(
-        "Current demand conditions support positioning this as a premium offering."
-      );
-    }
-  } else if (kind === "trust") {
-    bullets.push(
-      "Trust and proof can materially improve conversion for this service lane."
-    );
-
-    if (
-      seasonalityTiming.timing === "SLOW" ||
-      seasonalityTiming.timing === "SHOULDER"
-    ) {
-      bullets.push(
-        "This is a strong time to build trust before stronger demand returns."
-      );
-    }
+  if (revenueValueScore >= 80) {
+    commercialBullet = `${service} is one of the stronger revenue-producing services in your mix and supports higher-value jobs.`;
+  } else if (revenueValueScore >= 65) {
+    commercialBullet = `${service} represents a solid revenue opportunity with consistent job value potential.`;
   } else {
-    bullets.push(enrichment.homeownerIntentReason);
+    commercialBullet = `${service} can contribute incremental revenue and help support overall job volume.`;
   }
 
-  if (performanceSignal?.performanceLabel === "Strong") {
-    bullets.push(performanceSignal.performanceDetail);
+  if (canonicalService.isPreferred) {
+    commercialBullet += ` This is also a preferred service for your business.`;
   }
 
-  return bullets.slice(0, 4);
+  if (canonicalService.isHighestMargin) {
+    commercialBullet += ` It also carries strong margin potential.`;
+  }
+
+  // ----------------------------------------
+  // BULLET 2 — COMPETITIVE POSITION
+  // ----------------------------------------
+  let competitiveBullet = "";
+
+  if (reputationSignal.position === "LAGGING") {
+    competitiveBullet = `Your Google reputation is currently behind competing providers in this service lane, which creates a real risk of losing jobs at the decision stage.`;
+  } else if (reputationSignal.position === "LEADING") {
+    competitiveBullet = `Your Google reputation is currently stronger than many competitors, which gives you an advantage when homeowners are choosing who to hire.`;
+  } else {
+    competitiveBullet = competitorNarrative;
+  }
+
+  if (competitivePositionScore >= 75 && reputationSignal.position === "LEADING") {
+    competitiveBullet += ` This is a good opportunity to press that advantage.`;
+  }
+
+  if (competitivePositionScore <= 50 && reputationSignal.position === "LAGGING") {
+    competitiveBullet += ` Strengthening trust and positioning here should improve win rates.`;
+  }
+
+  // ----------------------------------------
+  // BULLET 3 — TIMING / ACTION
+  // ----------------------------------------
+  let timingBullet = "";
+
+  if (kind === "capacity") {
+    timingBullet = `You have available capacity that can support roughly ${availableJobsEstimate} additional jobs, making this a good opportunity to fill schedule.`;
+  } else if (kind === "urgent") {
+    timingBullet = `This service is driven by high-intent demand, so acting now increases the likelihood of capturing immediate bookings.`;
+  } else if (kind === "premium") {
+    timingBullet = `Market conditions support a stronger offer here, making this a good moment to push higher-value work.`;
+  } else if (kind === "trust") {
+    timingBullet = `Improving trust and proof right now can increase conversion on existing demand.`;
+  } else {
+    // primary
+    if (marketTimingIntentScore >= 75) {
+      timingBullet = `Current demand, timing, and homeowner intent signals make this a strong moment to prioritize this service.`;
+    } else if (marketTimingIntentScore >= 60) {
+      timingBullet = `Market timing and homeowner demand are supportive enough to justify action here.`;
+    } else {
+      timingBullet = seasonalityTiming.explanation;
+    }
+  }
+
+  return [commercialBullet, competitiveBullet, timingBullet];
 }
 
 function buildRevenueVariantCandidates(params: {
@@ -973,11 +1083,15 @@ function buildRevenueVariantCandidates(params: {
   const { score: competitorGapScore, narrative: competitorNarrative } =
     inferCompetitorGap(canonicalService.canonicalName, competitors);
 
+  const reputationSignal = deriveWorkspaceReputationSignal(profile, competitors);
+
   const preferenceBoost = canonicalService.isPreferred
     ? 16
     : canonicalService.isHighestMargin
       ? 8
       : 0;
+
+  const marginBoost = canonicalService.isHighestMargin ? 85 : 50;
 
   const deprioritizedPenalty =
     canonicalService.isDeprioritized || canonicalService.isLowestPriority ? 36 : 0;
@@ -997,25 +1111,49 @@ function buildRevenueVariantCandidates(params: {
     92
   );
 
-    const seasonalityTiming = getSeasonalityTiming({
+  const seasonalityTiming = getSeasonalityTiming({
     familyKey: canonicalService.familyKey,
     busyMonths: profile.busyMonths ?? [],
     slowMonths: profile.slowMonths ?? [],
   });
 
-  const serviceBaseScore =
-    0.28 * serviceDemandScore +
-    0.18 * competitorGapScore +
-    0.18 * capacityScore +
-    0.1 * serviceValueScore +
+  const seasonalityTimingAdjustment =
     getStaticSeasonalityBias(enrichment.seasonalityRelevance) +
-    seasonalityTiming.demandScoreAdjustment +
-    levelToScore(enrichment.urgencyRelevance) +
-    levelToScore(enrichment.homeownerIntentStrength) -
-    (canonicalService.blueprint.nicheLongCycle ? 12 : 0) -
-    deprioritizedPenalty;
+    seasonalityTiming.demandScoreAdjustment;
 
-    const variantKinds: RevenueVariantKind[] =
+  const revenueValueScore = scoreRevenueValue({
+    serviceDemandScore,
+    serviceValueScore,
+    preferredServiceBoost: canonicalService.isPreferred ? 85 : 50,
+    marginBoost,
+  });
+
+  const competitivePositionScore = scoreCompetitivePosition({
+    competitorGapScore,
+    reputationSignal,
+  });
+
+  const marketTimingIntentScore = scoreMarketTimingIntent({
+    seasonalityRelevance: enrichment.seasonalityRelevance,
+    urgencyRelevance: enrichment.urgencyRelevance,
+    homeownerIntentStrength: enrichment.homeownerIntentStrength,
+    seasonalityTimingAdjustment,
+  });
+
+  const operationalFitScore = scoreOperationalFit(capacityScore);
+
+  const serviceBaseScore = clamp(
+  revenueValueScore * 0.36 +
+    competitivePositionScore * 0.27 +
+    marketTimingIntentScore * 0.27 +
+    operationalFitScore * 0.05 -
+    (canonicalService.blueprint.nicheLongCycle ? 12 : 0) -
+    deprioritizedPenalty,
+  1,
+  100
+);
+
+  const variantKinds: RevenueVariantKind[] =
     seasonalityTiming.timing === "SLOW"
       ? ["capacity", "trust", "primary", "premium", "urgent"]
       : seasonalityTiming.timing === "BUSY"
@@ -1034,7 +1172,7 @@ function buildRevenueVariantCandidates(params: {
       kind,
     });
     const actionFraming = getVariantActionFraming(kind);
-        const bestMove = getSeasonalBestMove({
+    const bestMove = getSeasonalBestMove({
       canonicalService,
       kind,
       seasonalityTiming,
@@ -1050,7 +1188,7 @@ function buildRevenueVariantCandidates(params: {
       serviceArea: profile.serviceArea,
     });
 
-            const variantScore =
+    const variantScore =
       serviceBaseScore +
       getVariantScoreAdjustment({
         kind,
@@ -1062,6 +1200,10 @@ function buildRevenueVariantCandidates(params: {
         kind,
         timing: seasonalityTiming,
         familyKey: canonicalService.familyKey,
+      }) +
+      getReputationVariantAdjustment({
+        position: reputationSignal.position,
+        kind,
       }) +
       (performanceSignal?.scoreBoost ?? 0);
 
@@ -1090,7 +1232,7 @@ function buildRevenueVariantCandidates(params: {
       },
       recommendedCampaignType: campaignType,
       sourceTags: getVariantTags({ canonicalService, kind }),
-            whyNowBullets: buildWhyNowBullets({
+      whyNowBullets: buildWhyNowBullets({
         canonicalService,
         kind,
         availableJobsEstimate,
@@ -1099,23 +1241,43 @@ function buildRevenueVariantCandidates(params: {
         profile,
         performanceSignal,
         seasonalityTiming,
+        reputationSignal,
+        revenueValueScore,
+        competitivePositionScore,
+        marketTimingIntentScore,
       }),
       whyThisMatters:
-        kind === "capacity"
-          ? `${prettyServiceName(
-              canonicalService.canonicalName
-            )} can help use open capacity without diluting service focus.`
-          : kind === "trust"
+        kind === "trust"
+          ? reputationSignal.position === "LAGGING"
             ? `${prettyServiceName(
                 canonicalService.canonicalName
-              )} can convert better with stronger credibility and proof.`
+              )} is commercially important, and your Google reputation currently trails the local market, so stronger proof and trust-building should carry more weight before harder demand capture.`
+            : `${prettyServiceName(
+                canonicalService.canonicalName
+              )} can convert more efficiently when the trust story is stronger and easier for homeowners to believe.`
+          : kind === "capacity"
+            ? `${prettyServiceName(
+                canonicalService.canonicalName
+              )} can help create more booked work without changing the core revenue lane the business should be pursuing.`
             : kind === "premium"
-              ? `${prettyServiceName(
-                  canonicalService.canonicalName
-                )} deserves a stronger high-value offer lane, not just a single recommendation.`
-              : `${prettyServiceName(
-                  canonicalService.canonicalName
-                )} should remain a real revenue lane in the recommendation portfolio.`,
+              ? reputationSignal.position === "LEADING"
+                ? `${prettyServiceName(
+                    canonicalService.canonicalName
+                  )} is commercially important, and your reputation strength supports a stronger premium-positioning move in this lane.`
+                : `${prettyServiceName(
+                    canonicalService.canonicalName
+                  )} is commercially important enough to justify a higher-value positioning move when market conditions support it.`
+              : reputationSignal.position === "LAGGING"
+                ? `${prettyServiceName(
+                    canonicalService.canonicalName
+                  )} matters because it combines revenue potential with a real local competitive gap that the business should close.`
+                : reputationSignal.position === "LEADING"
+                  ? `${prettyServiceName(
+                      canonicalService.canonicalName
+                    )} matters because it combines revenue potential with a real local competitive advantage the business can press harder.`
+                  : `${prettyServiceName(
+                      canonicalService.canonicalName
+                    )} matters because it combines revenue potential, live market demand, and a credible local competitive opening.`,
       rawOpportunityScore: Math.round(clamp(variantScore, 1, 100)),
       seasonalityRelevance: enrichment.seasonalityRelevance,
       seasonalityReason: enrichment.seasonalityReason,
@@ -1369,6 +1531,27 @@ function buildRankedOpportunity(params: {
   };
 }
 
+function applyOpportunityScoreIndex(
+  opportunities: RankedOpportunity[]
+): RankedOpportunity[] {
+  if (opportunities.length === 0) {
+    return opportunities;
+  }
+
+  const mean =
+    opportunities.reduce(
+      (sum, opportunity) => sum + opportunity.rawOpportunityScore,
+      0
+    ) / opportunities.length;
+
+  return opportunities.map((opportunity) => ({
+    ...opportunity,
+    rawOpportunityScore: Math.round(
+      clamp(100 + (opportunity.rawOpportunityScore - mean) * 0.9, 50, 200)
+    ),
+  }));
+}
+
 export function buildRevenueOpportunityHero(params: {
   opportunity: RankedOpportunity;
   availableJobsEstimate: number;
@@ -1476,7 +1659,6 @@ export async function buildRevenueOpportunityEngine(params: {
       aeoReadinessScore: profile.aeoReadinessScore,
       technicians: profile.technicians,
       weeklyCapacity: profile.weeklyCapacity,
-  
     },
     serviceNames: enrichmentRequestNames,
   });
@@ -1514,7 +1696,8 @@ export async function buildRevenueOpportunityEngine(params: {
 
   const defaultAvgJobValue = Number(profile.averageJobValue ?? 450);
 
-  const rankedOpportunities = candidates.map((candidate) =>
+  const rankedOpportunities = applyOpportunityScoreIndex(
+  candidates.map((candidate) =>
     buildRankedOpportunity({
       candidate,
       profile,
@@ -1527,10 +1710,11 @@ export async function buildRevenueOpportunityEngine(params: {
         candidate.recommendedCampaignType
       ),
     })
-  );
+  )
+);
 
-  const top =
-    rankedOpportunities.find(
+const top =
+  rankedOpportunities.find(
       (opportunity) =>
         opportunity.eligibleForHero &&
         !opportunity.isDeprioritized &&

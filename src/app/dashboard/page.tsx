@@ -6,6 +6,7 @@ import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
 import { seedDemoLeads } from "@/lib/seed-demo-leads";
 import { getRevenueCapturedSummary } from "@/lib/revenue-captured-summary";
 import { getOrCreateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
+import { deriveWorkspaceReputationSignal } from "@/lib/reputation-signals";
 
 export default async function DashboardPage() {
   const workspace = await getCurrentWorkspace();
@@ -31,20 +32,28 @@ export default async function DashboardPage() {
     redirect("/onboarding");
   }
 
-  const [snapshot, campaigns, revenueSummary] = await Promise.all([
-    getOrCreateWorkspaceOpportunitySnapshot(workspace.id),
-    prisma.campaign.findMany({
-      where: {
-        workspaceId: workspace.id,
+  const [snapshot, campaigns, revenueSummary, competitors] = await Promise.all([
+  getOrCreateWorkspaceOpportunitySnapshot(workspace.id),
+  prisma.campaign.findMany({
+    where: {
+      workspaceId: workspace.id,
+    },
+    include: {
+      assets: {
+        orderBy: { createdAt: "asc" },
       },
-      include: {
-        assets: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    }),
-    getRevenueCapturedSummary(workspace.id),
-  ]);
+    },
+  }),
+  getRevenueCapturedSummary(workspace.id),
+  prisma.competitor.findMany({
+    where: {
+      workspaceId: workspace.id,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  }),
+]);
 
   const visibleOpportunities = [
     snapshot.topOpportunity,
@@ -78,6 +87,11 @@ export default async function DashboardPage() {
         ) ?? null
       : null;
 
+      const competitivePosition = deriveWorkspaceReputationSignal(
+  profile,
+  competitors
+);
+
   return (
     <DashboardShell
       workspaceName={workspace.name}
@@ -102,6 +116,14 @@ export default async function DashboardPage() {
             }
           : null
       }
+      competitivePosition={{
+  businessRating: competitivePosition.businessRating,
+  businessReviewCount: competitivePosition.businessReviewCount,
+  competitorMedianRating: competitivePosition.competitorMedianRating,
+  competitorMedianReviewCount: competitivePosition.competitorMedianReviewCount,
+  position: competitivePosition.position,
+  narrative: competitivePosition.narrative,
+}}
       metrics={{
         jobsAvailableLow: totalJobsLow,
         jobsAvailableHigh: totalJobsHigh,

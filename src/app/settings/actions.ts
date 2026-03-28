@@ -318,6 +318,14 @@ export async function saveSettings(input: unknown) {
     googleBusinessProfileUrl: values.googleBusinessProfileUrl,
   });
 
+  const businessGoogleMatch = await lookupSingleCompetitor({
+  companyName: values.businessName,
+  industry: values.industry,
+  city: values.city,
+  state: values.state,
+  website: values.website,
+});
+
   const businessProfileData = {
     businessName: values.businessName,
     website: values.website,
@@ -351,13 +359,36 @@ export async function saveSettings(input: unknown) {
     slowMonths: values.slowMonths,
     seasonalityNotes: values.seasonalityNotes,
 
-    googleBusinessProfileUrl: values.googleBusinessProfileUrl,
-    hasFaqContent: values.hasFaqContent,
-    hasBlog: values.hasBlog,
-    hasGoogleBusinessPage: values.hasGoogleBusinessPage,
-    hasServicePages: values.hasServicePages,
-    servicePageUrls: values.servicePageUrls,
-    aeoReadinessScore,
+    googleBusinessProfileUrl:
+  values.googleBusinessProfileUrl ??
+  businessGoogleMatch?.googleBusinessUrl ??
+  null,
+
+googlePlaceId:
+  businessGoogleMatch?.placeId ?? null,
+
+googleRating:
+  typeof businessGoogleMatch?.rating === "number"
+    ? businessGoogleMatch.rating
+    : null,
+
+googleReviewCount:
+  typeof businessGoogleMatch?.reviewCount === "number"
+    ? businessGoogleMatch.reviewCount
+    : null,
+
+lastReputationEnrichedAt:
+  typeof businessGoogleMatch?.rating === "number" ||
+  typeof businessGoogleMatch?.reviewCount === "number"
+    ? new Date()
+    : null,
+
+hasFaqContent: values.hasFaqContent,
+hasBlog: values.hasBlog,
+hasGoogleBusinessPage: values.hasGoogleBusinessPage,
+hasServicePages: values.hasServicePages,
+servicePageUrls: values.servicePageUrls,
+aeoReadinessScore,
   };
 
   await prisma.businessProfile.upsert({
@@ -403,8 +434,23 @@ export async function saveSettings(input: unknown) {
         isPrimaryCompetitor: competitor.isPrimaryCompetitor,
         notes: discoveredMatch?.whyItMatters ?? null,
         serviceFocus: discoveredMatch?.serviceFocus ?? [],
-        rating: null,
-        reviewCount: null,
+        googlePlaceId: discoveredMatch?.placeId ?? null,
+
+rating:
+  typeof discoveredMatch?.rating === "number"
+    ? discoveredMatch.rating
+    : null,
+
+reviewCount:
+  typeof discoveredMatch?.reviewCount === "number"
+    ? discoveredMatch.reviewCount
+    : null,
+
+lastEnrichedAt:
+  typeof discoveredMatch?.rating === "number" ||
+  typeof discoveredMatch?.reviewCount === "number"
+    ? new Date()
+    : null,
         isRunningAds: null,
         isPostingActively: null,
         hasActivePromo: null,

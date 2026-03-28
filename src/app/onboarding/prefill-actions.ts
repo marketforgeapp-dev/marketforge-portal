@@ -8,7 +8,10 @@ import {
 } from "@/lib/onboarding-prefill-schema";
 import { getWebsitePrefillContext } from "@/lib/website-prefill-context";
 import { resolveBusinessLocation } from "@/lib/business-location-resolution";
-import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
+import {
+  discoverLocalCompetitors,
+  lookupSingleCompetitor,
+} from "@/lib/google-places-competitors";
 import {
   inferGoogleVisibilitySignals,
   inferIndustryFromBusinessContext,
@@ -184,6 +187,14 @@ export async function generateOnboardingPrefill(input: {
       website,
     });
 
+    const businessGoogleCandidate = await lookupSingleCompetitor({
+  companyName,
+  industry: inferredIndustry,
+  city: resolvedLocation.resolvedCity,
+  state: resolvedLocation.resolvedState,
+  website,
+});
+
     console.info("Onboarding competitor discovery", {
       companyName,
       website,
@@ -357,22 +368,28 @@ Return best-effort onboarding suggestions for MarketForge.
       links: websiteContext?.internalLinks ?? [],
     });
 
-        const mergedCompetitors =
-      competitorCandidates.length > 0
-        ? competitorCandidates.slice(0, 10).map((candidate) => ({
-            name: candidate.name,
-            websiteUrl: candidate.websiteUrl,
-            googleBusinessUrl: candidate.googleBusinessUrl,
-            logoUrl: candidate.logoUrl ?? null,
-            whyItMatters: candidate.whyItMatters,
-            serviceFocus: candidate.serviceFocus.slice(0, 6),
-            formattedAddress: candidate.formattedAddress ?? null,
-            phone: candidate.phone ?? null,
-          }))
+      const mergedCompetitors =
+  competitorCandidates.length > 0
+    ? competitorCandidates.slice(0, 10).map((candidate) => ({
+        name: candidate.name,
+        websiteUrl: candidate.websiteUrl,
+        googleBusinessUrl: candidate.googleBusinessUrl,
+        logoUrl: candidate.logoUrl ?? null,
+        whyItMatters: candidate.whyItMatters,
+        serviceFocus: candidate.serviceFocus.slice(0, 6),
+        formattedAddress: candidate.formattedAddress ?? null,
+        phone: candidate.phone ?? null,
+        placeId: candidate.placeId ?? null,
+        rating: candidate.rating ?? null,
+        reviewCount: candidate.reviewCount ?? null,
+      }))
         : (parsed.competitors ?? []).map((competitor) => ({
             name: competitor.name,
             websiteUrl: cleanString(competitor.websiteUrl),
             googleBusinessUrl: cleanString(competitor.googleBusinessUrl),
+            placeId: competitor.placeId ?? null,
+            rating: competitor.rating ?? null,
+            reviewCount: competitor.reviewCount ?? null,
             logoUrl: cleanString(competitor.logoUrl),
             whyItMatters: competitor.whyItMatters,
             serviceFocus: uniqueStrings(competitor.serviceFocus ?? []).slice(0, 6),
@@ -399,11 +416,24 @@ Return best-effort onboarding suggestions for MarketForge.
       website: normalizedWebsite,
             logoUrl: websiteContext?.logoCandidates?.[0] ?? cleanString(parsed.logoUrl) ?? null,
       phone: cleanString(parsed.phone) ?? websiteContext?.phone ?? null,
-            googleBusinessProfileUrl:
+                  googleBusinessProfileUrl:
+        businessGoogleCandidate?.googleBusinessUrl ??
         cleanString(parsed.googleBusinessProfileUrl) ??
         cleanString(parsed.googleBusinessUrl) ??
         resolvedLocation.googleBusinessProfileUrl ??
         null,
+              googlePlaceId:
+        businessGoogleCandidate?.placeId ??
+        cleanString(parsed.googlePlaceId) ??
+        null,
+      googleRating:
+        typeof businessGoogleCandidate?.rating === "number"
+          ? businessGoogleCandidate.rating
+          : parsed.googleRating ?? null,
+      googleReviewCount:
+        typeof businessGoogleCandidate?.reviewCount === "number"
+          ? businessGoogleCandidate.reviewCount
+          : parsed.googleReviewCount ?? null,
       city:
         cleanString(parsed.city) ??
         resolvedLocation.resolvedCity ??

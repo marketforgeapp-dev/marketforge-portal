@@ -76,6 +76,9 @@ export const onboardingSchema = z.object({
   seasonalityNotes: nullableString,
 
   googleBusinessProfileUrl: nullableString,
+  googlePlaceId: nullableString,
+  googleRating: nullableNumber,
+  googleReviewCount: nullableNumber,
   hasFaqContent: z.boolean().optional().default(false),
   hasFaqPage: z.boolean().optional().default(false),
   hasBlog: z.boolean().optional().default(false),
@@ -89,6 +92,9 @@ export const onboardingSchema = z.object({
         name: z.string().min(1, "Competitor name is required"),
         websiteUrl: nullableString,
         googleBusinessUrl: nullableString,
+        placeId: nullableString,
+        rating: nullableNumber,
+        reviewCount: nullableNumber,
         logoUrl: nullableString,
         isPrimaryCompetitor: z.boolean().optional().default(false),
       })

@@ -1,12 +1,30 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
+
+async function isAdminUser() {
+  const user = await currentUser();
+  const email = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
+
+  if (!email) return false;
+
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  return adminEmails.includes(email);
+}
 
 export default async function PortalHome() {
   const { userId } = await auth();
 
   if (userId) {
+    if (await isAdminUser()) {
+      redirect("/portal//admin");
+    }
+
     const workspace = await getCurrentWorkspace();
 
     if (!workspace || !workspace.onboardingCompletedAt) {

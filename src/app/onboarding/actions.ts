@@ -61,19 +61,25 @@ function sanitizeOnboardingInput(input: unknown) {
       const item = competitor as Record<string, unknown>;
 
       return {
-        name: typeof item.name === "string" ? item.name.trim() : "",
-        websiteUrl:
-          typeof item.websiteUrl === "string" ? item.websiteUrl : "",
-        googleBusinessUrl:
-          typeof item.googleBusinessUrl === "string"
-            ? item.googleBusinessUrl
-            : "",
-        logoUrl: typeof item.logoUrl === "string" ? item.logoUrl : "",
-        isPrimaryCompetitor:
-          typeof item.isPrimaryCompetitor === "boolean"
-            ? item.isPrimaryCompetitor
-            : false,
-      };
+  name: typeof item.name === "string" ? item.name.trim() : "",
+  websiteUrl:
+    typeof item.websiteUrl === "string" ? item.websiteUrl : "",
+  googleBusinessUrl:
+    typeof item.googleBusinessUrl === "string"
+      ? item.googleBusinessUrl
+      : "",
+  logoUrl: typeof item.logoUrl === "string" ? item.logoUrl : "",
+  isPrimaryCompetitor:
+    typeof item.isPrimaryCompetitor === "boolean"
+      ? item.isPrimaryCompetitor
+      : false,
+  placeId:
+    typeof item.placeId === "string" ? item.placeId : "",
+  rating:
+    typeof item.rating === "number" ? item.rating : null,
+  reviewCount:
+    typeof item.reviewCount === "number" ? item.reviewCount : null,
+};
     })
     .filter((competitor) => competitor.name.length > 0);
 
@@ -259,6 +265,14 @@ export async function saveOnboarding(input: unknown) {
     seasonalityNotes: toNullableString(values.seasonalityNotes),
 
     googleBusinessProfileUrl,
+        googlePlaceId: toNullableString(values.googlePlaceId),
+    googleRating: toNumberOrNull(values.googleRating),
+    googleReviewCount: toNumberOrNull(values.googleReviewCount),
+    lastReputationEnrichedAt:
+      toNumberOrNull(values.googleRating) !== null ||
+      toNumberOrNull(values.googleReviewCount) !== null
+        ? new Date()
+        : null,
     hasFaqContent,
     hasBlog: values.hasBlog || false,
     hasGoogleBusinessPage,
@@ -267,12 +281,21 @@ export async function saveOnboarding(input: unknown) {
     aeoReadinessScore,
   };
 
-  await prisma.businessProfile.upsert({
+    const businessProfile = await prisma.businessProfile.upsert({
     where: { workspaceId: workspace.id },
     update: businessProfileData,
     create: {
       workspaceId: workspace.id,
       ...businessProfileData,
+    },
+  });
+
+    await prisma.businessReputationSnapshot.create({
+    data: {
+      workspaceId: workspace.id,
+      businessProfileId: businessProfile.id,
+      rating: businessProfile.googleRating,
+      reviewCount: businessProfile.googleReviewCount,
     },
   });
 
@@ -328,8 +351,28 @@ export async function saveOnboarding(input: unknown) {
 
         notes: null,
         serviceFocus: enriched?.serviceFocus ?? [],
-        rating: null,
-        reviewCount: null,
+          googlePlaceId:
+    toNullableString(competitor.placeId) ??
+    enriched?.placeId ??
+    null,
+
+  rating:
+    typeof competitor.rating === "number"
+      ? competitor.rating
+      : enriched?.rating ?? null,
+
+  reviewCount:
+    typeof competitor.reviewCount === "number"
+      ? competitor.reviewCount
+      : enriched?.reviewCount ?? null,
+
+  lastEnrichedAt:
+    typeof competitor.rating === "number" ||
+    typeof competitor.reviewCount === "number" ||
+    typeof enriched?.rating === "number" ||
+    typeof enriched?.reviewCount === "number"
+      ? new Date()
+      : null,
         isRunningAds: null,
         isPostingActively: null,
         hasActivePromo: null,
@@ -343,7 +386,34 @@ export async function saveOnboarding(input: unknown) {
   await prisma.competitor.createMany({
     data: enrichedCompetitors,
   });
+
+  const createdCompetitors = await prisma.competitor.findMany({
+    where: { workspaceId: workspace.id },
+    select: {
+      id: true,
+      rating: true,
+      reviewCount: true,
+    },
+  });
+
+  if (createdCompetitors.length > 0) {
+    await prisma.competitorMetricsSnapshot.createMany({
+      data: createdCompetitors.map((competitor) => ({
+        workspaceId: workspace.id,
+        competitorId: competitor.id,
+        rating: competitor.rating,
+        reviewCount: competitor.reviewCount,
+      })),
+    });
+  }
 }
+
+await prisma.workspace.update({
+  where: { id: workspace.id },
+  data: {
+    lastReputationRefreshAt: new Date(),
+  },
+});
 
 await invalidateWorkspaceOpportunitySnapshot(workspace.id);
 

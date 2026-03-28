@@ -13,6 +13,8 @@ export type CompetitorCandidate = {
   formattedAddress: string | null;
   phone: string | null;
   placeId: string | null;
+  rating: number | null;
+  reviewCount: number | null;
 };
 
 export type DiscoverCompetitorsInput = {
@@ -48,6 +50,8 @@ type GooglePlaceDetailsResponse = {
   types?: string[];
   primaryType?: string;
   location?: LatLng;
+  rating?: number;
+  userRatingCount?: number;
 };
 
 type RawPlaceCandidate = {
@@ -1151,7 +1155,7 @@ async function getPlaceDetails(
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask":
-          "id,displayName,formattedAddress,websiteUri,googleMapsUri,nationalPhoneNumber,types,primaryType,location",
+          "id,displayName,formattedAddress,websiteUri,googleMapsUri,nationalPhoneNumber,types,primaryType,location,rating,userRatingCount",
       },
       cache: "no-store",
     }
@@ -1354,6 +1358,13 @@ export async function lookupSingleCompetitorCore(input: {
   state?: string | null;
   website?: string | null;
 }): Promise<CompetitorCandidate | null> {
+  console.log("[competitor-discovery] lookupSingleCompetitorCore START", {
+  companyName: input.companyName,
+  industry: input.industry,
+  city: input.city,
+  state: input.state,
+  website: input.website,
+});
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) return null;
 
@@ -1449,30 +1460,46 @@ export async function lookupSingleCompetitorCore(input: {
   });
 
   return {
-    name:
-      cleanString(details?.displayName?.text) ??
-      cleanString(bestPlace.displayName?.text) ??
-      input.companyName,
-    websiteUrl,
-    googleBusinessUrl,
-    logoUrl: logoUrl ?? faviconFromWebsite(websiteUrl),
-    whyItMatters: buildCompetitorSummary({
-      industry: input.industry,
-      formattedAddress,
-      phone,
-      websiteUrl,
-      serviceFocus,
-    }),
-    serviceFocus,
+  name:
+    cleanString(details?.displayName?.text) ??
+    cleanString(bestPlace.displayName?.text) ??
+    input.companyName,
+  websiteUrl,
+  googleBusinessUrl,
+  logoUrl: logoUrl ?? faviconFromWebsite(websiteUrl),
+  whyItMatters: buildCompetitorSummary({
+    industry: input.industry,
     formattedAddress,
     phone,
-    placeId: placeId ?? null,
-  };
+    websiteUrl,
+    serviceFocus,
+  }),
+  serviceFocus,
+  formattedAddress,
+  phone,
+  placeId: placeId ?? null,
+
+  rating:
+    typeof details?.rating === "number" ? details.rating : null,
+
+  reviewCount:
+    typeof details?.userRatingCount === "number"
+      ? details.userRatingCount
+      : null,
+};
 }
 
 export async function discoverLocalCompetitorsCore(
   input: DiscoverCompetitorsInput
 ): Promise<CompetitorCandidate[]> {
+  console.log("[competitor-discovery] discoverLocalCompetitorsCore START", {
+  companyName: input.companyName,
+  industry: input.industry,
+  city: input.city,
+  state: input.state,
+  serviceArea: input.serviceArea,
+  website: input.website,
+});
   console.info("Google Maps key fingerprint", {
     keyPrefix: process.env.GOOGLE_MAPS_API_KEY?.slice(0,12) ?? null,
   })
@@ -1683,6 +1710,12 @@ export async function discoverLocalCompetitorsCore(
         formattedAddress,
         phone,
         placeId: candidate.placeId,
+        rating:
+          typeof details?.rating === "number" ? details.rating : null,
+        reviewCount:
+          typeof details?.userRatingCount === "number"
+            ? details.userRatingCount
+            : null,
         location: locationValue,
         types,
         primaryType,
@@ -1747,16 +1780,18 @@ export async function discoverLocalCompetitorsCore(
     .map(({ candidate }) => candidate)
     .slice(0, MAX_FINAL_COMPETITORS)
     .map<CompetitorCandidate>((candidate) => ({
-      name: candidate.name,
-      websiteUrl: candidate.websiteUrl,
-      googleBusinessUrl: candidate.googleBusinessUrl,
-      logoUrl: candidate.logoUrl,
-      whyItMatters: candidate.whyItMatters,
-      serviceFocus: candidate.serviceFocus,
-      formattedAddress: candidate.formattedAddress,
-      phone: candidate.phone,
-      placeId: candidate.placeId,
-    }));
+    name: candidate.name,
+    websiteUrl: candidate.websiteUrl,
+    googleBusinessUrl: candidate.googleBusinessUrl,
+    logoUrl: candidate.logoUrl,
+    whyItMatters: candidate.whyItMatters,
+    serviceFocus: candidate.serviceFocus,
+    formattedAddress: candidate.formattedAddress,
+    phone: candidate.phone,
+    placeId: candidate.placeId,
+    rating: candidate.rating,
+    reviewCount: candidate.reviewCount,
+  }));
 
   console.info("Competitor discovery diagnostics", {
     companyName: input.companyName,

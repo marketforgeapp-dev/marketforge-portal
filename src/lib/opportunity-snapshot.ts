@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import type {
-  RevenueOpportunityHero,
-} from "@/lib/revenue-opportunity-engine";
+import { ensureWorkspaceReputationFreshForWeek } from "@/lib/reputation-refresh";
+import type { RevenueOpportunityHero } from "@/lib/revenue-opportunity-engine";
 import type { SelectedOpportunity } from "@/lib/select-revenue-opportunities";
 import { buildRevenueOpportunityEngine } from "@/lib/revenue-opportunity-engine";
 import { selectRevenueOpportunities } from "@/lib/select-revenue-opportunities";
@@ -16,6 +15,11 @@ export type WorkspaceOpportunitySnapshotPayload = {
   generatedAt: Date;
   fromCache: boolean;
 };
+
+const inFlightSnapshotBuilds = new Map<
+  string,
+  Promise<WorkspaceOpportunitySnapshotPayload>
+>();
 
 function getExpiryDate() {
   const expiresAt = new Date();
@@ -44,7 +48,9 @@ function parseBacklog(value: unknown): SelectedOpportunity[] {
   return value as SelectedOpportunity[];
 }
 
-export async function invalidateWorkspaceOpportunitySnapshot(workspaceId: string) {
+export async function invalidateWorkspaceOpportunitySnapshot(
+  workspaceId: string
+) {
   await prisma.workspaceOpportunitySnapshot.updateMany({
     where: { workspaceId },
     data: {
@@ -56,17 +62,18 @@ export async function invalidateWorkspaceOpportunitySnapshot(workspaceId: string
 export async function getOrCreateWorkspaceOpportunitySnapshot(
   workspaceId: string
 ): Promise<WorkspaceOpportunitySnapshotPayload> {
-    const existing = await prisma.workspaceOpportunitySnapshot.findUnique({
+  const existing = await prisma.workspaceOpportunitySnapshot.findUnique({
     where: { workspaceId },
   });
 
-    const snapshotIsFresh = !!existing && isSnapshotUsable(existing);
+  const snapshotIsFresh = !!existing && isSnapshotUsable(existing);
 
   if (snapshotIsFresh && existing) {
-  console.log("[snapshot] USING CACHE", {
-    workspaceId,
-    generatedAt: existing.generatedAt,
-  });
+    console.log("[snapshot] USING CACHE", {
+      workspaceId,
+      generatedAt: existing.generatedAt,
+    });
+
     return {
       hero: parseHero(existing.heroJson),
       topOpportunity: parseTopOpportunity(existing.topOpportunityJson),
@@ -76,80 +83,112 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
     };
   }
 
-  const profile = await prisma.businessProfile.findUnique({
-    where: { workspaceId },
-  });
+  const existingInFlight = inFlightSnapshotBuilds.get(workspaceId);
 
-  if (!profile) {
-    throw new Error("Business profile not found for opportunity snapshot.");
+  if (existingInFlight) {
+    console.log("[snapshot] REUSING IN-FLIGHT BUILD", { workspaceId });
+    return existingInFlight;
   }
 
-  const [competitors, campaigns, performanceSignals] = await Promise.all([
-    prisma.competitor.findMany({
-      where: { workspaceId },
-      orderBy: { createdAt: "asc" },
-    }),
-        prisma.campaign.findMany({
-      where: { workspaceId },
-      select: {
-        id: true,
-        campaignType: true,
-        status: true,
-        targetService: true,
-        briefJson: true,
-        updatedAt: true,
-      },
-    }),
-    getCampaignPerformanceSignals(workspaceId),
-  ]);
+  const buildPromise: Promise<WorkspaceOpportunitySnapshotPayload> =
+    (async () => {
+      try {
+        try {
+          console.log("[snapshot] BEFORE reputation refresh", { workspaceId });
+          await ensureWorkspaceReputationFreshForWeek(workspaceId);
+          console.log("[snapshot] AFTER reputation refresh", { workspaceId });
+        } catch (error) {
+          console.error("Weekly workspace reputation refresh failed", {
+            workspaceId,
+            error,
+          });
+        }
 
-  const engine = await buildRevenueOpportunityEngine({
-    profile,
-    competitors,
-    performanceSignals,
-  });
+        const profile = await prisma.businessProfile.findUnique({
+          where: { workspaceId },
+        });
 
-  const selection = selectRevenueOpportunities({
-    opportunities: engine.rankedOpportunities,
-    campaigns,
-    availableJobsEstimate: engine.availableJobsEstimate,
-    competitors,
-  });
+        if (!profile) {
+          throw new Error(
+            "Business profile not found for opportunity snapshot."
+          );
+        }
 
-  const generatedAt = new Date();
+        const [competitors, campaigns, performanceSignals] = await Promise.all([
+          prisma.competitor.findMany({
+            where: { workspaceId },
+            orderBy: { createdAt: "asc" },
+          }),
+          prisma.campaign.findMany({
+            where: { workspaceId },
+            select: {
+              id: true,
+              campaignType: true,
+              status: true,
+              targetService: true,
+              briefJson: true,
+              updatedAt: true,
+            },
+          }),
+          getCampaignPerformanceSignals(workspaceId),
+        ]);
 
-  const payload: WorkspaceOpportunitySnapshotPayload = {
-    hero: selection.hero,
-    topOpportunity: selection.topOpportunity,
-    backlogOpportunities: selection.backlogOpportunities,
-    generatedAt,
-    fromCache: false,
-  };
+        const engine = await buildRevenueOpportunityEngine({
+          profile,
+          competitors,
+          performanceSignals,
+        });
 
-  console.log("[snapshot] REGENERATING", {
-  workspaceId,
-});
-  await prisma.workspaceOpportunitySnapshot.upsert({
-    where: { workspaceId },
-    update: {
-      snapshotVersion: { increment: 1 },
-      heroJson: payload.hero,
-      topOpportunityJson: payload.topOpportunity,
-      backlogJson: payload.backlogOpportunities,
-      generatedAt: payload.generatedAt,
-      expiresAt: getExpiryDate(),
-      invalidatedAt: null,
-    },
-    create: {
-      workspaceId,
-      heroJson: payload.hero,
-      topOpportunityJson: payload.topOpportunity,
-      backlogJson: payload.backlogOpportunities,
-      generatedAt: payload.generatedAt,
-      expiresAt: getExpiryDate(),
-      invalidatedAt: null,
-    },
-  });
+        const selection = selectRevenueOpportunities({
+          opportunities: engine.rankedOpportunities,
+          campaigns,
+          availableJobsEstimate: engine.availableJobsEstimate,
+          competitors,
+        });
 
-  return payload;
+        const generatedAt = new Date();
+
+        const payload: WorkspaceOpportunitySnapshotPayload = {
+          hero: selection.hero,
+          topOpportunity: selection.topOpportunity,
+          backlogOpportunities: selection.backlogOpportunities,
+          generatedAt,
+          fromCache: false,
+        };
+
+        console.log("[snapshot] REGENERATING", {
+          workspaceId,
+        });
+
+        await prisma.workspaceOpportunitySnapshot.upsert({
+          where: { workspaceId },
+          update: {
+            snapshotVersion: { increment: 1 },
+            heroJson: payload.hero,
+            topOpportunityJson: payload.topOpportunity,
+            backlogJson: payload.backlogOpportunities,
+            generatedAt: payload.generatedAt,
+            expiresAt: getExpiryDate(),
+            invalidatedAt: null,
+          },
+          create: {
+            workspaceId,
+            heroJson: payload.hero,
+            topOpportunityJson: payload.topOpportunity,
+            backlogJson: payload.backlogOpportunities,
+            generatedAt: payload.generatedAt,
+            expiresAt: getExpiryDate(),
+            invalidatedAt: null,
+          },
+        });
+
+        return payload;
+      } finally {
+        inFlightSnapshotBuilds.delete(workspaceId);
+      }
+    })();
+
+  inFlightSnapshotBuilds.set(workspaceId, buildPromise);
+
+  return buildPromise;
 }
