@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Campaign, CampaignAsset, Prisma } from "@/generated/prisma";
 import { ExecutionStatusActions } from "./execution-status-actions";
+import { getBudgetAllocationRecommendation } from "@/lib/budget-allocation-recommendations";
 
 type ExecutionMeta = {
   scheduledLaunchDate?: string | null;
@@ -107,7 +108,7 @@ function mapAssetTypesToPlatforms(assetTypes?: string[]): string[] {
   return Array.from(new Set(assetTypes.map((type) => mapping[type] ?? type)));
 }
 
-function getApprovedPlatforms(
+function getApprovedAssetTypes(
   campaign: CampaignWithExecution,
   execution: ExecutionMeta | null
 ): string[] {
@@ -115,18 +116,26 @@ function getApprovedPlatforms(
     .filter((asset) => asset.isApproved)
     .map((asset) => asset.assetType);
 
-  const approvedPlatformsFromAssets = mapAssetTypesToPlatforms(
-    approvedAssetTypesFromAssets
-  );
-  if (approvedPlatformsFromAssets.length > 0) {
-    return approvedPlatformsFromAssets;
+  if (approvedAssetTypesFromAssets.length > 0) {
+    return approvedAssetTypesFromAssets;
   }
 
-  const approvedPlatformsFromExecution = mapAssetTypesToPlatforms(
-    execution?.approvedAssetTypes
-  );
-  if (approvedPlatformsFromExecution.length > 0) {
-    return approvedPlatformsFromExecution;
+  if (execution?.approvedAssetTypes?.length) {
+    return execution.approvedAssetTypes;
+  }
+
+  return [];
+}
+
+function getApprovedPlatforms(
+  campaign: CampaignWithExecution,
+  execution: ExecutionMeta | null
+): string[] {
+  const approvedAssetTypes = getApprovedAssetTypes(campaign, execution);
+  const approvedPlatformsFromAssets = mapAssetTypesToPlatforms(approvedAssetTypes);
+
+  if (approvedPlatformsFromAssets.length > 0) {
+    return approvedPlatformsFromAssets;
   }
 
   if (execution?.launchPlatform) {
@@ -140,6 +149,8 @@ export function ExecutionCard({ campaign }: Props) {
   const execution = getExecutionMeta(campaign.briefJson);
   const estimatedRange = extractEstimatedRange(campaign.briefJson);
   const approvedPlatforms = getApprovedPlatforms(campaign, execution);
+  const approvedAssetTypes = getApprovedAssetTypes(campaign, execution);
+  const budgetRecommendation = getBudgetAllocationRecommendation(approvedAssetTypes);
 
   const jobsDisplay =
     estimatedRange?.jobsLow != null && estimatedRange?.jobsHigh != null
@@ -231,6 +242,28 @@ export function ExecutionCard({ campaign }: Props) {
         <p>
           <span className="font-semibold text-gray-900">Notes:</span>{" "}
           {execution?.launchNotes ?? "—"}
+        </p>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+          Suggested Budget Mix
+        </p>
+        <p className="mt-2 text-sm font-semibold text-gray-900">
+          ${budgetRecommendation.totalLow.toLocaleString()}–${budgetRecommendation.totalHigh.toLocaleString()} recommended monthly launch budget
+        </p>
+
+        <div className="mt-3 space-y-2 text-sm text-gray-700">
+          {budgetRecommendation.lines.map((line) => (
+            <p key={line.label}>
+              <span className="font-semibold text-gray-900">{line.label}:</span>{" "}
+              {line.percentage}% (${line.low.toLocaleString()}–${line.high.toLocaleString()})
+            </p>
+          ))}
+        </div>
+
+        <p className="mt-3 text-xs leading-5 text-gray-600">
+          {budgetRecommendation.note}
         </p>
       </div>
 

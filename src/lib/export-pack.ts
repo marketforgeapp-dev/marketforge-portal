@@ -6,6 +6,7 @@ import {
   ExportType,
   Prisma,
 } from "@/generated/prisma";
+import { buildBudgetRecommendationMarkdown } from "@/lib/budget-allocation-recommendations";
 
 type CampaignWithAssets = Campaign & {
   assets: CampaignAsset[];
@@ -365,6 +366,15 @@ ${utm.email.click}
 Campaign Code
 ${campaign.campaignCode}
 `
+  );
+
+    root.file(
+    "budget-allocation-recommendation.md",
+    buildBudgetRecommendationMarkdown(
+      campaign.assets
+        .filter((asset) => asset.isApproved)
+        .map((asset) => asset.assetType)
+    )
   );
 
   const briefFolder = root.folder("01-campaign-brief");
