@@ -38,7 +38,12 @@ export default async function CampaignDetailPage({ params }: Props) {
   }
 const profile = await prisma.businessProfile.findUnique({
   where: { workspaceId: campaign.workspaceId },
-  select: { logoUrl: true, businessName: true, website: true },
+  select: {
+    logoUrl: true,
+    businessName: true,
+    website: true,
+    industryLabel: true,
+  },
 });
   const totalLeads = campaign.leads.length;
   const bookedLeads = campaign.leads.filter((lead) => lead.status === "BOOKED");
@@ -105,7 +110,7 @@ const profile = await prisma.businessProfile.findUnique({
             status={campaign.status}
           />
 
-          <CampaignBriefPanel
+         <CampaignBriefPanel
   campaignId={campaign.id}
   status={campaign.status}
   campaignName={campaign.name}
@@ -114,6 +119,7 @@ const profile = await prisma.businessProfile.findUnique({
   audience={campaign.audience}
   briefJson={campaign.briefJson}
   logoUrl={profile?.logoUrl ?? null}
+  industryLabel={profile?.industryLabel ?? null}
 />
 
   <CampaignAssetsReview
@@ -123,6 +129,7 @@ const profile = await prisma.businessProfile.findUnique({
   logoUrl={profile?.logoUrl ?? null}
   businessName={profile?.businessName ?? null}
   websiteUrl={profile?.website ?? null}
+  industryLabel={profile?.industryLabel ?? null}
 />
         </main>
       </div>

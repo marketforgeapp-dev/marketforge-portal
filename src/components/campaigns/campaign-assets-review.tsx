@@ -13,6 +13,7 @@ type Props = {
   logoUrl?: string | null;
   businessName?: string | null;
   websiteUrl?: string | null;
+  industryLabel?: string | null;
 };
 
 type AssetEditorState = {
@@ -32,6 +33,7 @@ type GoogleBusinessAssetPayload = {
   imageKey: string;
   imageMode: "SERVICE_IMAGE" | "LOGO";
   industry: string;
+  industryLabel?: string | null;
 };
 
 type MetaAssetPayload = {
@@ -43,6 +45,7 @@ type MetaAssetPayload = {
   imageKey: string;
   imageMode: "SERVICE_IMAGE" | "LOGO";
   industry: string;
+  industryLabel?: string | null;
 };
 
 type EmailAssetPayload = {
@@ -67,6 +70,7 @@ type BlogAssetPayload = {
   imageKey: string;
   imageMode: "SERVICE_IMAGE" | "LOGO";
   industry: string;
+  industryLabel?: string | null;
 };
 
 type StructuredAssetPayload =
@@ -182,17 +186,20 @@ function GoogleBusinessPreview({
   payload,
   logoUrl,
   businessName,
+  industryLabel,
 }: {
   payload: GoogleBusinessAssetPayload;
   logoUrl?: string | null;
   businessName?: string | null;
+  industryLabel?: string | null;
 }) {
-  const image = getActionImage({
-    industry: payload.industry,
-    imageKey: payload.imageKey,
-    imageMode: payload.imageMode,
-    logoUrl,
-  });
+const image = getActionImage({
+  industry: payload.industry,
+  workspaceIndustry: industryLabel,
+  imageKey: payload.imageKey,
+  imageMode: payload.imageMode,
+  logoUrl,
+});
 
   return (
     <PlatformShell label="Google Business Profile Post Preview">
@@ -241,18 +248,21 @@ function FacebookPreview({
   logoUrl,
   businessName,
   websiteUrl,
+  industryLabel,
 }: {
   payload: MetaAssetPayload;
   logoUrl?: string | null;
   businessName?: string | null;
   websiteUrl?: string | null;
+  industryLabel?: string | null;
 }) {
-  const image = getActionImage({
-    industry: payload.industry,
-    imageKey: payload.imageKey,
-    imageMode: payload.imageMode,
-    logoUrl,
-  });
+const image = getActionImage({
+  industry: payload.industry,
+  workspaceIndustry: industryLabel,
+  imageKey: payload.imageKey,
+  imageMode: payload.imageMode,
+  logoUrl,
+});
 
   return (
     <PlatformShell label="Facebook Preview">
@@ -316,17 +326,20 @@ function InstagramPreview({
   payload,
   logoUrl,
   businessName,
+  industryLabel,
 }: {
   payload: MetaAssetPayload;
   logoUrl?: string | null;
   businessName?: string | null;
+  industryLabel?: string | null;
 }) {
-  const image = getActionImage({
-    industry: payload.industry,
-    imageKey: payload.imageKey,
-    imageMode: payload.imageMode,
-    logoUrl,
-  });
+const image = getActionImage({
+  industry: payload.industry,
+  workspaceIndustry: industryLabel,
+  imageKey: payload.imageKey,
+  imageMode: payload.imageMode,
+  logoUrl,
+});
 
   return (
     <PlatformShell label="Instagram Preview">
@@ -447,16 +460,19 @@ function EmailPreview({ payload }: { payload: EmailAssetPayload }) {
 function BlogPreview({
   payload,
   logoUrl,
+  industryLabel,
 }: {
   payload: BlogAssetPayload;
   logoUrl?: string | null;
+  industryLabel?: string | null;
 }) {
-  const image = getActionImage({
-    industry: payload.industry,
-    imageKey: payload.imageKey,
-    imageMode: payload.imageMode,
-    logoUrl,
-  });
+const image = getActionImage({
+  industry: payload.industry,
+  workspaceIndustry: industryLabel,
+  imageKey: payload.imageKey,
+  imageMode: payload.imageMode,
+  logoUrl,
+});
 
   return (
     <PlatformShell label="Blog Article Preview">
@@ -538,11 +554,13 @@ function AssetPreview({
   logoUrl,
   businessName,
   websiteUrl,
+  industryLabel,
 }: {
   asset: CampaignAsset;
   logoUrl?: string | null;
   businessName?: string | null;
   websiteUrl?: string | null;
+  industryLabel?: string | null;
 }) {
   const structured = parseStructuredAsset(asset);
 
@@ -552,6 +570,7 @@ function AssetPreview({
     payload={structured}
     logoUrl={logoUrl}
     businessName={businessName}
+    industryLabel={industryLabel}
   />
 );
   }
@@ -563,12 +582,14 @@ function AssetPreview({
   payload={structured}
   logoUrl={logoUrl}
   businessName={businessName}
+  industryLabel={industryLabel}
   websiteUrl={websiteUrl}
 />
 <InstagramPreview
   payload={structured}
   logoUrl={logoUrl}
   businessName={businessName}
+  industryLabel={industryLabel}
 />
       </div>
     );
@@ -579,7 +600,13 @@ function AssetPreview({
   }
 
   if (asset.assetType === "BLOG" && structured?.kind === "BLOG") {
-    return <BlogPreview payload={structured} logoUrl={logoUrl} />;
+    return (
+  <BlogPreview
+    payload={structured}
+    logoUrl={logoUrl}
+    industryLabel={industryLabel}
+  />
+);
   }
 
   if (asset.assetType === "GOOGLE_ADS") {
@@ -1086,6 +1113,7 @@ export function CampaignAssetsReview({
   logoUrl,
   businessName,
   websiteUrl,
+  industryLabel,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1254,6 +1282,7 @@ export function CampaignAssetsReview({
   logoUrl={logoUrl}
   businessName={businessName}
   websiteUrl={websiteUrl}
+  industryLabel={industryLabel}
 />
                     </div>
 

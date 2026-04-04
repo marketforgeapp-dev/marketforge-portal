@@ -137,6 +137,7 @@ function getActionReadinessSummary(
 export function DashboardShell({
   workspaceName,
   workspaceLogoUrl,
+  workspaceIndustryLabel,
   hero,
   heroCampaign,
   metrics,
@@ -178,6 +179,7 @@ export function DashboardShell({
                 hero={hero}
                 heroCampaign={heroCampaign}
                 logoUrl={workspaceLogoUrl}
+                industryLabel={workspaceIndustryLabel}
               />
             </div>
 

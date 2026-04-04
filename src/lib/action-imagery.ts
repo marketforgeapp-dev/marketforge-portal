@@ -50,20 +50,34 @@ function buildIndustryFallbackPath(industryFolder: IndustryFolder): string {
 
 export function getActionImage(params: {
   industry?: string | null;
+  workspaceIndustry?: string | null;
   familyKey?: string | null;
   imageKey?: string | null;
   imageMode?: ActionImageMode | null;
   logoUrl?: string | null;
 }) {
-  const {
-    industry,
-    familyKey,
-    imageKey,
-    imageMode,
-    logoUrl,
-  } = params;
+const {
+  industry,
+  workspaceIndustry,
+  familyKey,
+  imageKey,
+  imageMode,
+  logoUrl,
+} = params;
 
-  const industryFolder = normalizeIndustryFolder(industry);
+  const normalizedStoredIndustry = normalizeIndustryFolder(industry);
+const normalizedWorkspaceIndustry = workspaceIndustry
+  ? normalizeIndustryFolder(workspaceIndustry)
+  : null;
+
+const effectiveIndustry =
+  normalizedStoredIndustry === "plumbing" &&
+  normalizedWorkspaceIndustry &&
+  normalizedWorkspaceIndustry !== "plumbing"
+    ? workspaceIndustry
+    : industry ?? workspaceIndustry ?? undefined;
+
+const industryFolder = normalizeIndustryFolder(effectiveIndustry);
 
   if (imageMode === "LOGO") {
     return {
@@ -73,9 +87,26 @@ export function getActionImage(params: {
   }
 
   const resolvedKey =
-    normalizeServiceImageKey(familyKey) ??
     normalizeServiceImageKey(imageKey) ??
+    normalizeServiceImageKey(familyKey) ??
     "fallback";
+
+const src = buildIndustryImagePath(industryFolder, resolvedKey);
+
+console.log("IMAGE DEBUG →", {
+  industry,
+  industryFolder,
+  familyKey,
+  imageKey,
+  imageMode,
+  resolvedKey,
+  src,
+});
+
+return {
+  src,
+  alt: resolvedKey.replace(/-/g, " "),
+};
 
   return {
     src: buildIndustryImagePath(industryFolder, resolvedKey),

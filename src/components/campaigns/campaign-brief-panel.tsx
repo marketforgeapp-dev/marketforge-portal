@@ -60,6 +60,7 @@ type Props = {
   audience: string | null;
   briefJson: unknown;
   logoUrl?: string | null;
+  industryLabel?: string | null;
 };
 
 function parseBriefJson(value: unknown): CampaignBriefData | null {
@@ -83,6 +84,7 @@ export function CampaignBriefPanel({
   audience,
   briefJson,
   logoUrl,
+  industryLabel,
 }: Props) {
   const parsed = parseBriefJson(briefJson);
 
@@ -128,20 +130,21 @@ export function CampaignBriefPanel({
     creativeGuidance?.avoidImagery ?? ""
   );
 
-  const image = getActionImage({
-    industry: parsed?.structuredIndustry ?? undefined,
-    familyKey:
-      parsed?.matchedFamilyKey ??
-      parsedIntent?.serviceCategory ??
-      null,
-    imageKey:
+const image = getActionImage({
+  industry: parsed?.structuredIndustry ?? undefined,
+  workspaceIndustry: industryLabel,
+  familyKey:
+    parsed?.matchedFamilyKey ??
+    parsedIntent?.serviceCategory ??
+    null,
+  imageKey:
     parsed?.imageKey ??
-      actionThesis?.imageKey ??
-      null,
-    imageMode:
-      parsed?.imageMode ??
-      actionThesis?.imageMode ??
-      "SERVICE_IMAGE",
+    actionThesis?.imageKey ??
+    null,
+  imageMode:
+    parsed?.imageMode ??
+    actionThesis?.imageMode ??
+    "SERVICE_IMAGE",
   logoUrl,
 });
 
