@@ -10,6 +10,7 @@ import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 type Props = {
   opportunities: SelectedOpportunity[];
   logoUrl?: string | null;
+  industryLabel?: string | null;
 };
 
 function getOpportunityLabel(type: SelectedOpportunity["opportunityType"]) {
@@ -58,15 +59,19 @@ function formatActionType(value: string) {
 function OpportunityPreviewTile({
   opportunity,
   logoUrl,
+  industryLabel,
 }: {
   opportunity: SelectedOpportunity;
   logoUrl?: string | null;
+  industryLabel?: string | null;
 }) {
-  const image = getActionImage({
-    imageKey: opportunity.imageKey,
-    imageMode: opportunity.imageMode,
-    logoUrl,
-  });
+const image = getActionImage({
+  industry: industryLabel,
+  familyKey: opportunity.familyKey,
+  imageKey: opportunity.imageKey,
+  imageMode: opportunity.imageMode,
+  logoUrl,
+});
 
   const isRemote = image.src.startsWith("http");
 
@@ -97,7 +102,7 @@ function OpportunityPreviewTile({
   );
 }
 
-export function OpportunitiesGrid({ opportunities, logoUrl }: Props) {
+export function OpportunitiesGrid({ opportunities, logoUrl, industryLabel }: Props) {
     const [showGeneratingOverlay, setShowGeneratingOverlay] = useState(false);
   if (opportunities.length === 0) {
     return (
@@ -217,7 +222,11 @@ export function OpportunitiesGrid({ opportunities, logoUrl }: Props) {
                 </div>
               </div>
 
-              <OpportunityPreviewTile opportunity={opportunity} logoUrl={logoUrl} />
+              <OpportunityPreviewTile
+  opportunity={opportunity}
+  logoUrl={logoUrl}
+  industryLabel={industryLabel}
+/>
             </div>
           </section>
         ))}

@@ -61,6 +61,7 @@ type CompetitivePositionData = {
 type Props = {
   workspaceName: string;
   workspaceLogoUrl?: string | null;
+  workspaceIndustryLabel?: string | null;
   hero: RevenueOpportunityHero;
   heroCampaign: HeroCampaignData;
   metrics: MetricsData;

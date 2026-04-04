@@ -28,6 +28,7 @@ type Props = {
   hero: RevenueOpportunityHero;
   heroCampaign: HeroCampaignData;
   logoUrl?: string | null;
+  industryLabel?: string | null;
 };
 
 type CampaignBriefData = {
@@ -83,7 +84,7 @@ function getStatusLabel(heroCampaign: HeroCampaignData) {
   }
 }
 
-export function TopCommandBand({ hero, heroCampaign, logoUrl }: Props) {
+export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: Props) {
   const brief = getBriefData(heroCampaign?.briefJson);
     const [showGeneratingOverlay, setShowGeneratingOverlay] = useState(false);
 
@@ -103,12 +104,12 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl }: Props) {
     brief?.campaignDraft?.cta ?? brief?.actionThesis?.ctaHint ?? "Book now";
 
     const image = getActionImage({
-    industry: "plumbing",
-    familyKey: hero.familyKey,
-    imageKey: brief?.actionThesis?.imageKey ?? hero.imageKey,
-    imageMode: brief?.actionThesis?.imageMode ?? hero.imageMode,
-    logoUrl,
-  });
+        industry: industryLabel,
+        familyKey: hero.familyKey,
+        imageKey: brief?.actionThesis?.imageKey ?? hero.imageKey,
+        imageMode: brief?.actionThesis?.imageMode ?? hero.imageMode,
+        logoUrl,
+      });
   return (
         <>
       <section className="mf-card mf-card-highlight rounded-3xl p-4 md:p-5">

@@ -96,6 +96,7 @@ export default async function DashboardPage() {
     <DashboardShell
       workspaceName={workspace.name}
       workspaceLogoUrl={profile.logoUrl}
+      workspaceIndustryLabel={profile.industryLabel}
       hero={snapshot.hero}
       heroCampaign={
         heroCampaign
