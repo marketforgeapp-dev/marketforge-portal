@@ -5,7 +5,6 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
 import { onboardingSchema } from "@/lib/onboarding-schema";
-import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
 import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
 
@@ -231,6 +230,22 @@ export async function saveOnboarding(input: unknown) {
     servicePageUrls,
     googleBusinessProfileUrl,
   });
+    const discoveredCompetitorPool = values.competitors.length
+    ? await discoverLocalCompetitors({
+        companyName: values.businessName,
+        industry: values.industry,
+        city: values.city,
+        state: values.state,
+        website: values.website,
+      }).catch((error) => {
+        console.error("Competitor discovery failed during onboarding save", {
+          workspaceId: workspace.id,
+          businessName: values.businessName,
+          error,
+        });
+        return [];
+      })
+    : [];
   const businessProfileData = {
     businessName,
     website: toNullableString(values.website),
@@ -248,6 +263,7 @@ export async function saveOnboarding(input: unknown) {
 
     averageJobValue: toNumberOrNull(values.averageJobValue),
     targetWeeklyRevenue: toNumberOrNull(values.targetWeeklyRevenue),
+    monthlyActionBudget: toNumberOrNull(values.monthlyActionBudget),
     technicians: toNumberOrNull(values.technicians),
     jobsPerTechnicianPerDay: toNumberOrNull(values.jobsPerTechnicianPerDay),
     weeklyCapacity: toNumberOrNull(values.weeklyCapacity),
@@ -307,25 +323,12 @@ export async function saveOnboarding(input: unknown) {
   values.competitors
     .filter((competitor) => competitor.name.trim().length > 0)
     .map(async (competitor, index) => {
-      // Try enrichment using Google Places
-      let enriched = null;
-
-      try {
-        const results = await discoverLocalCompetitors({
-          companyName: values.businessName,
-          industry: values.industry,
-          city: values.city,
-          state: values.state,
-          website: values.website,
-        });
-
-        enriched = results.find(
+            const enriched =
+        discoveredCompetitorPool.find(
           (c) =>
-            c.name.toLowerCase() === competitor.name.trim().toLowerCase()
-        );
-      } catch {
-        enriched = null;
-      }
+            c.name.trim().toLowerCase() ===
+            competitor.name.trim().toLowerCase()
+        ) ?? null;
 
       return {
         workspaceId: workspace.id,
@@ -414,8 +417,6 @@ await prisma.workspace.update({
     lastReputationRefreshAt: new Date(),
   },
 });
-
-await invalidateWorkspaceOpportunitySnapshot(workspace.id);
 
 revalidatePath("/onboarding");
 revalidatePath("/dashboard");

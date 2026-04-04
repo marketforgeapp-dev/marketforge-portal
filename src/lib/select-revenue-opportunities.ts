@@ -500,6 +500,46 @@ function buildBacklogOpportunities(
   return selected.slice(0, 5);
 }
 
+function buildSurfaceTopSet(
+  visibleRecommendations: SelectedOpportunity[]
+): SelectedOpportunity[] {
+  const orderedVisible = sortSelectedOpportunities(
+    visibleRecommendations.filter((opportunity) => !opportunity.isDeprioritized)
+  );
+
+  const fallbackOrderedVisible =
+    orderedVisible.length > 0
+      ? orderedVisible
+      : sortSelectedOpportunities(visibleRecommendations);
+
+  const selected: SelectedOpportunity[] = [];
+  const usedOpportunityKeys = new Set<string>();
+  const usedServiceFamilies = new Set<string>();
+
+  // Pass 1:
+  // Take the single highest-scoring opportunity for each distinct service family first.
+  for (const opportunity of fallbackOrderedVisible) {
+    if (selected.length >= 6) break;
+    if (usedServiceFamilies.has(opportunity.familyKey)) continue;
+
+    pushUnique(selected, opportunity, usedOpportunityKeys);
+    usedServiceFamilies.add(opportunity.familyKey);
+  }
+
+  // Pass 2:
+  // If we still do not have 6, backfill with the next-best remaining variants.
+  for (const opportunity of fallbackOrderedVisible) {
+    if (selected.length >= 6) break;
+    if (usedOpportunityKeys.has(opportunity.opportunityKey)) continue;
+
+    pushUnique(selected, opportunity, usedOpportunityKeys);
+  }
+
+  // Final rule:
+  // Once the visible 6 are chosen, sort them strictly by displayed score.
+  return sortSelectedOpportunities(selected).slice(0, 6);
+}
+
 export function selectRevenueOpportunities(params: {
   opportunities: RankedOpportunity[];
   campaigns: CampaignExecutionRecord[];
@@ -537,11 +577,15 @@ export function selectRevenueOpportunities(params: {
   );
 
   const visibleRecommendations = buildVisibleRecommendationSet(rankedSelection);
-  const topOpportunity = selectHeroOpportunity(visibleRecommendations);
-  const backlogOpportunities = buildBacklogOpportunities(
-    visibleRecommendations,
-    topOpportunity
-  );
+  const surfaceTopSet = buildSurfaceTopSet(visibleRecommendations);
+
+  const orderedSurfaceTopSet =
+    surfaceTopSet.length > 0
+      ? surfaceTopSet
+      : sortSelectedOpportunities(visibleRecommendations).slice(0, 6);
+
+  const topOpportunity = orderedSurfaceTopSet[0];
+  const backlogOpportunities = orderedSurfaceTopSet.slice(1, 6);
 
   const hero = buildRevenueOpportunityHero({
     opportunity: topOpportunity,

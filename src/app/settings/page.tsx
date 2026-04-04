@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "@/components/settings/settings-form";
 import type { OnboardingFormData } from "@/types/onboarding";
 import { currentUser } from "@clerk/nextjs/server";
+import { getGooglePlaceSummary } from "@/lib/google-place-metrics";
 
 function toFormNumber(value: number | null | undefined): number | "" {
   return typeof value === "number" ? value : "";
@@ -15,10 +16,17 @@ function toFormString(value: string | null | undefined): string {
   return value ?? "";
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ intent?: string; focus?: string }>;
+}) {
   const workspace = await getCurrentWorkspace();
   const user = await currentUser();
   const primaryEmail = user?.emailAddresses?.[0]?.emailAddress ?? null;
+    const resolvedSearchParams = await searchParams;
+  const isFinalizeMode = resolvedSearchParams?.intent === "finalize";
+  const focusSection = resolvedSearchParams?.focus ?? null;
 
   if (!workspace || !workspace.onboardingCompletedAt) {
     redirect("/onboarding");
@@ -39,6 +47,11 @@ export default async function SettingsPage() {
   }
 
   const profile = fullWorkspace.businessProfile;
+
+    const currentBusinessMatch =
+    profile.googlePlaceId
+      ? await getGooglePlaceSummary(profile.googlePlaceId).catch(() => null)
+      : null;
 
   const initialData: OnboardingFormData = {
     businessName: profile.businessName ?? "",
@@ -70,11 +83,14 @@ export default async function SettingsPage() {
     highestMarginService: toFormString(profile.highestMarginService),
     lowestPriorityService: toFormString(profile.lowestPriorityService),
 
-    technicians: toFormNumber(profile.technicians),
+        technicians: toFormNumber(profile.technicians),
     jobsPerTechnicianPerDay: toFormNumber(profile.jobsPerTechnicianPerDay),
     weeklyCapacity: toFormNumber(profile.weeklyCapacity),
     targetWeeklyRevenue: toFormNumber(
       profile.targetWeeklyRevenue ? Number(profile.targetWeeklyRevenue) : null
+    ),
+    monthlyActionBudget: toFormNumber(
+      profile.monthlyActionBudget ? Number(profile.monthlyActionBudget) : null
     ),
     
     competitors: fullWorkspace.competitors.map((competitor) => ({
@@ -91,6 +107,9 @@ export default async function SettingsPage() {
     hasBlog: profile.hasBlog ?? false,
     hasGoogleBusinessPage: profile.hasGoogleBusinessPage ?? false,
     googleBusinessProfileUrl: toFormString(profile.googleBusinessProfileUrl),
+    googlePlaceId: toFormString(profile.googlePlaceId),
+    googleRating: toFormNumber(profile.googleRating),
+    googleReviewCount: toFormNumber(profile.googleReviewCount),
     servicePageUrls: profile.servicePageUrls ?? [],
 
     busySeason: toFormString(profile.busySeason),
@@ -127,11 +146,15 @@ export default async function SettingsPage() {
           </section>
 
           <SettingsForm
-            workspaceName={fullWorkspace.name}
-            isDemo={fullWorkspace.isDemo}
-            initialData={initialData}
-            primaryEmail={primaryEmail}
-          />
+  workspaceName={fullWorkspace.name}
+  isDemo={fullWorkspace.isDemo}
+  initialData={initialData}
+  primaryEmail={primaryEmail}
+  isFinalizeMode={isFinalizeMode}
+  focusSection={focusSection}
+  currentBusinessMatch={currentBusinessMatch}
+  businessCandidates={[]}
+/>
         </main>
       </div>
     </div>

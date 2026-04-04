@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { OnboardingFormData } from "@/types/onboarding";
-import { saveSettings } from "@/app/settings/actions";
+import type { CompetitorCandidate } from "@/lib/google-places-competitors";
+import { saveSettings, fetchBusinessCandidates } from "@/app/settings/actions";
 import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 
 type Props = {
@@ -11,6 +12,16 @@ type Props = {
   isDemo: boolean;
   initialData: OnboardingFormData;
   primaryEmail: string | null;
+  isFinalizeMode?: boolean;
+  focusSection?: string | null;
+  currentBusinessMatch?: {
+    name: string | null;
+    formattedAddress: string | null;
+    googleBusinessUrl: string | null;
+    rating: number | null;
+    reviewCount: number | null;
+  } | null;
+  businessCandidates?: CompetitorCandidate[];
 };
 
 type ServicePricingRow = {
@@ -154,6 +165,10 @@ export function SettingsForm({
   isDemo,
   initialData,
   primaryEmail,
+  isFinalizeMode = false,
+  focusSection = null,
+  currentBusinessMatch = null,
+  businessCandidates = [],
 }: Props) {
   const router = useRouter();
   const [formData, setFormData] = useState<OnboardingFormData>(() => ({
@@ -169,6 +184,28 @@ export function SettingsForm({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showRefreshingOverlay, setShowRefreshingOverlay] = useState(false);
+  const [showBusinessCandidates, setShowBusinessCandidates] = useState(false);
+  const [dynamicBusinessCandidates, setDynamicBusinessCandidates] = useState<CompetitorCandidate[]>([]);
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
+  const [selectedGoogleBusiness, setSelectedGoogleBusiness] = useState<{
+    placeId: string | null;
+    name: string | null;
+    formattedAddress: string | null;
+    googleBusinessUrl: string | null;
+    rating: number | null;
+    reviewCount: number | null;
+  } | null>(
+    currentBusinessMatch
+      ? {
+          placeId: initialData.googlePlaceId ?? null,
+          name: currentBusinessMatch.name,
+          formattedAddress: currentBusinessMatch.formattedAddress,
+          googleBusinessUrl: currentBusinessMatch.googleBusinessUrl,
+          rating: currentBusinessMatch.rating,
+          reviewCount: currentBusinessMatch.reviewCount,
+        }
+      : null
+  );
   const [isPending, startTransition] = useTransition();
   const [preferredServicesInput, setPreferredServicesInput] = useState(() =>
     arrayToCommaSeparated(initialData.preferredServices ?? [])
@@ -351,8 +388,9 @@ export function SettingsForm({
 
     startTransition(async () => {
       try {
-        const result = await saveSettings({
+                const result = await saveSettings({
           ...formData,
+          selectedGoogleBusiness,
           servicePricing: (formData.servicePricing ?? [])
             .map((row) => ({
               serviceName: row.serviceName.trim(),
@@ -370,7 +408,11 @@ export function SettingsForm({
           return;
         }
 
-        setSaveMessage("Settings saved successfully. Redirecting to Command Center...");
+        setSaveMessage(
+  isFinalizeMode
+    ? "Recommendation inputs saved. Redirecting to Command Center..."
+    : "Settings saved successfully. Redirecting to Command Center..."
+);
         router.push("/dashboard");
         router.refresh();
       } catch (error) {
@@ -384,17 +426,226 @@ export function SettingsForm({
   return (
     <>
     <div className="space-y-6">
+            {isFinalizeMode ? (
+        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+            Final Recommendation Step
+          </p>
+
+          <h2 className="mt-2 text-2xl font-bold text-gray-900">
+            One final step before Command Center
+          </h2>
+
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-700">
+            Your business profile has been saved. Now confirm the final inputs
+            MarketForge uses to rank opportunities correctly, select your top
+            action, and recommend the best next steps to generate revenue.
+          </p>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-white bg-white px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Step 1
+              </p>
+              <p className="mt-1 text-sm font-medium text-gray-900">
+                Confirm service pricing
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white bg-white px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Step 2
+              </p>
+              <p className="mt-1 text-sm font-medium text-gray-900">
+                Confirm monthly action budget
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white bg-white px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Step 3
+              </p>
+              <p className="mt-1 text-sm font-medium text-gray-900">
+                Review business profile inputs
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+            {isFinalizeMode ? (
+        <section className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+                Google Business Profile
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-gray-900">
+                Confirm your business listing
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                MarketForge uses this business listing for Google rating and review
+                data. Confirm the correct listing so reputation and recommendation
+                inputs are based on the right business.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+  const next = !showBusinessCandidates;
+  setShowBusinessCandidates(next);
+
+  if (next && dynamicBusinessCandidates.length === 0) {
+    setIsLoadingCandidates(true);
+
+   const resolvedIndustry: "PLUMBING" | "HVAC" | "SEPTIC" | "TREE_SERVICE" =
+  formData.industry === "HVAC" ||
+  formData.industry === "SEPTIC" ||
+  formData.industry === "TREE_SERVICE"
+    ? formData.industry
+    : "PLUMBING";
+
+const result = await fetchBusinessCandidates({
+  companyName: formData.businessName,
+  industry: resolvedIndustry,
+  city: formData.city || null,
+  state: formData.state || null,
+  website: formData.website || null,
+  phone: formData.phone || null,
+});
+
+    if (result?.success) {
+      setDynamicBusinessCandidates(result.candidates ?? []);
+    }
+
+    setIsLoadingCandidates(false);
+  }
+}}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                {showBusinessCandidates ? "Hide other listings" : "Choose a different listing"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm font-semibold text-gray-900">
+              {selectedGoogleBusiness?.name ?? currentBusinessMatch?.name ?? formData.businessName ?? workspaceName}
+            </p>
+
+            {(selectedGoogleBusiness?.formattedAddress ?? currentBusinessMatch?.formattedAddress) ? (
+              <p className="mt-1 text-sm text-gray-600">
+                {selectedGoogleBusiness?.formattedAddress ?? currentBusinessMatch?.formattedAddress}
+              </p>
+            ) : null}
+
+            <div className="mt-3 flex flex-wrap gap-3 text-sm text-gray-700">
+              <span>
+                Rating:{" "}
+                {selectedGoogleBusiness?.rating ?? currentBusinessMatch?.rating ?? "Not available"}
+              </span>
+              <span>
+                Reviews:{" "}
+                {selectedGoogleBusiness?.reviewCount ?? currentBusinessMatch?.reviewCount ?? "Not available"}
+              </span>
+            </div>
+
+            {(selectedGoogleBusiness?.googleBusinessUrl ?? currentBusinessMatch?.googleBusinessUrl) ? (
+              <a
+                href={selectedGoogleBusiness?.googleBusinessUrl ?? currentBusinessMatch?.googleBusinessUrl ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                View Google Business Profile
+              </a>
+            ) : null}
+          </div>
+
+          {showBusinessCandidates ? (
+            <div className="mt-5 space-y-3">
+              {isLoadingCandidates ? (
+  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+    Searching for business listings...
+  </div>
+) : dynamicBusinessCandidates.length > 0 ? (
+  dynamicBusinessCandidates.map((candidate, index) => (
+                  <div
+                    key={`${candidate.placeId ?? candidate.googleBusinessUrl ?? candidate.name}-${index}`}
+                    className="rounded-xl border border-gray-200 bg-white p-4"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {candidate.name}
+                        </p>
+                        {candidate.formattedAddress ? (
+                          <p className="mt-1 text-sm text-gray-600">
+                            {candidate.formattedAddress}
+                          </p>
+                        ) : null}
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-700">
+                          <span>Rating: {candidate.rating ?? "Not available"}</span>
+                          <span>Reviews: {candidate.reviewCount ?? "Not available"}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedGoogleBusiness({
+                            placeId: candidate.placeId,
+                            name: candidate.name,
+                            formattedAddress: candidate.formattedAddress,
+                            googleBusinessUrl: candidate.googleBusinessUrl,
+                            rating: candidate.rating,
+                            reviewCount: candidate.reviewCount,
+                          });
+
+                                                    setFormData((prev) => ({
+                            ...prev,
+                            googleBusinessProfileUrl: candidate.googleBusinessUrl ?? "",
+                            googlePlaceId: candidate.placeId ?? "",
+                            googleRating:
+                              typeof candidate.rating === "number"
+                                ? candidate.rating
+                                : "",
+                            googleReviewCount:
+                              typeof candidate.reviewCount === "number"
+                                ? candidate.reviewCount
+                                : "",
+                          }));
+                          setShowBusinessCandidates(false);
+                        }}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        Use this listing
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+                  No alternate Google listings were found for this business.
+                </div>
+              )}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
-          Settings
-        </p>
-        <h1 className="mt-2 text-3xl font-bold text-gray-900">
-          Workspace Settings
-        </h1>
-        <p className="mt-2 text-gray-600">
-          Review and update the business information that powers your
-          MarketForge workspace.
-        </p>
+  {isFinalizeMode ? "Recommendation Setup" : "Settings"}
+</p>
+<h1 className="mt-2 text-3xl font-bold text-gray-900">
+  {isFinalizeMode ? "Finalize your recommendation inputs" : "Workspace Settings"}
+</h1>
+<p className="mt-2 text-gray-600">
+  {isFinalizeMode
+    ? "Confirm the pricing, budget, and business profile inputs that MarketForge uses to calculate opportunity value, prioritize actions, and prepare your first recommendations."
+    : "Review and update the business information that powers your MarketForge workspace."}
+</p>
 
         <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 md:flex-row md:items-center">
                     <div className="flex h-24 min-w-[140px] max-w-[220px] items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-white px-3">
@@ -594,7 +845,7 @@ export function SettingsForm({
             />
           </Field>
 
-          <Field label="Highest Margin Service">
+          <Field label="Highest Priority Service">
             <input
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
               value={formData.highestMarginService}
@@ -669,18 +920,41 @@ export function SettingsForm({
               }
             />
           </Field>
+          <Field
+              label="Monthly Action Budget"
+              helpText="Confirm the amount you can typically invest each month in marketing, promotions, and growth actions. You can adjust it any time."
+              >
+            <input
+              type="number"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+              value={formData.monthlyActionBudget}
+              onChange={(e) =>
+                updateField(
+                  "monthlyActionBudget",
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
+            />
+          </Field>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <section
+  id="service-pricing"
+  className={`rounded-2xl bg-white p-6 shadow-sm ${
+    isFinalizeMode && focusSection === "service-pricing"
+      ? "border-2 border-blue-400 ring-4 ring-blue-100"
+      : "border border-gray-200"
+  }`}
+>
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Service Pricing</h2>
                 <SectionSaveButton onSave={handleSave} isPending={isPending} />
             <p className="mt-1 text-sm text-gray-600">
-                Set average revenue by service so MarketForge can calculate realistic
-                opportunity value. If a service does not have a specific price,
-                the system falls back to your average job value.
+              Set, confirm, or add average revenue by service so MarketForge can calculate
+              realistic opportunity value. If a service does not have a specific price,
+              the system falls back to your average job value.
             </p>
           </div>
 
@@ -1026,7 +1300,11 @@ export function SettingsForm({
               : "bg-blue-600 hover:bg-blue-700"
           }`}
         >
-          {isPending ? "Saving..." : "Save Settings"}
+          {isPending
+  ? "Saving..."
+  : isFinalizeMode
+    ? "Continue to Command Center"
+    : "Save Settings"}
         </button>
       </div>
     </div>

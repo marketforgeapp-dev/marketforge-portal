@@ -5,7 +5,10 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
-import { lookupSingleCompetitor } from "@/lib/google-places-competitors";
+import {
+  lookupBusinessCandidates,
+  lookupSingleCompetitor,
+} from "@/lib/google-places-competitors";
 
 type RawCompetitor = {
   name?: unknown;
@@ -13,6 +16,15 @@ type RawCompetitor = {
   googleBusinessUrl?: unknown;
   logoUrl?: unknown;
   isPrimaryCompetitor?: unknown;
+};
+
+type RawSelectedGoogleBusiness = {
+  placeId?: unknown;
+  name?: unknown;
+  formattedAddress?: unknown;
+  googleBusinessUrl?: unknown;
+  rating?: unknown;
+  reviewCount?: unknown;
 };
 
 type RawSettingsInput = {
@@ -38,10 +50,11 @@ type RawSettingsInput = {
   highestMarginService?: unknown;
   lowestPriorityService?: unknown;
 
-  technicians?: unknown;
+    technicians?: unknown;
   jobsPerTechnicianPerDay?: unknown;
   weeklyCapacity?: unknown;
   targetWeeklyRevenue?: unknown;
+  monthlyActionBudget?: unknown;
   
   competitors?: unknown;
 
@@ -51,6 +64,10 @@ type RawSettingsInput = {
   hasBlog?: unknown;
   hasGoogleBusinessPage?: unknown;
   googleBusinessProfileUrl?: unknown;
+  googlePlaceId?: unknown;
+  googleRating?: unknown;
+  googleReviewCount?: unknown;
+  selectedGoogleBusiness?: unknown;
   servicePageUrls?: unknown;
 
   busySeason?: unknown;
@@ -76,6 +93,39 @@ function toStringValue(value: unknown): string {
 
 function toTrimmedString(value: unknown): string {
   return toStringValue(value).trim();
+}
+
+function normalizeSelectedGoogleBusiness(
+  value: unknown
+): {
+  placeId: string | null;
+  name: string | null;
+  formattedAddress: string | null;
+  googleBusinessUrl: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+} | null {
+  if (!isRecord(value)) return null;
+
+  const placeId = toNullableString(value.placeId);
+  const name = toNullableString(value.name);
+  const formattedAddress = toNullableString(value.formattedAddress);
+  const googleBusinessUrl = toNullableString(value.googleBusinessUrl);
+  const rating = toNumberOrNull(value.rating);
+  const reviewCount = toNumberOrNull(value.reviewCount);
+
+  if (!placeId && !googleBusinessUrl) {
+    return null;
+  }
+
+  return {
+    placeId,
+    name,
+    formattedAddress,
+    googleBusinessUrl,
+    rating,
+    reviewCount,
+  };
 }
 
 function toNullableString(value: unknown): string | null {
@@ -222,19 +272,23 @@ function normalizeSettingsInput(input: unknown) {
     highestMarginService: toNullableString(raw.highestMarginService),
     lowestPriorityService: toNullableString(raw.lowestPriorityService),
 
-    technicians: toNumberOrNull(raw.technicians),
+        technicians: toNumberOrNull(raw.technicians),
     jobsPerTechnicianPerDay: toNumberOrNull(raw.jobsPerTechnicianPerDay),
     weeklyCapacity: toNumberOrNull(raw.weeklyCapacity),
     targetWeeklyRevenue: toNumberOrNull(raw.targetWeeklyRevenue),
+    monthlyActionBudget: toNumberOrNull(raw.monthlyActionBudget),
     
     competitors: normalizeCompetitors(raw.competitors),
 
-    hasServicePages: toBoolean(raw.hasServicePages),
+        hasServicePages: toBoolean(raw.hasServicePages),
     hasFaqContent: toBoolean(raw.hasFaqContent),
     hasFaqPage: toBoolean(raw.hasFaqPage),
     hasBlog: toBoolean(raw.hasBlog),
     hasGoogleBusinessPage: toBoolean(raw.hasGoogleBusinessPage),
     googleBusinessProfileUrl: toNullableString(raw.googleBusinessProfileUrl),
+    googlePlaceId: toNullableString(raw.googlePlaceId),
+    googleRating: toNumberOrNull(raw.googleRating),
+    googleReviewCount: toNumberOrNull(raw.googleReviewCount),
     servicePageUrls: toStringArray(raw.servicePageUrls),
 
     busySeason: toNullableString(raw.busySeason),
@@ -309,6 +363,65 @@ export async function saveSettings(input: unknown) {
     },
   });
 
+const rawInput = isRecord(input) ? input : {};
+
+const selectedGoogleBusiness = normalizeSelectedGoogleBusiness(
+  rawInput.selectedGoogleBusiness
+);
+
+  let resolvedBusinessGoogleMatch:
+    | {
+        placeId: string | null;
+        googleBusinessUrl: string | null;
+        rating: number | null;
+        reviewCount: number | null;
+      }
+    | null = null;
+
+  if (selectedGoogleBusiness) {
+    resolvedBusinessGoogleMatch = {
+      placeId: selectedGoogleBusiness.placeId,
+      googleBusinessUrl:
+        selectedGoogleBusiness.googleBusinessUrl ??
+        toNullableString(values.googleBusinessProfileUrl),
+      rating: selectedGoogleBusiness.rating,
+      reviewCount: selectedGoogleBusiness.reviewCount,
+    };
+  } else if (
+    values.googlePlaceId ||
+    values.googleRating !== null ||
+    values.googleReviewCount !== null
+  ) {
+    resolvedBusinessGoogleMatch = {
+      placeId: toNullableString(values.googlePlaceId),
+      googleBusinessUrl: toNullableString(values.googleBusinessProfileUrl),
+      rating: toNumberOrNull(values.googleRating),
+      reviewCount: toNumberOrNull(values.googleReviewCount),
+    };
+  } else {
+    const fallbackCandidates = await lookupBusinessCandidates({
+  companyName: values.businessName,
+  industry: values.industry,
+  city: values.city,
+  state: values.state,
+  website: values.website,
+  phone: values.phone,
+}).catch(() => []);
+
+    const fallback = fallbackCandidates[0] ?? null;
+
+    if (fallback) {
+      resolvedBusinessGoogleMatch = {
+        placeId: fallback.placeId,
+        googleBusinessUrl:
+          fallback.googleBusinessUrl ??
+          toNullableString(values.googleBusinessProfileUrl),
+        rating: fallback.rating,
+        reviewCount: fallback.reviewCount,
+      };
+    }
+  }
+
   const aeoReadinessScore = calculateAeoReadinessScore({
     hasServicePages: values.hasServicePages,
     hasFaqContent: values.hasFaqContent,
@@ -317,14 +430,6 @@ export async function saveSettings(input: unknown) {
     servicePageUrls: values.servicePageUrls,
     googleBusinessProfileUrl: values.googleBusinessProfileUrl,
   });
-
-  const businessGoogleMatch = await lookupSingleCompetitor({
-  companyName: values.businessName,
-  industry: values.industry,
-  city: values.city,
-  state: values.state,
-  website: values.website,
-});
 
   const businessProfileData = {
     businessName: values.businessName,
@@ -340,8 +445,9 @@ export async function saveSettings(input: unknown) {
     brandTone: values.brandTone,
     industryLabel: values.industryLabel,
 
-    averageJobValue: values.averageJobValue,
+        averageJobValue: values.averageJobValue,
     targetWeeklyRevenue: values.targetWeeklyRevenue,
+    monthlyActionBudget: values.monthlyActionBudget,
     technicians: values.technicians,
     jobsPerTechnicianPerDay: values.jobsPerTechnicianPerDay,
     weeklyCapacity: values.weeklyCapacity,
@@ -359,29 +465,18 @@ export async function saveSettings(input: unknown) {
     slowMonths: values.slowMonths,
     seasonalityNotes: values.seasonalityNotes,
 
-    googleBusinessProfileUrl:
-  values.googleBusinessProfileUrl ??
-  businessGoogleMatch?.googleBusinessUrl ??
-  null,
-
-googlePlaceId:
-  businessGoogleMatch?.placeId ?? null,
-
-googleRating:
-  typeof businessGoogleMatch?.rating === "number"
-    ? businessGoogleMatch.rating
-    : null,
-
-googleReviewCount:
-  typeof businessGoogleMatch?.reviewCount === "number"
-    ? businessGoogleMatch.reviewCount
-    : null,
-
-lastReputationEnrichedAt:
-  typeof businessGoogleMatch?.rating === "number" ||
-  typeof businessGoogleMatch?.reviewCount === "number"
-    ? new Date()
-    : null,
+        googleBusinessProfileUrl:
+      resolvedBusinessGoogleMatch?.googleBusinessUrl ??
+      values.googleBusinessProfileUrl ??
+      null,
+    googlePlaceId: resolvedBusinessGoogleMatch?.placeId ?? null,
+    googleRating: resolvedBusinessGoogleMatch?.rating ?? null,
+    googleReviewCount: resolvedBusinessGoogleMatch?.reviewCount ?? null,
+    lastReputationEnrichedAt:
+      resolvedBusinessGoogleMatch?.rating !== null ||
+      resolvedBusinessGoogleMatch?.reviewCount !== null
+        ? new Date()
+        : null,
 
 hasFaqContent: values.hasFaqContent,
 hasBlog: values.hasBlog,
@@ -475,4 +570,21 @@ lastEnrichedAt:
   revalidatePath("/reports");
 
   return { success: true };
+}
+
+export async function fetchBusinessCandidates(input: {
+  companyName: string;
+  industry: "PLUMBING" | "HVAC" | "SEPTIC" | "TREE_SERVICE";
+  city?: string | null;
+  state?: string | null;
+  website?: string | null;
+  phone?: string | null;
+}) {
+  try {
+    const candidates = await lookupBusinessCandidates(input);
+    return { success: true, candidates };
+  } catch (error) {
+    console.error("Failed to fetch business candidates", error);
+    return { success: false, candidates: [] };
+  }
 }

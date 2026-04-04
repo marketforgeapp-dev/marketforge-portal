@@ -1,9 +1,12 @@
 "use server";
 
+"use server";
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { CampaignStatus } from "@/generated/prisma";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
+import { sendCampaignApprovalNotification } from "@/lib/email/send-campaign-approval-notification";
 
 function revalidateCampaignViews(campaignId: string) {
   revalidatePath(`/campaigns/${campaignId}`);
@@ -11,6 +14,41 @@ function revalidateCampaignViews(campaignId: string) {
   revalidatePath("/dashboard");
   revalidatePath("/execution");
   revalidatePath("/reports");
+}
+
+async function notifyCampaignApproved(campaignId: string) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      name: true,
+      targetService: true,
+      workspaceId: true,
+    },
+  });
+
+  if (!campaign) {
+    return;
+  }
+
+  const profile = await prisma.businessProfile.findUnique({
+    where: { workspaceId: campaign.workspaceId },
+    select: {
+      businessName: true,
+    },
+  });
+
+  try {
+    await sendCampaignApprovalNotification({
+      businessName: profile?.businessName ?? "MarketForge Customer",
+      campaignName: campaign.name,
+      targetService: campaign.targetService ?? null,
+    });
+  } catch (error) {
+    console.error("[campaign-approval-email] failed", {
+      campaignId,
+      error,
+    });
+  }
 }
 
 export async function approveCampaign(campaignId: string) {
@@ -29,6 +67,8 @@ export async function approveCampaign(campaignId: string) {
       status: "APPROVED",
     },
   });
+
+  await notifyCampaignApproved(campaignId);
 
   await invalidateWorkspaceOpportunitySnapshot(campaign.workspaceId);
 

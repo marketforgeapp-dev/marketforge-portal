@@ -5,7 +5,6 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { OnboardingFormData } from "@/types/onboarding";
-import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 import { OnboardingProgress } from "./onboarding-progress";
 import { BusinessInfoStep } from "./steps/business-info-step";
 import { ServicesStep } from "./steps/services-step";
@@ -40,9 +39,12 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   city: "",
   state: "",
   serviceArea: "",
-  serviceAreaRadiusMiles: 30,
+  serviceAreaRadiusMiles: 25,
   industry: "PLUMBING",
   industryLabel: "Plumbing",
+  googlePlaceId: "",
+  googleRating: "",
+  googleReviewCount: "",
   brandTone: "PROFESSIONAL",
 
   preferredServices: [],
@@ -56,6 +58,7 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   jobsPerTechnicianPerDay: 3,
   weeklyCapacity: 45,
   targetWeeklyRevenue: 12000,
+  monthlyActionBudget: "",
   
   competitors: [],
 
@@ -95,7 +98,7 @@ export function OnboardingFlow() {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<OnboardingFormData>(INITIAL_FORM_DATA);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [showGeneratingOverlay, setShowGeneratingOverlay] = useState(false);
+  const [showSavingOverlay, setShowSavingOverlay] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const totalSteps = STEP_LABELS.length;
@@ -239,34 +242,33 @@ export function OnboardingFlow() {
   };
 
     const handleFinish = () => {
-    setSubmitError(null);
-    setShowGeneratingOverlay(true);
+  setSubmitError(null);
+  setShowSavingOverlay(true);
 
-    startTransition(async () => {
-      try {
-        const result = await saveOnboarding({
-          ...normalizedFormData,
-          preferredServices:
-            normalizedFormData.preferredServices.length > 0
-              ? normalizedFormData.preferredServices
-              : normalizedFormData.primaryServices,
-        });
+  startTransition(async () => {
+    try {
+      const result = await saveOnboarding({
+        ...normalizedFormData,
+        preferredServices:
+          normalizedFormData.preferredServices.length > 0
+            ? normalizedFormData.preferredServices
+            : normalizedFormData.primaryServices,
+      });
 
-        if (!result?.success) {
-          setSubmitError("Something went wrong while saving onboarding.");
-          setShowGeneratingOverlay(false);
-          return;
-        }
-
-        router.push("/dashboard");
-      } catch (error) {
-        console.error(error);
+      if (!result?.success) {
         setSubmitError("Something went wrong while saving onboarding.");
-        setShowGeneratingOverlay(false);
+        setShowSavingOverlay(false);
+        return;
       }
-    });
-  };
 
+      router.push("/settings?intent=finalize&focus=service-pricing");
+    } catch (error) {
+      console.error(error);
+      setSubmitError("Something went wrong while saving onboarding.");
+      setShowSavingOverlay(false);
+    }
+  });
+};
     return (
     <>
       <div className="min-h-screen bg-slate-950 px-6 py-10">
@@ -281,10 +283,11 @@ export function OnboardingFlow() {
             Set up your business profile
           </h1>
           <p className="mt-2 max-w-3xl text-slate-400">
-            MarketForge uses your services, pricing, capacity, competitors, and local
-            visibility signals to identify the best revenue opportunities for your
-            business and generate actions designed to produce booked jobs.
-          </p>
+  MarketForge uses your services, pricing, capacity, competitors, and local
+  visibility signals to identify the best revenue opportunities for your
+  business. After setup, you will confirm a final set of business inputs before
+  MarketForge prepares your first recommendations.
+</p>
         </div>
 
         <div className="mb-6">
@@ -292,10 +295,10 @@ export function OnboardingFlow() {
         </div>
 
         <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
-          Review and refine anything before continuing. These inputs directly affect
-          opportunity ranking, revenue projections, and the actions MarketForge
-          recommends after onboarding.
-        </div>
+  Review and refine anything before continuing. These inputs shape opportunity
+  ranking, revenue projections, and the recommendations MarketForge will prepare
+  after one final accuracy step in Settings.
+</div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
           <OnboardingProgress
@@ -375,10 +378,28 @@ export function OnboardingFlow() {
             </div>
     </div>
 
-    <SystemStatusOverlay
-      mode="generating"
-      visible={showGeneratingOverlay}
-    />
+    {showSavingOverlay ? (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 px-6">
+    <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
+      <p className="text-sm font-semibold uppercase tracking-wide text-blue-400">
+        Saving your business profile
+      </p>
+
+      <h2 className="mt-3 text-2xl font-bold text-white">
+        Finalizing your setup
+      </h2>
+
+      <p className="mt-3 text-sm leading-6 text-slate-300">
+        Next, you’ll confirm the final inputs MarketForge uses to rank
+        opportunities correctly and prepare your first recommendations.
+      </p>
+
+      <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+        <div className="h-full w-1/2 animate-pulse rounded-full bg-blue-500" />
+      </div>
+    </div>
+  </div>
+) : null}
   </>
   );
 }

@@ -123,6 +123,24 @@ export function CapacityStep({ formData, setFormData }: Props) {
           }
         />
       </Field>
+            <Field label="Monthly Action Budget">
+        <input
+          type="number"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
+          value={formData.monthlyActionBudget}
+          onChange={(e) =>
+            setFormData((prev) => ({
+              ...prev,
+              monthlyActionBudget:
+                e.target.value === "" ? "" : Number(e.target.value),
+            }))
+          }
+        />
+        <p className="mt-2 text-xs text-gray-500">
+          Enter the amount you can typically invest each month in marketing,
+          promotions, and growth actions. A rough estimate is fine.
+        </p>
+      </Field>
     </div>
   );
 }

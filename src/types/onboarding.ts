@@ -36,6 +36,7 @@ export type OnboardingFormData = {
   jobsPerTechnicianPerDay: number | "";
   weeklyCapacity: number | "";
   targetWeeklyRevenue: number | "";
+  monthlyActionBudget: number | "";
   
   competitors: CompetitorInput[];
 
@@ -46,6 +47,17 @@ export type OnboardingFormData = {
   hasGoogleBusinessPage: boolean;
   googleBusinessProfileUrl: string;
   servicePageUrls: string[];
+  googlePlaceId: string | "";
+googleRating: number | "";
+googleReviewCount: number | "";
+selectedGoogleBusiness?: {
+  placeId: string | null;
+  name: string | null;
+  formattedAddress: string | null;
+  googleBusinessUrl: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+} | null;
 
   busySeason: string;
   slowSeason: string;

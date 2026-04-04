@@ -26,6 +26,15 @@ export type DiscoverCompetitorsInput = {
   website?: string | null;
 };
 
+export type LookupBusinessInput = {
+  companyName: string;
+  industry: "PLUMBING" | "HVAC" | "SEPTIC" | "TREE_SERVICE";
+  city?: string | null;
+  state?: string | null;
+  website?: string | null;
+  phone?: string | null;
+};
+
 type GooglePlacesTextSearchResponse = {
   places?: Array<{
     id?: string;
@@ -277,6 +286,113 @@ function isLikelySameBusiness(
   }
 
   return hasStrongBrandOverlap(candidateName, companyName);
+}
+
+function isStrongBusinessNameCandidate(
+  candidateName: string,
+  companyName: string
+): boolean {
+  const candidateSlug = slugifyComparable(candidateName);
+  const companySlug = slugifyComparable(companyName);
+
+  if (!candidateSlug || !companySlug) {
+    return false;
+  }
+
+  if (candidateSlug === companySlug) {
+    return true;
+  }
+
+  if (hasStrongBrandOverlap(candidateName, companyName)) {
+    return true;
+  }
+
+  const companyTokens = getDistinctiveBusinessTokens(companyName);
+  const candidateTokens = getDistinctiveBusinessTokens(candidateName);
+
+  if (companyTokens.length === 0 || candidateTokens.length === 0) {
+    return false;
+  }
+
+  let overlapCount = 0;
+
+  for (const companyToken of companyTokens) {
+    const matched = candidateTokens.some(
+      (candidateToken) =>
+        candidateToken === companyToken ||
+        stringsAreVeryClose(candidateToken, companyToken)
+    );
+
+    if (matched) overlapCount += 1;
+  }
+
+  return overlapCount >= 2;
+}
+
+function scoreBusinessMatch(params: {
+  candidateName: string;
+  companyName: string;
+  candidateWebsite: string | null;
+  companyWebsite: string | null;
+  candidateAddress: string | null;
+  candidatePhone: string | null;
+  companyPhone: string | null;
+  city?: string | null;
+  state?: string | null;
+  reviewCount?: number | null;
+}): number {
+  let score = 0;
+
+  const targetDomain = normalizeDomain(params.companyWebsite);
+  const candidateDomain = normalizeDomain(params.candidateWebsite);
+
+  if (targetDomain && candidateDomain && targetDomain === candidateDomain) {
+    score += 120;
+  }
+
+  const normalizedCandidatePhone = (params.candidatePhone ?? "").replace(/\D/g, "");
+  const normalizedCompanyPhone = (params.companyPhone ?? "").replace(/\D/g, "");
+
+  if (
+    normalizedCandidatePhone.length >= 7 &&
+    normalizedCompanyPhone.length >= 7 &&
+    normalizedCandidatePhone === normalizedCompanyPhone
+  ) {
+    score += 100;
+  }
+
+  const targetName = slugifyComparable(params.companyName);
+  const candidateName = slugifyComparable(params.candidateName);
+
+  if (targetName && candidateName && candidateName === targetName) {
+    score += 80;
+  }
+
+  if (hasStrongBrandOverlap(params.candidateName, params.companyName)) {
+    score += 40;
+  }
+
+  if (!isStrongBusinessNameCandidate(params.candidateName, params.companyName)) {
+    score -= 80;
+  }
+
+  const address = (params.candidateAddress ?? "").toLowerCase();
+  const city = (params.city ?? "").trim().toLowerCase();
+  const state = (params.state ?? "").trim().toLowerCase();
+
+  if (city && address.includes(city)) {
+    score += 18;
+  }
+
+  if (state && address.includes(state)) {
+    score += 8;
+  }
+
+  if (typeof params.reviewCount === "number" && params.reviewCount > 0) {
+    score += Math.min(15, Math.floor(params.reviewCount / 20));
+  }
+
+  return score;
 }
 
 function faviconFromWebsite(website: string | null): string | null {
@@ -1351,142 +1467,198 @@ function dedupeKeyForCandidate(
   );
 }
 
-export async function lookupSingleCompetitorCore(input: {
-  companyName: string;
-  industry: "PLUMBING" | "HVAC" | "SEPTIC" | "TREE_SERVICE";
-  city?: string | null;
-  state?: string | null;
-  website?: string | null;
-}): Promise<CompetitorCandidate | null> {
-  console.log("[competitor-discovery] lookupSingleCompetitorCore START", {
-  companyName: input.companyName,
-  industry: input.industry,
-  city: input.city,
-  state: input.state,
-  website: input.website,
-});
+function dedupeBusinessCandidates(
+  candidates: CompetitorCandidate[]
+): CompetitorCandidate[] {
+  const seen = new Set<string>();
+  const deduped: CompetitorCandidate[] = [];
+
+  for (const candidate of candidates) {
+    const key =
+      candidate.placeId ??
+      candidate.googleBusinessUrl ??
+      `${candidate.name}::${candidate.formattedAddress ?? ""}`;
+
+    if (!key || seen.has(key)) continue;
+
+    seen.add(key);
+    deduped.push(candidate);
+  }
+
+  return deduped;
+}
+
+export async function lookupBusinessCandidatesCore(
+  input: LookupBusinessInput
+): Promise<CompetitorCandidate[]> {
+  console.log("[competitor-discovery] lookupBusinessCandidatesCore START", {
+    companyName: input.companyName,
+    industry: input.industry,
+    city: input.city,
+    state: input.state,
+    website: input.website,
+    phone: input.phone,
+  });
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return [];
 
   const location = [input.city, input.state].filter(Boolean).join(" ").trim();
-  const textQuery = location
-    ? `${input.companyName} ${location}`
-    : input.companyName;
+  const websiteDomain = normalizeDomain(input.website ?? null);
+  const normalizedPhone = (input.phone ?? "").replace(/\D/g, "");
 
-  let places: GooglePlacesTextSearchResponse["places"];
+  const textQueries = [
+    location ? `${input.companyName} ${location}` : input.companyName,
+    normalizedPhone.length >= 7 ? `${input.companyName} ${normalizedPhone}` : null,
+    websiteDomain ? `${input.companyName} ${websiteDomain}` : null,
+  ].filter((value): value is string => Boolean(value && value.trim().length > 0));
 
-  try {
-    places = await searchText(apiKey, { textQuery });
-  } catch (error) {
-    console.error("Single competitor lookup failed", {
-      companyName: input.companyName,
-      error,
-    });
-    return null;
-  }
+  const allPlaces: NonNullable<GooglePlacesTextSearchResponse["places"]> = [];
 
-  if (!places || places.length === 0) {
-    return null;
-  }
-
-  const targetDomain = normalizeDomain(input.website);
-  const targetName = slugifyComparable(input.companyName);
-
-  const sortedPlaces = [...places].sort((a, b) => {
-    const aHasWebsite = Boolean(cleanString(a.websiteUri));
-    const bHasWebsite = Boolean(cleanString(b.websiteUri));
-
-    if (aHasWebsite !== bHasWebsite) {
-      return aHasWebsite ? -1 : 1;
+  for (const textQuery of textQueries) {
+    try {
+      const places = await searchText(apiKey, { textQuery });
+      if (places?.length) {
+        allPlaces.push(...places);
+      }
+    } catch (error) {
+      console.error("Business candidate lookup failed for query", {
+        textQuery,
+        companyName: input.companyName,
+        error,
+      });
     }
+  }
 
-    return 0;
-  });
+  if (allPlaces.length === 0) {
+    return [];
+  }
 
-  const bestPlace =
-    sortedPlaces.find((place) => {
-      const candidateWebsite = cleanString(place.websiteUri);
-      const candidateDomain = normalizeDomain(candidateWebsite);
-      const candidateName = slugifyComparable(place.displayName?.text ?? null);
+  const uniqueRawPlaces = new Map<
+    string,
+    NonNullable<GooglePlacesTextSearchResponse["places"]>[number]
+  >();
 
-      if (targetDomain && candidateDomain && targetDomain === candidateDomain) {
-        return true;
-      }
+  for (const place of allPlaces) {
+    const placeId = cleanString(place.id);
+    const fallbackKey =
+      placeId ??
+      `${cleanString(place.displayName?.text) ?? input.companyName}::${cleanString(place.formattedAddress) ?? ""}`;
 
-      if (!targetName || !candidateName) {
-        return false;
-      }
+    if (!uniqueRawPlaces.has(fallbackKey)) {
+      uniqueRawPlaces.set(fallbackKey, place);
+    }
+  }
 
-      return (
-        candidateName === targetName ||
-        candidateName.includes(targetName) ||
-        targetName.includes(candidateName)
-      );
-    }) ?? sortedPlaces[0];
+  const enriched = await Promise.all(
+    Array.from(uniqueRawPlaces.values()).slice(0, 12).map(async (place) => {
+      const placeId = cleanString(place.id);
+      const details = placeId ? await getPlaceDetails(apiKey, placeId) : null;
 
-  const placeId = cleanString(bestPlace.id);
-  const details = placeId ? await getPlaceDetails(apiKey, placeId) : null;
+      const websiteUrl =
+        cleanString(details?.websiteUri) ?? cleanString(place.websiteUri);
+      const googleBusinessUrl =
+        cleanString(details?.googleMapsUri) ?? cleanString(place.googleMapsUri);
+      const formattedAddress =
+        cleanString(details?.formattedAddress) ??
+        cleanString(place.formattedAddress);
+      const phone =
+        cleanString(details?.nationalPhoneNumber) ??
+        cleanString(place.nationalPhoneNumber);
 
-  const websiteUrl =
-    cleanString(details?.websiteUri) ?? cleanString(bestPlace.websiteUri);
-  const googleBusinessUrl =
-    cleanString(details?.googleMapsUri) ?? cleanString(bestPlace.googleMapsUri);
-  const formattedAddress =
-    cleanString(details?.formattedAddress) ??
-    cleanString(bestPlace.formattedAddress);
-  const phone =
-    cleanString(details?.nationalPhoneNumber) ??
-    cleanString(bestPlace.nationalPhoneNumber);
-  const html = await fetchWebsiteHtml(websiteUrl);
-  const types = details?.types ?? bestPlace.types ?? [];
+      const name =
+        cleanString(details?.displayName?.text) ??
+        cleanString(place.displayName?.text) ??
+        input.companyName;
 
-  const serviceFocusFromWebsite = inferServiceFocusFromWebsite({
-    industry: input.industry,
-    website: websiteUrl,
-    html,
-  });
+      const types = details?.types ?? place.types ?? [];
+      const html = await fetchWebsiteHtml(websiteUrl);
 
-  const serviceFocus =
-    serviceFocusFromWebsite.length > 0
-      ? serviceFocusFromWebsite
-      : inferServiceFocusFromTypes(types, input.industry);
+      const serviceFocusFromWebsite = inferServiceFocusFromWebsite({
+        industry: input.industry,
+        website: websiteUrl,
+        html,
+      });
 
-  const logoUrl = await extractHomepageLogoCandidate({
-    website: websiteUrl,
-    brandName:
-      cleanString(details?.displayName?.text) ??
-      cleanString(bestPlace.displayName?.text) ??
-      input.companyName,
-  });
+      const serviceFocus =
+        serviceFocusFromWebsite.length > 0
+          ? serviceFocusFromWebsite
+          : inferServiceFocusFromTypes(types, input.industry);
 
-  return {
-  name:
-    cleanString(details?.displayName?.text) ??
-    cleanString(bestPlace.displayName?.text) ??
-    input.companyName,
-  websiteUrl,
-  googleBusinessUrl,
-  logoUrl: logoUrl ?? faviconFromWebsite(websiteUrl),
-  whyItMatters: buildCompetitorSummary({
-    industry: input.industry,
-    formattedAddress,
-    phone,
-    websiteUrl,
-    serviceFocus,
-  }),
-  serviceFocus,
-  formattedAddress,
-  phone,
-  placeId: placeId ?? null,
+      const logoUrl = await extractHomepageLogoCandidate({
+        website: websiteUrl,
+        brandName: name,
+      });
 
-  rating:
-    typeof details?.rating === "number" ? details.rating : null,
+      const reviewCount =
+        typeof details?.userRatingCount === "number"
+          ? details.userRatingCount
+          : null;
 
-  reviewCount:
-    typeof details?.userRatingCount === "number"
-      ? details.userRatingCount
-      : null,
-};
+      const candidate: CompetitorCandidate = {
+        name,
+        websiteUrl,
+        googleBusinessUrl,
+        logoUrl: logoUrl ?? faviconFromWebsite(websiteUrl),
+        whyItMatters: buildCompetitorSummary({
+          industry: input.industry,
+          formattedAddress,
+          phone,
+          websiteUrl,
+          serviceFocus,
+        }),
+        serviceFocus,
+        formattedAddress,
+        phone,
+        placeId: placeId ?? null,
+        rating: typeof details?.rating === "number" ? details.rating : null,
+        reviewCount,
+      };
+
+      const matchScore = scoreBusinessMatch({
+        candidateName: name,
+        companyName: input.companyName,
+        candidateWebsite: websiteUrl,
+        companyWebsite: input.website ?? null,
+        candidateAddress: formattedAddress,
+        candidatePhone: phone,
+        companyPhone: input.phone ?? null,
+        city: input.city,
+        state: input.state,
+        reviewCount,
+      });
+
+      return { candidate, matchScore };
+    })
+  );
+
+  return dedupeBusinessCandidates(
+    enriched
+      .filter((item) => {
+        const candidate = item.candidate;
+        const hasStrongIdentity =
+          normalizeDomain(candidate.websiteUrl) === normalizeDomain(input.website ?? null) ||
+          ((candidate.phone ?? "").replace(/\D/g, "") !== "" &&
+            (candidate.phone ?? "").replace(/\D/g, "") ===
+              (input.phone ?? "").replace(/\D/g, "")) ||
+          isStrongBusinessNameCandidate(candidate.name, input.companyName);
+
+        return (
+          (candidate.placeId || candidate.googleBusinessUrl) &&
+          hasStrongIdentity
+        );
+      })
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 5)
+      .map((item) => item.candidate)
+  );
+}
+
+export async function lookupSingleCompetitorCore(
+  input: LookupBusinessInput
+): Promise<CompetitorCandidate | null> {
+  const candidates = await lookupBusinessCandidatesCore(input);
+  return candidates[0] ?? null;
 }
 
 export async function discoverLocalCompetitorsCore(

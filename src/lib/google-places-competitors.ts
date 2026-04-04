@@ -1,7 +1,9 @@
 import {
   type CompetitorCandidate,
   type DiscoverCompetitorsInput,
+  type LookupBusinessInput,
   discoverLocalCompetitorsCore,
+  lookupBusinessCandidatesCore,
   lookupSingleCompetitorCore,
 } from "@/lib/google-places-competitor-core";
 
@@ -13,12 +15,14 @@ export async function discoverLocalCompetitors(
   return discoverLocalCompetitorsCore(input);
 }
 
-export async function lookupSingleCompetitor(input: {
-  companyName: string;
-  industry: "PLUMBING" | "HVAC" | "SEPTIC" | "TREE_SERVICE";
-  city?: string | null;
-  state?: string | null;
-  website?: string | null;
-}): Promise<CompetitorCandidate | null> {
+export async function lookupBusinessCandidates(
+  input: LookupBusinessInput
+): Promise<CompetitorCandidate[]> {
+  return lookupBusinessCandidatesCore(input);
+}
+
+export async function lookupSingleCompetitor(
+  input: LookupBusinessInput
+): Promise<CompetitorCandidate | null> {
   return lookupSingleCompetitorCore(input);
 }

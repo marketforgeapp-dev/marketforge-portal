@@ -58,6 +58,7 @@ export const onboardingSchema = z.object({
 
   averageJobValue: nullableNumber,
   targetWeeklyRevenue: nullableNumber,
+  monthlyActionBudget: nullableNumber,
   technicians: nullableNumber,
   jobsPerTechnicianPerDay: nullableNumber,
   weeklyCapacity: nullableNumber,

@@ -107,7 +107,14 @@ export function ServicesStep({ formData, setFormData }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div>
+  <p className="mb-3 text-sm text-slate-400">
+    Optional: tell MarketForge which services are highest priority or lowest
+    priority for your business. This helps fine-tune recommendation selection,
+    but you can skip it and let the system decide.
+  </p>
+
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Field label="Average Job Value">
           <input
             type="number"
@@ -152,6 +159,7 @@ export function ServicesStep({ formData, setFormData }: Props) {
           />
         </Field>
       </div>
+          </div>
     </div>
   );
 }
