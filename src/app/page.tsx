@@ -2,24 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 
 const heroStats = [
-  { label: "Revenue opportunities surfaced", value: "24" },
-  { label: "Launch-ready actions generated", value: "12" },
-  { label: "Booked jobs influenced", value: "$38.4K" },
-];
-
-const featurePills = [
-  "Revenue opportunity engine",
-  "Launch-ready actions",
-  "Natural language builder",
-  "Execution pipeline",
-  "AEO / SEO / Blog generation",
-  "Revenue tracking",
+  { label: "Revenue opportunities worth acting on", value: "24" },
+  { label: "Actions built and ready to launch", value: "12" },
+  { label: "Jobs and revenue influenced", value: "$38.4K" },
 ];
 
 const proofPills = [
   "Command Center",
   "Action Detail",
-  "Natural language opportunity builder",
+  "Natural language action builder",
   "Revenue tracking",
 ];
 
@@ -29,90 +20,100 @@ export default function HomePage() {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.20),transparent_30%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_28%)]" />
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#081018]/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Image
               src="/MarketForge_Logo.jpeg"
               alt="MarketForge"
               width={56}
               height={56}
-              className="h-14 w-14 rounded-xl object-cover ring-1 ring-white/10"
+              className="h-12 w-12 rounded-xl object-cover ring-1 ring-white/10 sm:h-14 sm:w-14"
               priority
             />
             <div>
-              <div className="text-2xl font-semibold tracking-tight">
+              <div className="text-xl font-semibold tracking-tight sm:text-2xl">
                 MarketForge
               </div>
-              <div className="text-sm text-white/55">
+              <div className="text-xs text-white/55 sm:text-sm">
                 Revenue execution for booked jobs
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/sign-in"
-              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10"
+              className="rounded-xl border border-white/15 px-3 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10 sm:px-4"
             >
               Sign In
             </Link>
             <Link
               href="/sign-up"
-              className="rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-7 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01]"
             >
-              Start Using MarketForge
+              Start Generating Revenue
             </Link>
           </div>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-14 px-6 pb-20 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:pt-20">
+      <section className="mx-auto grid max-w-7xl gap-10 px-4 pb-16 pt-10 sm:px-6 sm:pb-20 sm:pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14 lg:pt-20">
         <div>
           <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200">
-            Revenue opportunity system
+            Revenue execution system
           </div>
 
-          <h1 className="mt-8 max-w-4xl text-5xl font-semibold leading-tight tracking-tight md:text-6xl">
-            Turn missed demand into booked jobs.
+          <h1 className="mt-6 max-w-3xl text-6xl font-bold leading-[0.92] tracking-tight text-white sm:mt-8 sm:text-7xl md:text-[80px]">
+            More Jobs. Less Guesswork.
           </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-white/72">
-            MarketForge identifies missed revenue opportunities, builds the actions to
-            capture them, and drives execution inside one system — so demand turns into
-            booked jobs instead of getting lost.
+          <p className="mt-8 max-w-xl text-base leading-7 text-white/80 sm:mt-10 sm:text-lg sm:leading-8">
+            Agency-level strategy, execution, and revenue tracking — all in one
+            system.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <p className="mt-6 text-sm text-white/50">
-                Built from real execution across social, local, content, and search visibility channels — not theory.
-            </p>
-            {featurePills.map((pill) => (
-              <span
-                key={pill}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70"
-              >
-                {pill}
-              </span>
-            ))}
+          <p className="mt-4 max-w-2xl text-base leading-7 text-white/72 sm:text-lg sm:leading-8">
+            MarketForge identifies the actions most likely to drive revenue,
+            executes them for you, and tracks what turns into leads, jobs, and
+            revenue — so you don&apos;t have to think about marketing all day.
+          </p>
+
+          <div className="mt-5 text-sm text-white/88 sm:mt-6">
+            No guesswork. No campaign building. No managing marketing.
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center gap-4">
+          <div className="mt-2 text-sm text-cyan-300">
+            Start seeing what to do next in minutes. Best experienced on
+            desktop.
+          </div>
+
+          <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             <Link
               href="/sign-up"
-              className="rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-6 py-3.5 text-base font-semibold text-white shadow-[0_12px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-6 py-3.5 text-base font-semibold text-white shadow-[0_12px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
             >
-              Start Using MarketForge
+              Start Generating Revenue
             </Link>
 
             <Link
               href="/sign-in"
-              className="rounded-xl border border-white/15 px-6 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10"
+              className="inline-flex items-center justify-center rounded-xl border border-white/15 px-6 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10"
             >
               Sign In
             </Link>
           </div>
 
-          <div className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
+          <div className="mt-6 max-w-2xl text-sm leading-6 text-white/55 sm:mt-8">
+            MarketForge is not a marketing agency or another marketing engine.
+            It is the system that identifies and executes the actions most
+            likely to drive revenue — so you can focus on running your business.
+          </div>
+
+          <div className="mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/85 sm:mt-10">
+            Example workspace output
+          </div>
+
+          <div className="mt-3 grid max-w-2xl gap-4 sm:grid-cols-3">
             {heroStats.map((stat) => (
               <div
                 key={stat.label}
@@ -129,266 +130,376 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="relative">
-  <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-    <div className="rounded-[24px] border border-white/10 bg-[#0D1620] p-3">
-      <div className="flex items-center justify-between border-b border-white/10 px-3 pb-3">
-        <div>
-          <div className="text-sm font-medium text-white/55">
-            MarketForge Command Center
+        <div className="relative lg:pl-2">
+          <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+            <div className="rounded-[24px] border border-white/10 bg-[#0D1620] p-3">
+              <div className="flex items-center justify-between border-b border-white/10 px-3 pb-3">
+                <div>
+                  <div className="text-sm font-medium text-white/55">
+                    MarketForge Command Center
+                  </div>
+                  <div className="mt-1 text-xs text-white/50">
+                    Real product view tied to actions, execution, booked jobs,
+                    and revenue
+                  </div>
+                </div>
+
+                <div className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-300">
+                  Live Product
+                </div>
+              </div>
+
+                            <div className="relative mt-3 overflow-hidden rounded-[18px] border border-white/10">
+                <Image
+                  src="/hero-command-center-demo.png"
+                  alt="MarketForge Command Center screenshot"
+                  width={1600}
+                  height={1000}
+                  className="h-auto w-full object-cover opacity-80"
+                  priority
+                />
+                <div className="pointer-events-none absolute inset-0 bg-[#081018]/20" />
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-xs uppercase tracking-[0.16em] text-white/45">
+                    What this shows
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-white/72">
+                    Revenue opportunities worth acting on, launch-ready actions,
+                    execution status, and tracked revenue in one view.
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-xs uppercase tracking-[0.16em] text-white/45">
+                    Why it matters
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-white/72">
+                    This is not a dashboard full of noise. It shows what to do
+                    next, what is live, and what is turning into jobs and
+                    revenue.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="mt-1 text-xs text-white/50">
-            Real product view tied to revenue opportunities, actions, and booked jobs
-          </div>
+
+          <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-cyan-500/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-indigo-500/20 blur-3xl" />
         </div>
-
-        <div className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-300">
-          Live Product
-        </div>
-      </div>
-
-      <div className="mt-3 overflow-hidden rounded-[18px] border border-white/10">
-        <Image
-          src="/hero-command-center-demo.png"
-          alt="MarketForge Command Center screenshot"
-          width={1600}
-          height={1000}
-          className="h-auto w-full object-cover"
-          priority
-        />
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="text-xs uppercase tracking-[0.16em] text-white/45">
-            What you’re seeing
-          </div>
-          <div className="mt-2 text-sm leading-6 text-white/72">
-            Ranked revenue opportunities, action value, execution readiness,
-            and captured revenue in one operating view.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="text-xs uppercase tracking-[0.16em] text-white/45">
-            Why it matters
-          </div>
-          <div className="mt-2 text-sm leading-6 text-white/72">
-            This is not a dashboard of vanity metrics. It is the system your
-            team uses to decide what to do next and what revenue it should influence.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-cyan-500/20 blur-3xl" />
-  <div className="pointer-events-none absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-indigo-500/20 blur-3xl" />
-</div>
       </section>
 
-      <section className="border-y border-white/10 bg-white/[0.03]">
-        <div className="mx-auto max-w-7xl px-6 py-16">
+      <section className="mt-10 border-y border-white/10 bg-[#09131d] sm:mt-16">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
           <div className="mx-auto max-w-4xl text-center">
-            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              Most revenue is won or lost before anyone acts on the opportunity.
+            <h2 className="text-4xl font-bold tracking-tight text-white md:text-5xl">
+              Stop guessing what to do next.
             </h2>
-            <p className="mt-5 text-lg leading-8 text-white/70">
-              The problem usually is not a lack of effort. It is the lack of a
-              system that identifies real opportunities, turns them into
-              executable actions, and keeps momentum moving until revenue is
-              captured.
+            <p className="mt-5 text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
+              Most businesses are guessing what to do next — and losing jobs
+              because of it.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:gap-5 lg:grid-cols-4 lg:gap-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h3 className="text-lg font-semibold text-white">
+                Know what actually matters
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                <span className="font-semibold text-white tracking-tight">No more guessing.</span>{" "}
+                The system identifies the highest-value actions based on real
+                demand.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h3 className="text-lg font-semibold text-white">
+                Go from idea to live action
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                <span className="font-semibold text-white tracking-tight">No stalled execution.</span>{" "}
+                Actions are fully built and ready to launch.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h3 className="text-lg font-semibold text-white">
+                Actions actually get launched
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                <span className="font-semibold text-white tracking-tight">No more bottlenecks.</span>{" "}
+                Work goes live across the channels that drive demand.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h3 className="text-lg font-semibold text-white">
+                See what turns into real revenue
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                <span className="font-semibold text-white tracking-tight">No disconnected reporting.</span>{" "}
+                Track leads, booked jobs, and revenue in one place.
+              </p>
+            </div>
+          </div>
+
+          <div className="mx-auto mt-8 max-w-4xl text-center">
+            <p className="text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
+              Actions are launched across the channels that drive real demand —
+              and tracked all the way through to booked jobs and revenue.
+            </p>
+            <p className="mt-4 text-sm leading-6 text-white/60 sm:text-base">
+              Promote the right services at the right time. Capture demand when
+              customers are searching.
+            </p>
+            <p className="mt-4 text-sm leading-6 text-cyan-200 sm:text-base">
+              Built to execute revenue-driving actions — not just manage
+              operations or report on them.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-20">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300/80">
-              How it works
+      <section className="mt-12 border-y border-white/10 bg-white/[0.03] sm:mt-20">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                How it actually works
+              </div>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-white md:text-5xl">
+                How MarketForge drives revenue
+              </h2>
             </div>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
-              How MarketForge drives booked jobs
-            </h2>
+          </div>
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
+              <div className="text-sm font-medium text-cyan-300">01</div>
+              <h3 className="mt-4 text-xl font-semibold">
+                Identify the highest-value opportunities
+              </h3>
+              <p className="mt-4 text-base leading-7 text-white/70">
+                MarketForge identifies where real demand exists across your
+                services, market, and timing.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
+              <div className="text-sm font-medium text-cyan-300">02</div>
+              <h3 className="mt-4 text-xl font-semibold">
+                Build complete, ready-to-launch actions
+              </h3>
+              <p className="mt-4 text-base leading-7 text-white/70">
+                Every opportunity becomes a fully built action — not a
+                suggestion, not something you have to figure out.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
+              <div className="text-sm font-medium text-cyan-300">03</div>
+              <h3 className="mt-4 text-xl font-semibold">
+                Execute and track real revenue
+              </h3>
+              <p className="mt-4 text-base leading-7 text-white/70">
+                Actions get launched and tracked against leads, booked jobs, and
+                revenue.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-3xl border border-cyan-400/30 bg-cyan-400/12 p-7 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_20px_50px_rgba(6,182,212,0.10)] sm:p-8">
+            <div className="text-sm font-bold uppercase tracking-[0.22em] text-cyan-300">
+              Example
+            </div>
+            <p className="mt-4 text-base leading-7 text-white/90 sm:text-lg sm:leading-8">
+              Promote a high-value service → capture inbound demand → turn it
+              into booked jobs → track the revenue impact inside your workspace.
+            </p>
+          </div>
+
+          <p className="mt-8 max-w-4xl text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
+            This is not a dashboard. This is what your business is actively
+            working toward — and what&apos;s turning into jobs and revenue.
+          </p>
+
+          <p className="mt-4 max-w-3xl text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
+            You don&apos;t need to figure out what to do next. The system tells
+            you — and gets it executed.
+          </p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
+        <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
+          Most businesses are operating like this
+        </h2>
+
+        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          <div className="rounded-3xl border border-white/10 bg-[#0C141E]/60 p-7">
+            <h3 className="text-xl font-semibold text-white/85">
+              Without MarketForge
+            </h3>
+            <ul className="mt-6 space-y-4 text-base text-white/65">
+              <li>• Guessing what to do next</li>
+              <li>
+                • Relying on agencies, scattered tools, or trying things and
+                hoping they work
+              </li>
+              <li>• Actions that don&apos;t clearly turn into jobs</li>
+              <li>• No visibility into what&apos;s actually working</li>
+              <li>• Time lost managing instead of growing</li>
+            </ul>
+          </div>
+
+          <div className="rounded-3xl border border-cyan-400/40 bg-gradient-to-br from-blue-600/24 via-cyan-500/14 to-indigo-600/24 p-7 shadow-[0_18px_50px_rgba(34,211,238,0.10)]">
+            <h3 className="text-xl font-semibold">With MarketForge</h3>
+            <ul className="mt-6 space-y-4 text-base text-white/78">
+              <li>• Clear next actions at all times</li>
+              <li>• Execution handled in one system</li>
+              <li>• Work tied directly to jobs and revenue</li>
+              <li>• Full visibility into what is driving growth</li>
+              <li>• More time focused on running the business</li>
+            </ul>
           </div>
         </div>
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-3">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
-            <div className="text-sm font-medium text-cyan-300">
-              01
-            </div>
-            <h3 className="mt-4 text-xl font-semibold">
-              Identify and create opportunities
-            </h3>
-            <p className="mt-4 text-base leading-7 text-white/70">
-              MarketForge surfaces where demand exists across services,
-              geography, local competition, and search presence.
-            </p>
-            <p className="mt-3 text-base leading-7 text-white/70">
-              You can also describe your own revenue opportunity in plain
-              English and turn it into a structured execution path instantly.
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
-            <div className="text-sm font-medium text-cyan-300">
-              02
-            </div>
-            <h3 className="mt-4 text-xl font-semibold">
-              Generate launch-ready actions
-            </h3>
-            <p className="mt-4 text-base leading-7 text-white/70">
-              Paid demand capture, local presence improvements, AEO, SEO,
-              educational content, email, and more are built for you as
-              executable actions — not generic suggestions.
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
-            <div className="text-sm font-medium text-cyan-300">
-              03
-            </div>
-            <h3 className="mt-4 text-xl font-semibold">
-              Execute and track revenue impact
-            </h3>
-            <p className="mt-4 text-base leading-7 text-white/70">
-              Move actions through a clear workflow, launch with confidence, and
-              see what turns into leads, booked jobs, and revenue.
-            </p>
-          </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {proofPills.map((pill) => (
+            <span
+              key={pill}
+              className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200"
+            >
+              {pill}
+            </span>
+          ))}
         </div>
       </section>
 
       <section className="border-y border-white/10 bg-white/[0.03]">
-        <div className="mx-auto max-w-7xl px-6 py-20">
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
-            Before and after MarketForge
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
+          <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-9 sm:p-10">
+              <div className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300/80">
+                Natural language
+              </div>
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight">
+                Tell MarketForge what you want. It handles the rest.
+              </h2>
+              <p className="mt-5 text-base leading-7 text-white/80">
+                Need to push a specific service? React to seasonality? Capture
+                demand fast?
+              </p>
+              <p className="mt-3 text-base leading-7 text-white/85">
+                Just say what you want.
+              </p>
+              <p className="mt-3 text-base leading-7 text-white/80">
+                MarketForge builds the action, prepares everything needed, and
+                moves it into execution.
+              </p>
+              <p className="mt-5 text-base leading-7 text-white/82">
+                You&apos;re not starting from scratch. What you say turns into
+                something that actually drives revenue.
+              </p>
+            </div>
+
+            <div className="relative">
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+                <div className="rounded-[24px] border border-white/10 bg-[#0D1620] p-3">
+                  <div className="flex items-center justify-between border-b border-white/10 px-3 pb-3">
+                    <div>
+                      <div className="text-sm font-medium text-white/55">
+                        Natural Language Action Builder
+                      </div>
+                      <div className="mt-1 text-xs text-white/50">
+                        Turn a plain-English request into a live revenue action
+                      </div>
+                    </div>
+
+                    <div className="rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-300">
+                      Live Input
+                    </div>
+                  </div>
+
+                  <div className="relative mt-3 overflow-hidden rounded-[18px] border border-white/10">
+                    <Image
+                      src="/nl-action-generator.png"
+                      alt="MarketForge natural language action builder"
+                      width={1600}
+                      height={1000}
+                      className="h-auto w-full object-cover opacity-90"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-[#081018]/10" />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-white/45">
+                        What you do
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-white/72">
+                        Describe what you want to run in plain English.
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-white/45">
+                        What MarketForge does
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-white/72">
+                        Builds the action, prepares the work, and puts it into
+                        execution.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-cyan-500/20 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-indigo-500/20 blur-3xl" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto mt-12 max-w-7xl px-4 py-16 sm:mt-20 sm:px-6 sm:py-24">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-8 py-10 text-center sm:px-10 sm:py-12">
+          <h2 className="text-3xl font-bold tracking-tight text-white md:text-5xl">
+            You don&apos;t need more marketing.
           </h2>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-3xl border border-white/10 bg-[#0C141E] p-7">
-              <h3 className="text-xl font-semibold text-white/85">
-                Without MarketForge
-              </h3>
-              <ul className="mt-6 space-y-4 text-base text-white/65">
-                <li>• Revenue opportunities stay buried in day-to-day noise</li>
-                <li>• Teams rely on agencies, scattered tools, or guesswork</li>
-                <li>• Marketing actions feel disconnected from booked jobs</li>
-                <li>• Local demand is missed even when it clearly exists</li>
-                <li>• Visibility exists, but execution is inconsistent</li>
-              </ul>
-            </div>
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
+            You need the right actions getting executed so more jobs actually
+            get booked.
+          </p>
 
-            <div className="rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-cyan-500/10 to-indigo-600/20 p-7">
-              <h3 className="text-xl font-semibold">
-                With MarketForge
-              </h3>
-              <ul className="mt-6 space-y-4 text-base text-white/78">
-                <li>• High-value opportunities are surfaced continuously</li>
-                <li>• Revenue actions are generated instantly</li>
-                <li>• Teams know exactly what to launch next</li>
-                <li>• Execution moves through a clear pipeline</li>
-                <li>• Jobs and revenue are visible in the same system</li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-wrap gap-3">
-  {proofPills.map((pill) => (
-    <span
-      key={pill}
-      className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200"
-    >
-      {pill}
-    </span>
-  ))}
-</div>
-        </div>
-      </section>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
+            That&apos;s where most marketing breaks — it never turns into real
+            work getting done.
+          </p>
 
-      <section className="mx-auto max-w-7xl px-6 py-20">
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8">
-            <div className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300/80">
-              Flexibility layer
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight">
-              Create any revenue opportunity on demand
-            </h2>
-            <p className="mt-5 text-base leading-7 text-white/70">
-              Need to react to seasonality, launch a specific service push, or
-              create a new angle fast?
-            </p>
-            <p className="mt-3 text-base leading-7 text-white/70">
-              Just describe what you want in plain English. MarketForge
-              structures the opportunity, builds the supporting assets, and adds
-              it directly into your execution pipeline.
-            </p>
+          <div className="mx-auto mt-8 max-w-2xl space-y-4 text-left text-base text-white/75">
+            <div>• it&apos;s slow</div>
+            <div>• it&apos;s unclear</div>
+            <div>• it doesn&apos;t turn into real revenue</div>
           </div>
 
-          <div className="relative">
-  <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-    <div className="rounded-[24px] border border-white/10 bg-[#0D1620] p-3">
+          <p className="mt-8 text-base leading-7 text-white/85 sm:text-lg sm:leading-8">
+            MarketForge fixes that by actually getting the work done.
+          </p>
 
-      <div className="flex items-center justify-between border-b border-white/10 px-3 pb-3">
-        <div>
-          <div className="text-sm font-medium text-white/55">
-            Natural Language Opportunity Builder
-          </div>
-          <div className="mt-1 text-xs text-white/50">
-            Create structured revenue actions in plain English
-          </div>
-        </div>
-
-        <div className="rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-300">
-          Live Input
-        </div>
-      </div>
-
-      <div className="mt-3 overflow-hidden rounded-[18px] border border-white/10">
-        <Image
-          src="/nl-action-generator.png"
-          alt="MarketForge natural language opportunity builder"
-          width={1600}
-          height={1000}
-          className="h-auto w-full object-cover"
-        />
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="text-xs uppercase tracking-[0.16em] text-white/45">
-            What you do
-          </div>
-          <div className="mt-2 text-sm leading-6 text-white/72">
-            Describe what you want to run in plain English — seasonal pushes,
-            service promotions, or demand capture.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="text-xs uppercase tracking-[0.16em] text-white/45">
-            What MarketForge does
-          </div>
-          <div className="mt-2 text-sm leading-6 text-white/72">
-            Builds the full opportunity, generates assets, and inserts it directly
-            into your execution pipeline.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-cyan-500/20 blur-3xl" />
-  <div className="pointer-events-none absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-indigo-500/20 blur-3xl" />
-</div>
+          <p className="mt-3 text-base leading-7 text-white/72 sm:text-lg sm:leading-8">
+            This isn&apos;t about doing more. It&apos;s about doing the right
+            things — and actually getting them done.
+          </p>
         </div>
       </section>
 
       <section className="border-t border-white/10 bg-white/[0.03]">
-        <div className="mx-auto max-w-5xl px-6 py-20 text-center">
+        <div className="mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 sm:py-20">
           <Image
             src="/MarketForge_Logo.jpeg"
             alt="MarketForge"
@@ -397,32 +508,42 @@ export default function HomePage() {
             className="mx-auto h-20 w-20 rounded-2xl object-cover ring-1 ring-white/10"
           />
 
-          <h2 className="mt-8 text-3xl font-semibold tracking-tight md:text-4xl">
-            If revenue opportunities are being missed, MarketForge fixes the system behind it.
+          <h2 className="mt-12 text-5xl font-bold tracking-tight text-white md:text-6xl">
+            More jobs. Less guesswork.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-white/70">
-            Stop relying on scattered tools, slow agency loops, and disconnected reporting.
-            Start running a system built to find opportunity, drive action, and turn
-            demand into booked jobs.
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
+            You don&apos;t need to think about marketing all day. You need a
+            system that tells you what matters — and gets it executed.
           </p>
-          <p className="mt-3 text-sm text-cyan-300">
-            Every week without a system like this is lost revenue.
+
+          <p className="mt-3 text-base leading-7 text-white/85 sm:text-lg sm:leading-8">
+            MarketForge handles it.
           </p>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+
+          <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
+            Track what actually turns into revenue — not just clicks.
+          </p>
+
+          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
               href="/sign-up"
-              className="rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-7 py-3.5 text-base font-semibold text-white shadow-[0_12px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-8 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01]"
             >
-              Start Using MarketForge
+              Start Generating Revenue
             </Link>
             <Link
               href="/sign-in"
-              className="rounded-xl border border-white/15 px-7 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10"
+              className="inline-flex items-center justify-center rounded-xl border border-white/15 px-7 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10"
             >
               Sign In
             </Link>
           </div>
+
+          <p className="mt-6 text-sm text-cyan-300">
+            Set up in minutes. Built for businesses that need more jobs — not
+            more complexity.
+          </p>
         </div>
       </section>
     </main>
