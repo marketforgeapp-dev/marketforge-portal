@@ -14,20 +14,319 @@ const proofPills = [
   "Revenue tracking",
 ];
 
-export default function HomePage() {
+function MobileHomepage() {
   return (
-    <main className="min-h-screen bg-[#081018] text-white">
+    <main className="min-h-screen bg-[#081018] text-white sm:hidden">
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.20),transparent_30%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_28%)]" />
+
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#081018]/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/MarketForge_Logo.jpeg"
+              alt="MarketForge"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-xl object-cover ring-1 ring-white/10"
+              priority
+            />
+            <div className="text-base font-semibold tracking-tight">
+              MarketForge
+            </div>
+          </div>
+
+          <Link
+            href="/sign-up"
+            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-[0_10px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
+          >
+            Start Generating Revenue
+          </Link>
+        </div>
+      </header>
+
+      <section className="mx-auto max-w-7xl px-4 pb-10 pt-8">
+        <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3.5 py-2 text-xs font-medium text-cyan-200">
+          Revenue execution system
+        </div>
+
+        <h1 className="mt-5 max-w-xs text-5xl font-bold leading-[0.95] tracking-tight text-white">
+          More jobs. Less guesswork.
+        </h1>
+
+        <p className="mt-4 max-w-xs text-base leading-6 text-white/80">
+          You’re told what to do next — and it gets executed.
+        </p>
+
+        <div className="mt-6">
+          <Link
+            href="/sign-up"
+            className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01]"
+          >
+            Start Generating Revenue
+          </Link>
+        </div>
+
+        <div className="mt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300/85">
+          What this looks like in your business
+        </div>
+
+        <div className="mt-3 grid gap-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
+            <div className="text-3xl font-semibold tracking-tight">24</div>
+            <div className="mt-1 text-sm leading-5 text-white/65">
+              Revenue opportunities
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
+            <div className="text-3xl font-semibold tracking-tight">12</div>
+            <div className="mt-1 text-sm leading-5 text-white/65">
+              Actions ready to launch
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
+            <div className="text-3xl font-semibold tracking-tight">$38.4K</div>
+            <div className="mt-1 text-sm leading-5 text-white/65">
+              Revenue influenced
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-white/[0.03]">
+        <div className="mx-auto max-w-7xl px-4 py-10">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/85">
+            Command Center
+          </div>
+
+          <div className="mt-4 rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-2.5 shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
+            <div className="rounded-[20px] border border-white/10 bg-[#0D1620] p-2.5">
+              <div className="relative overflow-hidden rounded-[16px] border border-white/10">
+                <Image
+                  src="/hero-command-center-demo.png"
+                  alt="MarketForge Command Center screenshot"
+                  width={1600}
+                  height={1000}
+                  className="h-[220px] w-full object-cover object-top opacity-90"
+                  priority
+                />
+                <div className="pointer-events-none absolute inset-0 bg-[#081018]/15" />
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-4 max-w-sm text-sm leading-6 text-white/78">
+            This shows what to do next, what’s live, and what’s driving revenue.
+          </p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10">
+        <h2 className="text-3xl font-bold tracking-tight text-white">
+          Stop guessing what to do next.
+        </h2>
+
+        <div className="mt-6 space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+            <div className="text-base font-semibold text-white">
+              Know what matters
+            </div>
+            <div className="mt-1 text-sm leading-6 text-white/70">
+              The system identifies the highest-value actions.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+            <div className="text-base font-semibold text-white">
+              Go live faster
+            </div>
+            <div className="mt-1 text-sm leading-6 text-white/70">
+              Actions are built and ready to launch.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+            <div className="text-base font-semibold text-white">
+              Execution happens
+            </div>
+            <div className="mt-1 text-sm leading-6 text-white/70">
+              Work goes live across demand channels.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+            <div className="text-base font-semibold text-white">
+              Track real revenue
+            </div>
+            <div className="mt-1 text-sm leading-6 text-white/70">
+              See what turns into booked jobs.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-white/[0.03]">
+        <div className="mx-auto max-w-7xl px-4 py-10">
+          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">
+            How it works
+          </div>
+
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-white">
+            How it works
+          </h2>
+
+          <div className="mt-6 space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white/85">
+              <span className="mr-2 text-cyan-300">01</span>
+              Identify opportunities
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white/85">
+              <span className="mr-2 text-cyan-300">02</span>
+              Build actions
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-white/85">
+              <span className="mr-2 text-cyan-300">03</span>
+              Execute &amp; track revenue
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/85">
+            Natural language
+          </div>
+
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-white">
+            Tell MarketForge what you want.
+          </h2>
+
+          <p className="mt-4 max-w-sm text-base leading-6 text-white/85">
+            It builds it. Prepares it. Launches it.
+          </p>
+
+          <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
+            Turn a simple request into a revenue-generating action.
+          </p>
+
+          <div className="mt-5 rounded-[20px] border border-white/10 bg-[#0D1620] p-2.5">
+            <div className="relative overflow-hidden rounded-[14px] border border-white/10">
+              <Image
+                src="/nl-action-generator.png"
+                alt="MarketForge natural language action builder"
+                width={1600}
+                height={1000}
+                className="h-[200px] w-full object-cover object-top opacity-90"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-[#081018]/15" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-white/[0.03]">
+        <div className="mx-auto max-w-7xl px-4 py-10">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-6 text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-white">
+              You don’t need more marketing.
+            </h2>
+
+            <p className="mx-auto mt-4 max-w-sm text-base leading-6 text-white/80">
+              You need the right actions getting executed.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10">
+        <h2 className="text-3xl font-bold tracking-tight text-white">
+          Before and after
+        </h2>
+
+        <div className="mt-6 space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-[#0C141E]/70 p-5">
+            <div className="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">
+              Without
+            </div>
+            <ul className="mt-4 space-y-3 text-base text-white/70">
+              <li>• Guessing</li>
+              <li>• Scattered tools</li>
+              <li>• No clarity</li>
+            </ul>
+          </div>
+
+          <div className="rounded-3xl border border-cyan-400/35 bg-gradient-to-br from-blue-600/24 via-cyan-500/14 to-indigo-600/24 p-5 shadow-[0_18px_50px_rgba(34,211,238,0.10)]">
+            <div className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-200">
+              With
+            </div>
+            <ul className="mt-4 space-y-3 text-base text-white/86">
+              <li>• Clear next actions</li>
+              <li>• Execution handled</li>
+              <li>• Revenue visibility</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-white/[0.03]">
+        <div className="mx-auto max-w-5xl px-4 py-12 text-center">
+          <Image
+            src="/MarketForge_Logo.jpeg"
+            alt="MarketForge"
+            width={72}
+            height={72}
+            className="mx-auto h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10"
+          />
+
+          <h2 className="mt-6 text-4xl font-bold tracking-tight text-white">
+            More jobs. Less guesswork.
+          </h2>
+
+          <p className="mx-auto mt-4 max-w-sm text-base leading-6 text-white/80">
+            Start generating revenue in minutes.
+          </p>
+
+          <div className="mt-8 flex flex-col items-stretch gap-3">
+            <Link
+              href="/sign-up"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-8 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01]"
+            >
+              Start Generating Revenue
+            </Link>
+
+            <Link
+              href="/sign-in"
+              className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 px-7 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10"
+            >
+              Sign In
+            </Link>
+          </div>
+
+          <p className="mt-5 text-sm leading-6 text-cyan-300">
+            Built for businesses that need more jobs — not more complexity.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function DesktopHomepage() {
+  return (
+    <main className="hidden min-h-screen bg-[#081018] text-white sm:block">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.20),transparent_30%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_28%)]" />
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#081018]/85 backdrop-blur">
-                <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3 sm:gap-4">
             <Image
               src="/MarketForge_Logo.jpeg"
               alt="MarketForge"
               width={56}
               height={56}
-                            className="h-10 w-10 rounded-xl object-cover ring-1 ring-white/10 sm:h-14 sm:w-14"
+              className="h-10 w-10 rounded-xl object-cover ring-1 ring-white/10 sm:h-14 sm:w-14"
               priority
             />
             <div>
@@ -67,7 +366,7 @@ export default function HomePage() {
             More Jobs. Less Guesswork.
           </h1>
 
-          <p className="mt-6 max-w-sm text-base leading-7 text-white/85 sm:mt-10 sm:max-w-xl sm:text-lg sm:leading-8">
+          <p className="mt-8 max-w-xl text-base leading-7 text-white/80 sm:mt-10 sm:text-lg sm:leading-8">
             Agency-level strategy, execution, and revenue tracking — all in one
             system.
           </p>
@@ -150,7 +449,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-                            <div className="relative mt-3 overflow-hidden rounded-[18px] border border-white/10">
+              <div className="relative mt-3 overflow-hidden rounded-[18px] border border-white/10">
                 <Image
                   src="/hero-command-center-demo.png"
                   alt="MarketForge Command Center screenshot"
@@ -210,7 +509,9 @@ export default function HomePage() {
                 Know what actually matters
               </h3>
               <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
-                <span className="font-semibold text-white tracking-tight">No more guessing.</span>{" "}
+                <span className="font-semibold tracking-tight text-white">
+                  No more guessing.
+                </span>{" "}
                 The system identifies the highest-value actions based on real
                 demand.
               </p>
@@ -221,7 +522,9 @@ export default function HomePage() {
                 Go from idea to live action
               </h3>
               <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
-                <span className="font-semibold text-white tracking-tight">No stalled execution.</span>{" "}
+                <span className="font-semibold tracking-tight text-white">
+                  No stalled execution.
+                </span>{" "}
                 Actions are fully built and ready to launch.
               </p>
             </div>
@@ -231,7 +534,9 @@ export default function HomePage() {
                 Actions actually get launched
               </h3>
               <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
-                <span className="font-semibold text-white tracking-tight">No more bottlenecks.</span>{" "}
+                <span className="font-semibold tracking-tight text-white">
+                  No more bottlenecks.
+                </span>{" "}
                 Work goes live across the channels that drive demand.
               </p>
             </div>
@@ -241,7 +546,9 @@ export default function HomePage() {
                 See what turns into real revenue
               </h3>
               <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
-                <span className="font-semibold text-white tracking-tight">No disconnected reporting.</span>{" "}
+                <span className="font-semibold tracking-tight text-white">
+                  No disconnected reporting.
+                </span>{" "}
                 Track leads, booked jobs, and revenue in one place.
               </p>
             </div>
@@ -261,6 +568,21 @@ export default function HomePage() {
               operations or report on them.
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
+            What this looks like in practice
+          </h2>
+          <p className="mt-4 text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
+            Example output from a MarketForge workspace
+          </p>
+          <p className="mt-4 text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
+            This is not a dashboard. This is what your business is actively
+            working toward — and what&apos;s turning into jobs and revenue.
+          </p>
         </div>
       </section>
 
@@ -344,7 +666,7 @@ export default function HomePage() {
             <h3 className="text-xl font-semibold text-white/85">
               Without MarketForge
             </h3>
-                        <ul className="mt-6 max-w-md space-y-5 text-base text-white/65">
+            <ul className="mt-6 max-w-md space-y-5 text-base text-white/65">
               <li>• Guessing what to do next</li>
               <li>
                 • Relying on agencies, scattered tools, or trying things and
@@ -548,5 +870,14 @@ export default function HomePage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <>
+      <MobileHomepage />
+      <DesktopHomepage />
+    </>
   );
 }
