@@ -20,21 +20,21 @@ export default function HomePage() {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.20),transparent_30%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_28%)]" />
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#081018]/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+                <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-3 sm:gap-4">
             <Image
               src="/MarketForge_Logo.jpeg"
               alt="MarketForge"
               width={56}
               height={56}
-              className="h-12 w-12 rounded-xl object-cover ring-1 ring-white/10 sm:h-14 sm:w-14"
+                            className="h-10 w-10 rounded-xl object-cover ring-1 ring-white/10 sm:h-14 sm:w-14"
               priority
             />
             <div>
-              <div className="text-xl font-semibold tracking-tight sm:text-2xl">
+              <div className="text-base font-semibold tracking-tight sm:text-2xl">
                 MarketForge
               </div>
-              <div className="text-xs text-white/55 sm:text-sm">
+              <div className="hidden text-xs text-white/55 sm:block sm:text-sm">
                 Revenue execution for booked jobs
               </div>
             </div>
@@ -43,13 +43,13 @@ export default function HomePage() {
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/sign-in"
-              className="rounded-xl border border-white/15 px-3 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10 sm:px-4"
+              className="hidden rounded-xl border border-white/15 px-3 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10 sm:inline-flex sm:px-4"
             >
               Sign In
             </Link>
             <Link
               href="/sign-up"
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-7 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01]"
+              className="rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-[0_10px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01] sm:px-5 sm:py-2.5 sm:text-sm"
             >
               Start Generating Revenue
             </Link>
@@ -67,12 +67,12 @@ export default function HomePage() {
             More Jobs. Less Guesswork.
           </h1>
 
-          <p className="mt-8 max-w-xl text-base leading-7 text-white/80 sm:mt-10 sm:text-lg sm:leading-8">
+          <p className="mt-6 max-w-sm text-base leading-7 text-white/85 sm:mt-10 sm:max-w-xl sm:text-lg sm:leading-8">
             Agency-level strategy, execution, and revenue tracking — all in one
             system.
           </p>
 
-          <p className="mt-4 max-w-2xl text-base leading-7 text-white/72 sm:text-lg sm:leading-8">
+          <p className="mt-6 max-w-sm text-sm leading-6 text-white/72 sm:mt-4 sm:max-w-2xl sm:text-lg sm:leading-8">
             MarketForge identifies the actions most likely to drive revenue,
             executes them for you, and tracks what turns into leads, jobs, and
             revenue — so you don&apos;t have to think about marketing all day.
@@ -87,39 +87,40 @@ export default function HomePage() {
             desktop.
           </div>
 
-          <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="mt-6 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             <Link
               href="/sign-up"
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-6 py-3.5 text-base font-semibold text-white shadow-[0_12px_30px_rgba(59,130,246,0.35)] transition hover:scale-[1.01]"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-7 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01] sm:w-auto"
             >
               Start Generating Revenue
             </Link>
 
             <Link
               href="/sign-in"
-              className="inline-flex items-center justify-center rounded-xl border border-white/15 px-6 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10"
+              className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 px-6 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10 sm:w-auto"
             >
               Sign In
             </Link>
           </div>
 
-          <div className="mt-6 max-w-2xl text-sm leading-6 text-white/55 sm:mt-8">
+          <div className="mt-5 max-w-sm text-sm leading-6 text-white/55 sm:mt-8 sm:max-w-2xl">
             MarketForge is not a marketing agency or another marketing engine.
             It is the system that identifies and executes the actions most
             likely to drive revenue — so you can focus on running your business.
           </div>
 
           <div className="mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/85 sm:mt-10">
-            Example workspace output
+            <span className="sm:hidden">What this looks like in your business</span>
+            <span className="hidden sm:inline">Example workspace output</span>
           </div>
 
-          <div className="mt-3 grid max-w-2xl gap-4 sm:grid-cols-3">
+          <div className="mt-4 grid max-w-sm gap-5 sm:max-w-2xl sm:grid-cols-3 sm:gap-4">
             {heroStats.map((stat) => (
               <div
                 key={stat.label}
                 className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
               >
-                <div className="text-2xl font-semibold tracking-tight">
+                <div className="text-3xl font-semibold tracking-tight sm:text-2xl">
                   {stat.value}
                 </div>
                 <div className="mt-1 text-sm leading-6 text-white/60">
@@ -130,8 +131,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="relative lg:pl-2">
-          <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+        <div className="relative mt-2 lg:pl-2">
+          <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-2.5 shadow-[0_30px_80px_rgba(0,0,0,0.45)] sm:rounded-[28px] sm:p-3">
             <div className="rounded-[24px] border border-white/10 bg-[#0D1620] p-3">
               <div className="flex items-center justify-between border-b border-white/10 px-3 pb-3">
                 <div>
@@ -194,7 +195,7 @@ export default function HomePage() {
       <section className="mt-10 border-y border-white/10 bg-[#09131d] sm:mt-16">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
           <div className="mx-auto max-w-4xl text-center">
-            <h2 className="text-4xl font-bold tracking-tight text-white md:text-5xl">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
               Stop guessing what to do next.
             </h2>
             <p className="mt-5 text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
@@ -203,43 +204,43 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-10 grid gap-4 sm:gap-5 lg:grid-cols-4 lg:gap-6">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <div className="mt-10 grid gap-5 sm:gap-5 lg:grid-cols-4 lg:gap-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-6">
               <h3 className="text-lg font-semibold text-white">
                 Know what actually matters
               </h3>
-              <p className="mt-3 text-sm leading-6 text-white/70">
+              <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
                 <span className="font-semibold text-white tracking-tight">No more guessing.</span>{" "}
                 The system identifies the highest-value actions based on real
                 demand.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-6">
               <h3 className="text-lg font-semibold text-white">
                 Go from idea to live action
               </h3>
-              <p className="mt-3 text-sm leading-6 text-white/70">
+              <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
                 <span className="font-semibold text-white tracking-tight">No stalled execution.</span>{" "}
                 Actions are fully built and ready to launch.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-6">
               <h3 className="text-lg font-semibold text-white">
                 Actions actually get launched
               </h3>
-              <p className="mt-3 text-sm leading-6 text-white/70">
+              <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
                 <span className="font-semibold text-white tracking-tight">No more bottlenecks.</span>{" "}
                 Work goes live across the channels that drive demand.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-6">
               <h3 className="text-lg font-semibold text-white">
                 See what turns into real revenue
               </h3>
-              <p className="mt-3 text-sm leading-6 text-white/70">
+              <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
                 <span className="font-semibold text-white tracking-tight">No disconnected reporting.</span>{" "}
                 Track leads, booked jobs, and revenue in one place.
               </p>
@@ -276,8 +277,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
+          <div className="mt-10 grid gap-6 sm:gap-6 lg:grid-cols-3">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-7">
               <div className="text-sm font-medium text-cyan-300">01</div>
               <h3 className="mt-4 text-xl font-semibold">
                 Identify the highest-value opportunities
@@ -288,7 +289,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-7">
               <div className="text-sm font-medium text-cyan-300">02</div>
               <h3 className="mt-4 text-xl font-semibold">
                 Build complete, ready-to-launch actions
@@ -299,7 +300,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-7">
               <div className="text-sm font-medium text-cyan-300">03</div>
               <h3 className="mt-4 text-xl font-semibold">
                 Execute and track real revenue
@@ -311,7 +312,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mt-8 rounded-3xl border border-cyan-400/30 bg-cyan-400/12 p-7 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_20px_50px_rgba(6,182,212,0.10)] sm:p-8">
+          <div className="mt-8 rounded-3xl border border-cyan-400/30 bg-cyan-400/12 p-6 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_20px_50px_rgba(6,182,212,0.10)] sm:p-8">
             <div className="text-sm font-bold uppercase tracking-[0.22em] text-cyan-300">
               Example
             </div>
@@ -343,7 +344,7 @@ export default function HomePage() {
             <h3 className="text-xl font-semibold text-white/85">
               Without MarketForge
             </h3>
-            <ul className="mt-6 space-y-4 text-base text-white/65">
+                        <ul className="mt-6 max-w-md space-y-5 text-base text-white/65">
               <li>• Guessing what to do next</li>
               <li>
                 • Relying on agencies, scattered tools, or trying things and
@@ -357,7 +358,7 @@ export default function HomePage() {
 
           <div className="rounded-3xl border border-cyan-400/40 bg-gradient-to-br from-blue-600/24 via-cyan-500/14 to-indigo-600/24 p-7 shadow-[0_18px_50px_rgba(34,211,238,0.10)]">
             <h3 className="text-xl font-semibold">With MarketForge</h3>
-            <ul className="mt-6 space-y-4 text-base text-white/78">
+            <ul className="mt-6 max-w-md space-y-5 text-base text-white/78">
               <li>• Clear next actions at all times</li>
               <li>• Execution handled in one system</li>
               <li>• Work tied directly to jobs and revenue</li>
@@ -382,25 +383,25 @@ export default function HomePage() {
       <section className="border-y border-white/10 bg-white/[0.03]">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
           <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-9 sm:p-10">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 sm:p-10">
               <div className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300/80">
                 Natural language
               </div>
               <h2 className="mt-4 text-3xl font-semibold tracking-tight">
                 Tell MarketForge what you want. It handles the rest.
               </h2>
-              <p className="mt-5 text-base leading-7 text-white/80">
+              <p className="mt-5 max-w-sm text-base leading-7 text-white/80">
                 Need to push a specific service? React to seasonality? Capture
                 demand fast?
               </p>
-              <p className="mt-3 text-base leading-7 text-white/85">
+              <p className="mt-4 max-w-sm text-base leading-7 text-white/85">
                 Just say what you want.
               </p>
-              <p className="mt-3 text-base leading-7 text-white/80">
+              <p className="mt-4 max-w-sm text-base leading-7 text-white/80">
                 MarketForge builds the action, prepares everything needed, and
                 moves it into execution.
               </p>
-              <p className="mt-5 text-base leading-7 text-white/82">
+              <p className="mt-5 max-w-sm text-base leading-7 text-white/82">
                 You&apos;re not starting from scratch. What you say turns into
                 something that actually drives revenue.
               </p>
@@ -466,32 +467,32 @@ export default function HomePage() {
       </section>
 
       <section className="mx-auto mt-12 max-w-7xl px-4 py-16 sm:mt-20 sm:px-6 sm:py-24">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-8 py-10 text-center sm:px-10 sm:py-12">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-10 text-center sm:px-10 sm:py-12">
           <h2 className="text-3xl font-bold tracking-tight text-white md:text-5xl">
             You don&apos;t need more marketing.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
+          <p className="mx-auto mt-5 max-w-sm text-base leading-7 text-white/78 sm:max-w-3xl sm:text-lg sm:leading-8">
             You need the right actions getting executed so more jobs actually
             get booked.
           </p>
 
-          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
+          <p className="mx-auto mt-4 max-w-sm text-base leading-7 text-white/70 sm:max-w-3xl sm:text-lg sm:leading-8">
             That&apos;s where most marketing breaks — it never turns into real
             work getting done.
           </p>
 
-          <div className="mx-auto mt-8 max-w-2xl space-y-4 text-left text-base text-white/75">
+          <div className="mx-auto mt-8 max-w-sm space-y-5 text-left text-base text-white/75 sm:max-w-2xl sm:space-y-4">
             <div>• it&apos;s slow</div>
             <div>• it&apos;s unclear</div>
             <div>• it doesn&apos;t turn into real revenue</div>
           </div>
 
-          <p className="mt-8 text-base leading-7 text-white/85 sm:text-lg sm:leading-8">
+          <p className="mt-8 max-w-sm text-base leading-7 text-white/85 sm:max-w-none sm:text-lg sm:leading-8">
             MarketForge fixes that by actually getting the work done.
           </p>
 
-          <p className="mt-3 text-base leading-7 text-white/72 sm:text-lg sm:leading-8">
+          <p className="mt-4 max-w-sm text-base leading-7 text-white/72 sm:max-w-none sm:text-lg sm:leading-8">
             This isn&apos;t about doing more. It&apos;s about doing the right
             things — and actually getting them done.
           </p>
@@ -499,7 +500,7 @@ export default function HomePage() {
       </section>
 
       <section className="border-t border-white/10 bg-white/[0.03]">
-        <div className="mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-5xl px-4 py-20 text-center sm:px-6 sm:py-20">
           <Image
             src="/MarketForge_Logo.jpeg"
             alt="MarketForge"
@@ -525,16 +526,16 @@ export default function HomePage() {
             Track what actually turns into revenue — not just clicks.
           </p>
 
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div className="mt-10 flex flex-col items-stretch justify-center gap-4 sm:flex-row sm:items-center">
             <Link
               href="/sign-up"
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-8 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01]"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-8 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01] sm:w-auto"
             >
               Start Generating Revenue
             </Link>
             <Link
               href="/sign-in"
-              className="inline-flex items-center justify-center rounded-xl border border-white/15 px-7 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10"
+              className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 px-7 py-3.5 text-base font-medium text-white/85 transition hover:bg-white/10 sm:w-auto"
             >
               Sign In
             </Link>
