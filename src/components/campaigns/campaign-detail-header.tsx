@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CampaignStatus, OpportunityType } from "@/generated/prisma";
+import { getRecommendedActionBudget } from "@/lib/budget-allocation-recommendations";
 
 type HeaderCampaign = {
   id: string;
@@ -103,6 +104,13 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
     brief?.nextBestAction?.title ??
     campaign.name;
 
+    const actionBudget = getRecommendedActionBudget({
+    revenueLow,
+    revenueHigh: revenueHigh ?? estimatedRevenue,
+    actionFraming: brief?.nextBestAction?.actionType ?? null,
+    opportunityType: campaign.opportunityType,
+  });
+
   return (
     <section className="mf-card rounded-3xl p-5">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -205,7 +213,7 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
             <p className="text-[10px] uppercase tracking-wide text-gray-500">
               Estimated Revenue
             </p>
@@ -215,6 +223,15 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
                 ? revenueHigh
                 : estimatedRevenue
               ).toLocaleString()}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <p className="text-[10px] uppercase tracking-wide text-gray-500">
+              Action Budget
+            </p>
+            <p className="mt-1 text-base font-semibold text-gray-900">
+              ${actionBudget.toLocaleString()}
             </p>
           </div>
 

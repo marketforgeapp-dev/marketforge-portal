@@ -6,6 +6,7 @@ import { SelectedOpportunity } from "@/lib/select-revenue-opportunities";
 import { getActionImage } from "@/lib/action-imagery";
 import { ActionLaunchButton } from "@/components/campaigns/action-launch-button";
 import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
+import { getRecommendedActionBudget } from "@/lib/budget-allocation-recommendations";
 
 type Props = {
   opportunities: SelectedOpportunity[];
@@ -121,11 +122,20 @@ export function OpportunitiesGrid({ opportunities, logoUrl, industryLabel }: Pro
     return (
     <>
       <div className="grid gap-4">
-        {opportunities.map((opportunity, index) => (
-          <section
-            key={opportunity.opportunityKey}
-            className="mf-card rounded-3xl p-4 md:p-5"
-          >
+                {opportunities.map((opportunity, index) => {
+          const actionBudget = getRecommendedActionBudget({
+            revenueLow: opportunity.revenueLow,
+            revenueHigh: opportunity.revenueHigh,
+            score: opportunity.rawOpportunityScore,
+            actionFraming: opportunity.actionFraming,
+            opportunityType: opportunity.opportunityType,
+          });
+
+          return (
+            <section
+              key={opportunity.opportunityKey}
+              className="mf-card rounded-3xl p-4 md:p-5"
+            >
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
@@ -137,8 +147,12 @@ export function OpportunitiesGrid({ opportunities, logoUrl, industryLabel }: Pro
                     {getOpportunityLabel(opportunity.opportunityType)}
                   </span>
 
-                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
                     MarketForge Action Score {opportunity.rawOpportunityScore}
+                  </span>
+
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
+                    Action Budget ${actionBudget.toLocaleString()}
                   </span>
 
                   <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-700">
@@ -228,8 +242,9 @@ export function OpportunitiesGrid({ opportunities, logoUrl, industryLabel }: Pro
   industryLabel={industryLabel}
 />
             </div>
-          </section>
-        ))}
+                    </section>
+          );
+        })}
       </div>
 
       <SystemStatusOverlay

@@ -58,6 +58,12 @@ type CompetitivePositionData = {
   narrative: string | null;
 };
 
+type BudgetSummaryData = {
+  monthlyBudget: number;
+  allocatedBudget: number;
+  remainingBudget: number;
+};
+
 type Props = {
   workspaceName: string;
   workspaceLogoUrl?: string | null;
@@ -67,6 +73,7 @@ type Props = {
   metrics: MetricsData;
   revenueCaptured: RevenueCapturedData;
   competitivePosition: CompetitivePositionData;
+  budgetSummary: BudgetSummaryData;
 };
 
 function formatMaybeDate(value?: string | Date) {
@@ -143,6 +150,7 @@ export function DashboardShell({
   metrics,
   revenueCaptured,
   competitivePosition,
+  budgetSummary,
 }: Props) {
   const recentEntries = revenueCaptured.entries.slice(0, 2);
   const actionReadiness = getActionReadinessSummary(
@@ -171,6 +179,9 @@ export function DashboardShell({
             revenueCapturedYtd={metrics.revenueCapturedYtd}
             attributedJobs={metrics.attributedJobs}
             leadToJobRate={metrics.leadToJobRate}
+            monthlyBudget={budgetSummary.monthlyBudget}
+            allocatedBudget={budgetSummary.allocatedBudget}
+            remainingBudget={budgetSummary.remainingBudget}
           />
 
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">

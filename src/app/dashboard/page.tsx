@@ -7,6 +7,7 @@ import { seedDemoLeads } from "@/lib/seed-demo-leads";
 import { getRevenueCapturedSummary } from "@/lib/revenue-captured-summary";
 import { getOrCreateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import { deriveWorkspaceReputationSignal } from "@/lib/reputation-signals";
+import { getRecommendedActionBudget } from "@/lib/budget-allocation-recommendations";
 
 export default async function DashboardPage() {
   const workspace = await getCurrentWorkspace();
@@ -91,6 +92,46 @@ export default async function DashboardPage() {
   profile,
   competitors
 );
+  const monthlyBudget = Number(profile.monthlyActionBudget ?? 0);
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const allocatedBudget = campaigns.reduce((sum, campaign) => {
+    const updatedAt =
+      campaign.updatedAt instanceof Date
+        ? campaign.updatedAt
+        : new Date(campaign.updatedAt);
+
+    const countsAsCurrentMonthCompleted =
+      campaign.status === "COMPLETED" && updatedAt >= monthStart;
+
+    const countsTowardAllocation =
+      campaign.status === "APPROVED" ||
+      campaign.status === "SCHEDULED" ||
+      campaign.status === "LAUNCHED" ||
+      countsAsCurrentMonthCompleted;
+
+    if (!countsTowardAllocation) {
+      return sum;
+    }
+
+    const approvedAssetTypes = campaign.assets
+      .filter((asset) => asset.isApproved)
+      .map((asset) => asset.assetType);
+
+    const fallbackAssetTypes = campaign.assets.map((asset) => asset.assetType);
+
+    const actionBudget = getRecommendedActionBudget({
+      assetTypes:
+        approvedAssetTypes.length > 0 ? approvedAssetTypes : fallbackAssetTypes,
+      revenueHigh: Number(campaign.estimatedRevenue ?? 0),
+    });
+
+    return sum + actionBudget;
+  }, 0);
+
+  const remainingBudget = Math.max(monthlyBudget - allocatedBudget, 0);
 
   return (
     <DashboardShell
@@ -135,6 +176,11 @@ export default async function DashboardPage() {
         revenueCapturedYtd: revenueSummary.totalRevenue,
         attributedJobs: revenueSummary.bookedJobs,
         leadToJobRate: revenueSummary.winRate,
+      }}
+        budgetSummary={{
+        monthlyBudget,
+        allocatedBudget,
+        remainingBudget,
       }}
       revenueCaptured={{
         totalRevenue: revenueSummary.totalRevenue,

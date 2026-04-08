@@ -7,6 +7,7 @@ import { RevenueOpportunityHero } from "@/lib/revenue-opportunity-engine";
 import { getActionImage } from "@/lib/action-imagery";
 import { ActionLaunchButton } from "@/components/campaigns/action-launch-button";
 import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
+import { getRecommendedActionBudget } from "@/lib/budget-allocation-recommendations";
 
 type HeroCampaignData = {
   id: string;
@@ -103,6 +104,15 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: P
   const ctaText =
     brief?.campaignDraft?.cta ?? brief?.actionThesis?.ctaHint ?? "Book now";
 
+    const actionBudget = getRecommendedActionBudget({
+    assetTypes: heroCampaign?.assets.map((asset) => asset.assetType) ?? [],
+    revenueLow: hero.revenueLow,
+    revenueHigh: hero.revenueHigh,
+    score: hero.rawOpportunityScore,
+    actionFraming: hero.actionFraming,
+    opportunityType: hero.opportunityType,
+  });
+
     const image = getActionImage({
         industry: industryLabel,
         familyKey: hero.familyKey,
@@ -120,8 +130,12 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: P
                 Top Priority Action
               </p>
 
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
                 MarketForge Action Score {hero.rawOpportunityScore}
+              </span>
+
+              <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
+                Action Budget ${actionBudget.toLocaleString()}
               </span>
 
               <span className="rounded-full bg-white/70 px-2.5 py-1 text-[10px] font-semibold text-gray-700">

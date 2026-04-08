@@ -150,7 +150,17 @@ export function ExecutionCard({ campaign }: Props) {
   const estimatedRange = extractEstimatedRange(campaign.briefJson);
   const approvedPlatforms = getApprovedPlatforms(campaign, execution);
   const approvedAssetTypes = getApprovedAssetTypes(campaign, execution);
-  const budgetRecommendation = getBudgetAllocationRecommendation(approvedAssetTypes);
+    const budgetRecommendation = getBudgetAllocationRecommendation(
+    approvedAssetTypes,
+    {
+      revenueLow: estimatedRange?.revenueLow ?? null,
+      revenueHigh:
+        estimatedRange?.revenueHigh ??
+        (typeof campaign.estimatedRevenue === "number"
+          ? campaign.estimatedRevenue
+          : 0),
+    }
+  );
 
   const jobsDisplay =
     estimatedRange?.jobsLow != null && estimatedRange?.jobsHigh != null
@@ -245,21 +255,27 @@ export function ExecutionCard({ campaign }: Props) {
         </p>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-          Suggested Budget Mix
+          Action Budget
         </p>
         <p className="mt-2 text-sm font-semibold text-gray-900">
-          ${budgetRecommendation.totalLow.toLocaleString()}–${budgetRecommendation.totalHigh.toLocaleString()} recommended monthly launch budget
+          ${budgetRecommendation.actionBudget.toLocaleString()} recommended action budget
         </p>
 
-        <div className="mt-3 space-y-2 text-sm text-gray-700">
-          {budgetRecommendation.lines.map((line) => (
-            <p key={line.label}>
-              <span className="font-semibold text-gray-900">{line.label}:</span>{" "}
-              {line.percentage}% (${line.low.toLocaleString()}–${line.high.toLocaleString()})
-            </p>
-          ))}
+        <div className="mt-4 rounded-2xl border border-amber-100 bg-white/70 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+            Recommended Platform Allocation
+          </p>
+
+          <div className="mt-2 space-y-2 text-sm text-gray-700">
+            {budgetRecommendation.lines.map((line) => (
+              <p key={line.label}>
+                <span className="font-semibold text-gray-900">{line.label}:</span>{" "}
+                {line.percentage}% (${line.recommendedBudget.toLocaleString()})
+              </p>
+            ))}
+          </div>
         </div>
 
         <p className="mt-3 text-xs leading-5 text-gray-600">

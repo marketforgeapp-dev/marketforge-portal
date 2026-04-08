@@ -141,7 +141,7 @@ function StatusBadge({ isApproved }: { isApproved: boolean }) {
           : "bg-amber-100 text-amber-800"
       }`}
     >
-      {isApproved ? "Approved for Launch" : "Needs Review"}
+      {isApproved ? "Approved" : "Needs Review"}
     </span>
   );
 }
@@ -1164,31 +1164,29 @@ export function CampaignAssetsReview({
     <section className="mf-card rounded-3xl p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
-            Launch Asset Review
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+            What Will Go Live
           </p>
           <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900">
-            Review exactly what will go live
+            Review the launch-ready assets
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-            Approve, remove, or edit each channel while viewing a high-fidelity
-            preview of what the customer is actually approving.
+            Review each platform, then approve, remove, or edit what should go
+            live.
           </p>
-                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-              Approval Required for Execution
+              Approval Required
             </p>
             <p className="mt-1 text-sm leading-6 text-amber-900">
-              Approve or remove every platform before moving this action into execution.
-              Only approved platforms become executable and only approved platform assets
-              are included in export packs.
+              Only approved platforms are available for execution.
             </p>
           </div>
         </div>
 
-        {canEdit ? (
+                {canEdit ? (
           <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            Editing available before launch
+            You can still edit before launch
           </span>
         ) : (
           <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
@@ -1290,7 +1288,7 @@ export function CampaignAssetsReview({
                       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                         <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
                           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">
-                            Edit Approved Launch Content
+                            Edit Asset
                           </p>
                         </div>
 
@@ -1364,8 +1362,7 @@ export function CampaignAssetsReview({
                           ) : (
                             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-900">
                               Select <span className="font-semibold">Edit</span> to
-                              update the actual launch content while keeping the
-                              live-style preview visible beside the editor.
+                              update this asset before approval.
                             </div>
                           )}
                         </div>

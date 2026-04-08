@@ -6,7 +6,10 @@ import {
   ExportType,
   Prisma,
 } from "@/generated/prisma";
-import { buildBudgetRecommendationMarkdown } from "@/lib/budget-allocation-recommendations";
+import {
+  buildBudgetRecommendationMarkdown,
+  getBudgetAllocationRecommendation,
+} from "@/lib/budget-allocation-recommendations";
 
 type CampaignWithAssets = Campaign & {
   assets: CampaignAsset[];
@@ -107,6 +110,37 @@ function safeBriefJson(value: Prisma.JsonValue | null): BriefJsonShape | null {
   return value as BriefJsonShape;
 }
 
+function extractEstimatedRange(
+  briefJson: Prisma.JsonValue | null
+): {
+  revenueLow?: number | null;
+  revenueHigh?: number | null;
+} | null {
+  if (!briefJson || typeof briefJson !== "object" || Array.isArray(briefJson)) {
+    return null;
+  }
+
+  const record = briefJson as Record<string, unknown>;
+  const range = record.estimatedRange;
+
+  if (!range || typeof range !== "object" || Array.isArray(range)) {
+    return null;
+  }
+
+  const estimatedRange = range as Record<string, unknown>;
+
+  return {
+    revenueLow:
+      typeof estimatedRange.revenueLow === "number"
+        ? estimatedRange.revenueLow
+        : null,
+    revenueHigh:
+      typeof estimatedRange.revenueHigh === "number"
+        ? estimatedRange.revenueHigh
+        : null,
+  };
+}
+
 function approvedAssetByType(
   assets: CampaignAsset[],
   type: CampaignAsset["assetType"]
@@ -151,6 +185,39 @@ function svgTemplate(params: {
 
 function toCurrency(value: number | null | undefined) {
   return `$${Number(value ?? 0).toLocaleString()}`;
+}
+
+function getPlatformBudgetLine(
+  lines: Array<{ label: string; percentage: number; recommendedBudget: number }>,
+  label: string
+) {
+  return lines.find((line) => line.label === label) ?? null;
+}
+
+function buildPlatformBudgetSection(params: {
+  lines: Array<{ label: string; percentage: number; recommendedBudget: number }>;
+  labels: string[];
+}) {
+  const matchedLines = params.labels
+    .map((label) => getPlatformBudgetLine(params.lines, label))
+    .filter((line): line is { label: string; percentage: number; recommendedBudget: number } => Boolean(line));
+
+  if (matchedLines.length === 0) {
+    return `## Budget for This Platform
+No separate platform budget is recommended because this platform is not part of the approved allocation mix.
+`;
+  }
+
+  const linesText = matchedLines
+    .map(
+      (line) =>
+        `- ${line.label}: ${line.percentage}% (${toCurrency(line.recommendedBudget)})`
+    )
+    .join("\n");
+
+  return `## Budget for This Platform
+${linesText}
+`;
 }
 
 function sanitizeForFileName(value: string) {
@@ -226,6 +293,7 @@ export async function buildCampaignExportPack({
 }> {
   const zip = new JSZip();
   const brief = safeBriefJson(campaign.briefJson);
+  const estimatedRange = extractEstimatedRange(campaign.briefJson);
   const utm = generateUtmSet(campaign);
 
   const googleBusinessAsset = approvedAssetByType(campaign.assets, "GOOGLE_BUSINESS");
@@ -243,6 +311,21 @@ export async function buildCampaignExportPack({
   const email = parseStructuredAsset<EmailAssetPayload>(emailAsset);
   const blog = parseStructuredAsset<BlogAssetPayload>(blogAsset);
 
+    const approvedAssetTypes = campaign.assets
+    .filter((asset) => asset.isApproved)
+    .map((asset) => asset.assetType);
+
+const budgetRecommendation = getBudgetAllocationRecommendation(
+  approvedAssetTypes,
+  {
+    revenueLow: estimatedRange?.revenueLow ?? null,
+    revenueHigh:
+      estimatedRange?.revenueHigh ??
+      (typeof campaign.estimatedRevenue === "number"
+        ? campaign.estimatedRevenue
+        : 0),
+  }
+);
   const businessName = sanitizeForFileName(profile?.businessName ?? "Business");
   const campaignName = sanitizeForFileName(campaign.name);
   const campaignIdShort = campaign.id.slice(0, 8);
@@ -264,6 +347,17 @@ This pack is designed so that an operator with little or no platform experience 
 - Offer: ${campaign.offer ?? "See campaign brief"}
 - Audience: ${campaign.audience ?? "See campaign brief"}
 - Service Area: ${campaign.serviceArea ?? profile?.serviceArea ?? "Not specified"}
+
+## Budget Guidance
+- Action Budget: ${toCurrency(budgetRecommendation.actionBudget)}
+
+## Recommended Platform Allocation
+${budgetRecommendation.lines
+  .map(
+    (line) =>
+      `- ${line.label}: ${line.percentage}% (${toCurrency(line.recommendedBudget)})`
+  )
+  .join("\n")}
 
 ## What is included in this pack
 Only approved assets are included.
@@ -309,6 +403,7 @@ Each folder contains:
 - If a folder says “No approved asset found,” that platform was not approved for launch.
 - Launch only the assets included in this pack.
 - Do not invent extra copy unless the client explicitly requests changes.
+- Use the budget guidance in this file and in each platform folder when launching.
 `;
 
   root.file("00-START-HERE.md", startHere);
@@ -368,13 +463,9 @@ ${campaign.campaignCode}
 `
   );
 
-    root.file(
+  root.file(
     "budget-allocation-recommendation.md",
-    buildBudgetRecommendationMarkdown(
-      campaign.assets
-        .filter((asset) => asset.isApproved)
-        .map((asset) => asset.assetType)
-    )
+    buildBudgetRecommendationMarkdown(approvedAssetTypes)
   );
 
   const briefFolder = root.folder("01-campaign-brief");
@@ -431,6 +522,10 @@ ${brief?.opportunityCheck?.whyThisMatters ?? brief?.opportunityCheck?.rationale 
 
 Use this folder to create and publish a Google Business Profile post.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Google Business Profile"],
+})}
 Step-by-step
 1. Open the client's Google Business Profile
 2. Navigate to Posts or Updates
@@ -477,6 +572,10 @@ ${utm.googleBusiness.post}
 
 Use this folder for Facebook posting or ad setup.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Facebook & Instagram"],
+})}
 Step-by-step
 1. Open Facebook Business Manager or the Facebook Page
 2. Create the post or ad
@@ -532,6 +631,10 @@ ${utm.facebook.feed}
 
 Use this folder for Instagram feed, story, or reel setup.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Facebook & Instagram"],
+})}
 Step-by-step
 1. Open Instagram scheduling or Meta Business Suite
 2. Choose Feed, Story, or Reel placement
@@ -594,6 +697,10 @@ Story: ${utm.instagram.story}
 
 Use this folder to load the approved search ad copy into Google Ads.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Google Ads"],
+})}
 Step-by-step
 1. Open the correct Google Ads account
 2. Create a new Search campaign or open the intended ad group
@@ -627,6 +734,10 @@ ${utm.googleAds.search}
 
 Use this folder for Yelp promoted listing, ad setup, or business update workflows.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Yelp"],
+})}
 Step-by-step
 1. Open the business Yelp account
 2. Navigate to the correct ad or business content section
@@ -671,6 +782,10 @@ ${utm.yelp.ad}
 
 Use this folder to send the approved campaign email.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Email"],
+})}
 Step-by-step
 1. Open the client's email platform
 2. Create a new campaign or draft
@@ -704,6 +819,10 @@ ${utm.email.click}
 
 Use this folder to publish the approved blog article on the client's website.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Website / SEO / AEO"],
+})}
 Step-by-step
 1. Open the website CMS or blog editor
 2. Create a new post
@@ -739,6 +858,10 @@ Before publishing
 
 Use this folder to improve answer-engine visibility through FAQ and short-form answer content.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Website / SEO / AEO"],
+})}
 Step-by-step
 1. Open the website page where FAQ or answer content should live
 2. Copy the content from faq-content.md into the FAQ section
@@ -756,8 +879,8 @@ Before publishing
 `
   );
 
-  const seoFolder = root.folder("10-seo");
-  seoFolder?.file(
+const seoFolder = root.folder("10-seo");
+seoFolder?.file(
     "seo-guidance.md",
     `# SEO Optimization Guidance
 
@@ -816,6 +939,10 @@ Ensure service area is clearly stated on:
 
 Use this folder to apply the approved SEO improvements to the client's site.
 
+${buildPlatformBudgetSection({
+  lines: budgetRecommendation.lines,
+  labels: ["Website / SEO / AEO"],
+})}
 Step-by-step
 1. Open the target page in the CMS
 2. Review seo-guidance.md
@@ -845,6 +972,8 @@ Use this checklist only after reviewing 00-START-HERE.md and 01-campaign-brief/c
 Complete each relevant channel in order and check every item before marking the action as launched.
 
 ## Before launch
+- [ ] Confirm action budget in 00-START-HERE.md
+- [ ] Confirm platform budget in the channel operator notes
 - [ ] Confirm business phone number
 - [ ] Confirm booking or estimate destination
 - [ ] Confirm offer language
