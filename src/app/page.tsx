@@ -53,24 +53,33 @@ function MobileHomepage() {
           More jobs. Less guesswork.
         </h1>
 
-        <p className="mt-4 max-w-xs text-base leading-6 text-white/80">
-          You’re told what to do next — and it gets executed.
+        <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
+          Built for local service businesses that need more booked jobs — not
+          more marketing work.
         </p>
 
-        <div className="mt-6">
+        <p className="mt-4 max-w-xs text-base leading-6 text-white/80">
+          You’re given what to do next — and it gets executed.
+        </p>
+
+          <div className="mt-6">
           <Link
             href="/sign-up"
             className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-[0_16px_40px_rgba(59,130,246,0.42)] transition hover:scale-[1.01]"
           >
             Start Generating Revenue
           </Link>
+
+          <p className="mt-2 text-center text-sm text-white/55">
+            Takes less than 2 minutes. No setup headaches.
+          </p>
         </div>
 
         <div className="mt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300/85">
           What this looks like in your business
         </div>
 
-        <div className="mt-3 grid gap-3">
+                <div className="mt-3 grid gap-3">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
             <div className="text-3xl font-semibold tracking-tight">24</div>
             <div className="mt-1 text-sm leading-5 text-white/65">
@@ -92,6 +101,11 @@ function MobileHomepage() {
             </div>
           </div>
         </div>
+
+        <p className="mx-auto mb-2 mt-6 max-w-md text-center text-sm leading-6 text-white/80">
+          Every action is built from real demand signals — not templates or
+          guesswork.
+        </p>
       </section>
 
       <section className="border-y border-white/10 bg-white/[0.03]">
@@ -123,8 +137,12 @@ function MobileHomepage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10">
+        <div className="mb-2 text-sm font-medium uppercase tracking-[0.16em] text-cyan-300">
+          Here’s the problem.
+        </div>
+
         <h2 className="text-3xl font-bold tracking-tight text-white">
-          Stop guessing what to do next.
+          Most businesses are guessing what to do next — and losing jobs because of it.
         </h2>
 
         <div className="mt-6 space-y-4">
@@ -270,8 +288,18 @@ function MobileHomepage() {
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-white/[0.03]">
-        <div className="mx-auto max-w-5xl px-4 py-12 text-center">
+            <>
+        <div className="mx-auto max-w-5xl px-4 pb-2 pt-4 text-center">
+          <p className="text-lg leading-7 text-white">
+            This isn’t marketing.
+          </p>
+          <p className="mt-1 text-lg leading-7 text-white">
+            It’s a system that tells you what to do next — and gets it done.
+          </p>
+        </div>
+
+        <section className="border-t border-white/10 bg-white/[0.03]">
+          <div className="mx-auto max-w-5xl px-4 py-12 text-center">
           <Image
             src="/MarketForge_Logo.jpeg"
             alt="MarketForge"
@@ -308,7 +336,8 @@ function MobileHomepage() {
             Built for businesses that need more jobs — not more complexity.
           </p>
         </div>
-      </section>
+              </section>
+      </>
     </main>
   );
 }
