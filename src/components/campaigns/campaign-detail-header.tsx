@@ -30,6 +30,9 @@ type Props = {
 type ParsedBrief = {
   userPrompt?: string;
   matchedOpportunityTitle?: string | null;
+  actionSpec?: {
+    constructType?: string;
+  };
   nextBestAction?: {
     title?: string;
     actionType?: string;
@@ -251,7 +254,21 @@ export function CampaignDetailHeader({ campaign, results }: Props) {
           Generation Record
         </p>
 
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-2xl bg-white p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Construct
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {brief?.actionSpec?.constructType
+                ? brief.actionSpec.constructType
+                    .toLowerCase()
+                    .replace(/_/g, " ")
+                    .replace(/\b\w/g, (char) => char.toUpperCase())
+                : "Not recorded"}
+            </p>
+          </div>
+
           <div className="rounded-2xl bg-white p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
               Execution Mode

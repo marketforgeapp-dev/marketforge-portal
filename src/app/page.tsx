@@ -46,7 +46,7 @@ function MobileHomepage() {
 
       <section className="mx-auto max-w-7xl px-4 pb-10 pt-8">
         <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3.5 py-2 text-xs font-medium text-cyan-200">
-          Revenue execution system
+          Know what to do next
         </div>
 
         <h1 className="mt-5 max-w-xs text-5xl font-bold leading-[0.95] tracking-tight text-white">
@@ -54,12 +54,12 @@ function MobileHomepage() {
         </h1>
 
         <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">
-          Built for local service businesses that need more booked jobs — not
+          Built for local service businesses that want more jobs — not
           more marketing work.
         </p>
 
         <p className="mt-4 max-w-xs text-base leading-6 text-white/80">
-          You’re given what to do next — and it gets executed.
+          You’re shown what to do next — and it gets executed.
         </p>
 
           <div className="mt-6">
@@ -131,7 +131,7 @@ function MobileHomepage() {
           </div>
 
           <p className="mt-4 max-w-sm text-sm leading-6 text-white/78">
-            This shows what to do next, what’s live, and what’s driving revenue.
+            See what to do next — and what’s already driving revenue.
           </p>
         </div>
       </section>
@@ -142,7 +142,7 @@ function MobileHomepage() {
         </div>
 
         <h2 className="text-3xl font-bold tracking-tight text-white">
-          Most businesses are guessing what to do next — and losing jobs because of it.
+          Most businesses are guessing — and losing jobs because of it.
         </h2>
 
         <div className="mt-6 space-y-4">
@@ -313,7 +313,7 @@ function MobileHomepage() {
           </h2>
 
           <p className="mx-auto mt-4 max-w-sm text-base leading-6 text-white/80">
-            Start generating revenue in minutes.
+            Start getting more jobs in minutes.
           </p>
 
           <div className="mt-8 flex flex-col items-stretch gap-3">
@@ -363,7 +363,7 @@ function DesktopHomepage() {
                 MarketForge
               </div>
               <div className="hidden text-xs text-white/55 sm:block sm:text-sm">
-                Revenue execution for booked jobs
+                Get more jobs
               </div>
             </div>
           </div>

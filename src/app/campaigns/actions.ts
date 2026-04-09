@@ -9,11 +9,13 @@ import {
   ActionThesis,
   buildRevenueOpportunityEngine,
 } from "@/lib/revenue-opportunity-engine";
+import { buildActionSpec } from "@/lib/action-spec";
 import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import type { BusinessProfile } from "@/generated/prisma";
 import { resolveServiceJobValue } from "@/lib/service-pricing";
 import type {
+  AssetType,
   CampaignObjective,
   CampaignType,
   OpportunityType,
@@ -167,6 +169,109 @@ Guidelines:
     return JSON.parse(content);
   } catch (err) {
     console.error("[blog-generation] failed, falling back", err);
+    return null;
+  }
+}
+
+async function generateAdCopyWithAI(params: {
+  businessName: string;
+  serviceArea: string;
+  targetService: string;
+  actionTitle: string;
+  actionSummary: string;
+  targetAudience: string;
+  offer?: string | null;
+  cta?: string | null;
+  isReviewAction: boolean;
+  isVisibilityAction: boolean;
+  isOfferAction: boolean;
+}) {
+  try {
+    const prompt = `
+You are writing high-converting, homeowner-facing local service ad copy.
+
+Business: ${params.businessName}
+Service Area: ${params.serviceArea}
+Target Service: ${params.targetService}
+Action Title: ${params.actionTitle}
+Action Summary: ${params.actionSummary}
+Audience: ${params.targetAudience}
+Offer: ${params.offer ?? "None"}
+CTA: ${params.cta ?? "Book now"}
+
+Context:
+- This is for local home service businesses.
+- The audience is homeowners, not marketers.
+- The copy must feel credible, clear, and local.
+- No marketing jargon.
+- No phrases like "high-intent", "capture demand", "trust and conversion", "generate leads", "premium positioning", or "commercial offer".
+- Do not overstuff the service area.
+- Keep the language natural and believable.
+- Write better than a typical agency ad.
+
+Special rules:
+- If this is a review action, do NOT write ad copy. Write simple homeowner-facing review-request messaging.
+- If this is a visibility action, write copy that explains the business is improving how homeowners find the service online. Do not sound like an SEO consultant.
+- If there is no real offer, do not invent one.
+
+Return JSON only in this shape:
+{
+  "meta": {
+    "headline": "...",
+    "primaryText": "...",
+    "cta": "..."
+  },
+  "googleBusiness": {
+    "title": "...",
+    "description": "...",
+    "cta": "..."
+  },
+  "googleAds": {
+    "headlines": ["...", "...", "...", "...", "..."],
+    "descriptions": ["...", "...", "..."]
+  },
+  "yelp": {
+    "headline": "...",
+    "body": "...",
+    "offer": null,
+    "cta": "..."
+  }
+}
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.8,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return null;
+
+    return JSON.parse(content) as {
+      meta: {
+        headline: string;
+        primaryText: string;
+        cta: string;
+      };
+      googleBusiness: {
+        title: string;
+        description: string;
+        cta: string;
+      };
+      googleAds: {
+        headlines: string[];
+        descriptions: string[];
+      };
+      yelp: {
+        headline: string;
+        body: string;
+        offer: string | null;
+        cta: string;
+      };
+    };
+  } catch (error) {
+    console.error("[ad-copy-generation] failed, falling back", error);
     return null;
   }
 }
@@ -812,15 +917,15 @@ function buildSyntheticOpportunity(params: {
         "Use lower-friction, easier-to-book work to turn open capacity into booked jobs.",
       imageKey: familyKey,
       imageMode: "SERVICE_IMAGE",
-      actionThesis: {
+            actionThesis: {
         familyKey,
         primaryService: serviceName,
         angle: "schedule fill",
         title: bestMove,
         summary:
           "Create a practical local action that helps turn open capacity into booked jobs.",
-        audience: `Homeowners in ${profile.serviceArea} who need timely local service help`,
-        offerHint: "Simple offer designed to make booking easier this week",
+        audience: `Homeowners in ${profile.serviceArea} with service needs that are easier to book this week`,
+        offerHint: "",
         ctaHint: "Book now",
         imageKey: familyKey,
         imageMode: "SERVICE_IMAGE",
@@ -833,10 +938,10 @@ function buildSyntheticOpportunity(params: {
       rawOpportunityScore: 74,
       confidenceLabel: "Medium",
       confidenceScore: 74,
-      whyNowBullets: [
-        "The request is to fill schedule capacity, not just chase the highest-ticket work.",
-        "This action is built to create lower-friction demand that is easier to approve and launch.",
-        "The recommendation avoids forcing a category mismatch when the business need is capacity-first.",
+            whyNowBullets: [
+        "The request is to fill open schedule capacity, not only chase the highest-ticket work.",
+        "This action is designed to create lower-friction demand that is easier to approve and launch quickly.",
+        "A schedule-fill action should stay aligned to immediate booking needs instead of drifting into unrelated promotion.",
       ],
       whyThisMatters:
         "A schedule-fill request should produce a schedule-fill action instead of drifting into unrelated promotion.",
@@ -878,8 +983,8 @@ function buildSyntheticOpportunity(params: {
         summary:
           "Improve discoverability through FAQ, GBP, and service-page upgrades.",
         audience: `Homeowners searching for service help in ${profile.serviceArea}`,
-        offerHint: "Clear answers and stronger local visibility",
-        ctaHint: "Improve visibility",
+        offerHint: "",
+        ctaHint: "Review visibility action",
         imageKey: "company-logo",
         imageMode: "LOGO",
       },
@@ -917,30 +1022,30 @@ function buildSyntheticOpportunity(params: {
         ? profile.averageJobValue
         : Number(profile.averageJobValue ?? 450);
 
-    return {
+        return {
       opportunityKey: buildSyntheticOpportunityKey({
         serviceName,
         opportunityType,
-        bestMove: "Improve Review Generation",
+        bestMove: "Post-Service Review Request Workflow",
       }),
       familyKey: `${inferredIndustry}-reviews`,
       title: "Review Generation Opportunity",
       serviceName,
       opportunityType,
-      bestMove: "Improve Review Generation",
-      displayMoveLabel: "Improve Review Generation",
-      displaySummary: `Strengthen local trust and conversion with a focused review-generation action in ${profile.serviceArea}.`,
+            bestMove: "Post-Service Review Request Workflow",
+      displayMoveLabel: "Post-Service Review Request Workflow",
+      displaySummary: `Create a structured post-service review-request workflow for recent completed-job customers in ${profile.serviceArea}.`,
       imageKey: `${inferredIndustry}-reviews`,
       imageMode: "SERVICE_IMAGE",
-      actionThesis: {
+            actionThesis: {
         familyKey: `${inferredIndustry}-reviews`,
         primaryService: "Review generation",
-        angle: "trust building",
-        title: "Improve Review Generation",
+        angle: "review acquisition",
+        title: "Post-Service Review Request Workflow",
         summary:
-          "Generate more recent customer reviews to support local conversion and trust.",
-        audience: `Recent customers in ${profile.serviceArea}`,
-        offerHint: "Simple follow-up review request",
+          "Send a structured post-service review request to recent completed-job customers.",
+        audience: `Recent completed-job customers in ${profile.serviceArea} who have not yet left a review`,
+        offerHint: "",
         ctaHint: "Request review",
         imageKey: `${inferredIndustry}-reviews`,
         imageMode: "SERVICE_IMAGE",
@@ -953,10 +1058,10 @@ function buildSyntheticOpportunity(params: {
       rawOpportunityScore: 64,
       confidenceLabel: "Medium",
       confidenceScore: 68,
-      whyNowBullets: [
-        "The request is explicitly about reviews.",
-        "Fresh reviews improve trust and local conversion over time.",
-        "This is more credible than forcing the request into a service-promotion lane.",
+            whyNowBullets: [
+        "The request is explicitly about reviews from real customers.",
+        "Fresh reviews support local trust and conversion over time.",
+        "A defined review-request workflow is more credible than vague reputation marketing.",
       ],
       whyThisMatters:
         "A review-focused request should produce a review-focused action.",
@@ -1079,18 +1184,18 @@ function buildFallbackCampaignDraft(params: {
     actionThesis,
   } = params;
 
-  const offer =
+    const offer =
     campaignType === "AEO_FAQ"
-      ? actionThesis.offerHint
+      ? null
       : campaignType === "REVIEW_GENERATION"
-        ? "Simple review request"
+        ? null
         : campaignType === "MAINTENANCE_PUSH"
-          ? "Simple local offer designed to create bookings"
+          ? null
           : actionThesis.offerHint;
 
-  const cta =
-    campaignType === "AEO_FAQ" || campaignType === "SEO_CONTENT"
-      ? actionThesis.ctaHint
+    const cta =
+    campaignType === "REVIEW_GENERATION"
+      ? "Request review"
       : actionThesis.ctaHint;
 
   return {
@@ -1168,7 +1273,7 @@ function buildMetaPrimaryText(params: {
   cta?: string | null;
 }) {
   const summary = (params.summary ?? "").trim();
-  const serviceArea = (params.serviceArea ?? "").trim();
+  const serviceArea = getConsumerFacingAreaLabel(params.serviceArea);
   const cta = (params.cta ?? "Book now").trim();
 
   let cleaned = summary
@@ -1179,6 +1284,7 @@ function buildMetaPrimaryText(params: {
     .replace(/^more\s+/i, "")
     .replace(/^high-intent\s+/i, "")
     .replace(/\bbookings\b/gi, "appointments")
+    .replace(/\btrust and conversion\b/gi, "why homeowners choose this service")
     .trim();
 
   if (!cleaned) {
@@ -1207,7 +1313,7 @@ function buildGoogleBusinessPostText(params: {
   cta?: string | null;
 }) {
   const summary = (params.summary ?? "").trim();
-  const serviceArea = (params.serviceArea ?? "").trim();
+  const serviceArea = getConsumerFacingAreaLabel(params.serviceArea);
   const cta = (params.cta ?? "Learn more").trim();
 
   let cleaned = summary
@@ -1218,6 +1324,7 @@ function buildGoogleBusinessPostText(params: {
     .replace(/^more\s+/i, "")
     .replace(/^high-intent\s+/i, "")
     .replace(/\bbookings\b/gi, "appointments")
+    .replace(/\btrust and conversion\b/gi, "why homeowners choose this service")
     .trim();
 
   if (!cleaned) {
@@ -1245,6 +1352,203 @@ function normalizeOfferText(value?: string | null) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function getConsumerFacingAreaLabel(serviceArea?: string | null) {
+  const area = (serviceArea ?? "").trim();
+
+  if (!area) return "";
+
+  const commaParts = area
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (area.length > 60 || commaParts.length > 2) {
+    return commaParts[0] || "your area";
+  }
+
+  return area;
+}
+
+function isReviewActionType(params: {
+  actionType?: string | null;
+  campaignType?: string | null;
+  routedLane?: string | null;
+}) {
+  return (
+    params.actionType === "REVIEW_GENERATION" ||
+    params.campaignType === "REVIEW_GENERATION" ||
+    params.routedLane === "REVIEWS"
+  );
+}
+
+function isVisibilityActionType(params: {
+  actionType?: string | null;
+  campaignType?: string | null;
+  routedLane?: string | null;
+  opportunityType?: OpportunityType | null;
+}) {
+  return (
+    params.actionType === "AEO_CONTENT" ||
+    params.actionType === "SEO_CONTENT" ||
+    params.campaignType === "AEO_FAQ" ||
+    params.campaignType === "SEO_CONTENT" ||
+    params.routedLane === "AEO_SEO" ||
+    params.opportunityType === "AI_SEARCH_VISIBILITY"
+  );
+}
+
+function sanitizeCustomerFacingOffer(value?: string | null) {
+  const text = (value ?? "").trim();
+  if (!text) return null;
+
+  const lower = text.toLowerCase();
+
+  const invalidFragments = [
+    "review-backed",
+    "review mention",
+    "mention this review",
+    "simple review request",
+    "simple local offer",
+    "compelling local service offer",
+    "relevant",
+  ];
+
+  if (invalidFragments.some((fragment) => lower.includes(fragment))) {
+    return null;
+  }
+
+  return text;
+}
+
+function buildMetaHeadline(params: {
+  actionTitle: string;
+  targetService: string;
+  isReviewAction: boolean;
+  isVisibilityAction: boolean;
+}) {
+  if (params.isReviewAction) {
+    return "Request More Customer Reviews";
+  }
+
+  if (params.isVisibilityAction) {
+    return `Improve Visibility for ${params.targetService}`;
+  }
+
+  return cleanActionTitleForAd(params.actionTitle);
+}
+
+function buildMetaPrimaryTextFromAction(params: {
+  actionSummary?: string | null;
+  serviceArea?: string | null;
+  cta?: string | null;
+  offer?: string | null;
+  isReviewAction: boolean;
+  isVisibilityAction: boolean;
+  targetService: string;
+}) {
+  const serviceArea = getConsumerFacingAreaLabel(params.serviceArea);
+  const cta = (params.cta ?? "Book now").trim();
+  const cleanOffer = sanitizeCustomerFacingOffer(params.offer);
+
+  if (params.isReviewAction) {
+    return `Ask recent completed-job customers for a review using a simple, approved follow-up workflow.`;
+  }
+
+  if (params.isVisibilityAction) {
+    return serviceArea
+      ? `Make it easier for homeowners to find ${params.targetService.toLowerCase()} in ${serviceArea}.`
+      : `Make it easier for homeowners to find ${params.targetService.toLowerCase()}.`;
+  }
+
+  const base = buildMetaPrimaryText({
+    summary: params.actionSummary,
+    serviceArea,
+    cta,
+  });
+
+  return cleanOffer ? `${cleanOffer}. ${base}` : base;
+}
+
+function buildGoogleBusinessDescriptionFromAction(params: {
+  actionSummary?: string | null;
+  serviceArea?: string | null;
+  cta?: string | null;
+  offer?: string | null;
+  isReviewAction: boolean;
+  isVisibilityAction: boolean;
+  targetService: string;
+}) {
+  const serviceArea = getConsumerFacingAreaLabel(params.serviceArea);
+  const cta = (params.cta ?? "Learn more").trim();
+  const cleanOffer = sanitizeCustomerFacingOffer(params.offer);
+
+  if (params.isReviewAction) {
+    return `Use this approved workflow to request reviews from recent completed-job customers.`;
+  }
+
+  if (params.isVisibilityAction) {
+    return serviceArea
+      ? `Help more homeowners find your ${params.targetService.toLowerCase()} services in ${serviceArea}.`
+      : `Help more homeowners find your ${params.targetService.toLowerCase()} services.`;
+  }
+
+  const base = buildGoogleBusinessPostText({
+    summary: params.actionSummary,
+    serviceArea,
+    cta,
+  });
+
+  return cleanOffer ? `${cleanOffer} — ${base}` : base;
+}
+
+function getAssetTypesForAction(params: {
+  executionMode: "CAMPAIGN" | "ACTION_PACK";
+  actionType: string;
+  campaignType: CampaignType;
+  routedLane: PromptLane;
+  opportunityType: OpportunityType;
+}): AssetType[] {
+  const visibilityAction = isVisibilityActionType({
+    actionType: params.actionType,
+    campaignType: params.campaignType,
+    routedLane: params.routedLane,
+    opportunityType: params.opportunityType,
+  });
+
+  const reviewAction = isReviewActionType({
+    actionType: params.actionType,
+    campaignType: params.campaignType,
+    routedLane: params.routedLane,
+  });
+
+  if (visibilityAction) {
+        return [
+      "GOOGLE_BUSINESS",
+      "BLOG",
+      "AEO_FAQ",
+      "ANSWER_SNIPPET",
+    ];
+  }
+
+  if (reviewAction) {
+    return [
+      "GOOGLE_BUSINESS",
+      "EMAIL",
+    ];
+  }
+
+  return [
+    "GOOGLE_BUSINESS",
+    "META",
+    "GOOGLE_ADS",
+    "YELP",
+    "EMAIL",
+    "BLOG",
+    "AEO_FAQ",
+    "ANSWER_SNIPPET",
+  ];
+}
+
 function buildStructuredGoogleBusinessAsset(params: {
   title?: string | null;
   summary?: string | null;
@@ -1255,20 +1559,23 @@ function buildStructuredGoogleBusinessAsset(params: {
   industry?: string | null;
   serviceArea?: string | null;
 }) {
-    const cta = params.cta ?? "Learn More";
+  const cta = params.cta ?? "Learn more";
   const offer = normalizeOfferText(params.offer);
-  const descriptionBase = buildGoogleBusinessPostText({
-    summary: params.summary,
-    serviceArea: params.serviceArea,
-    cta,
-  });
+  const descriptionBase =
+    (params.summary ?? "").trim() ||
+    buildGoogleBusinessPostText({
+      summary: params.summary,
+      serviceArea: params.serviceArea,
+      cta,
+    });
 
   return JSON.stringify({
     kind: "GOOGLE_BUSINESS",
     title: cleanActionTitleForAd(params.title),
-    description: offer
-      ? `${offer} — ${descriptionBase}`
-      : descriptionBase,
+    description:
+      offer && !descriptionBase.toLowerCase().includes(offer.toLowerCase())
+        ? `${offer} — ${descriptionBase}`
+        : descriptionBase,
     cta,
     offer,
     imageKey: normalizeStructuredAssetImageKey({
@@ -1290,20 +1597,23 @@ function buildStructuredMetaAsset(params: {
   industry?: string | null;
   serviceArea?: string | null;
 }) {
-    const cta = params.cta ?? "Book Now";
+  const cta = params.cta ?? "Book now";
   const offer = normalizeOfferText(params.offer);
-  const primaryTextBase = buildMetaPrimaryText({
-    summary: params.primaryText,
-    serviceArea: params.serviceArea,
-    cta,
-  });
+  const primaryTextBase =
+    (params.primaryText ?? "").trim() ||
+    buildMetaPrimaryText({
+      summary: params.primaryText,
+      serviceArea: params.serviceArea,
+      cta,
+    });
 
   return JSON.stringify({
     kind: "META",
     headline: cleanActionTitleForAd(params.headline),
-    primaryText: offer
-      ? `${offer}. ${primaryTextBase}`
-      : primaryTextBase,
+    primaryText:
+      offer && !primaryTextBase.toLowerCase().includes(offer.toLowerCase())
+        ? `${offer}. ${primaryTextBase}`
+        : primaryTextBase,
     cta,
     offer,
     imageKey: normalizeStructuredAssetImageKey({
@@ -1332,6 +1642,60 @@ function buildStructuredEmailAsset(params: {
       "We have availability to help with your local service needs.",
     cta: params.cta ?? "Learn More",
     industry: params.industry ?? "plumbing",
+  });
+}
+
+function buildEmailAssetFromAction(params: {
+  actionTitle: string;
+  actionSummary?: string | null;
+  cta?: string | null;
+  targetService: string;
+  serviceArea: string;
+  isReviewAction: boolean;
+  isVisibilityAction: boolean;
+  isOfferAction: boolean;
+  industry?: string | null;
+}) {
+  if (params.isReviewAction) {
+    return buildStructuredEmailAsset({
+      subject: "Quick favor after your recent service",
+      previewLine: "Would you be willing to leave a quick review?",
+      body: `Thank you for choosing us for your recent service. If everything went well, we’d appreciate a quick review. Your feedback helps other homeowners in ${params.serviceArea} feel confident choosing the right company.`,
+      cta: "Leave a review",
+      industry: params.industry,
+    });
+  }
+
+  if (params.isVisibilityAction) {
+    return buildStructuredEmailAsset({
+      subject: `${params.targetService} visibility action draft`,
+      previewLine: "Optional manual-use placeholder",
+      body: `This action is primarily focused on improving visibility through Google Business, FAQ, answer content, and blog support. Email is included here only as an optional manual-use placeholder if needed later.`,
+      cta: "Learn more",
+      industry: params.industry,
+    });
+  }
+
+  if (params.isOfferAction) {
+    return buildStructuredEmailAsset({
+      subject: params.actionTitle,
+      previewLine: params.actionSummary,
+      body:
+        params.actionSummary ??
+        `We’re currently promoting ${params.targetService.toLowerCase()} in ${params.serviceArea}.`,
+      cta: params.cta ?? "Book now",
+      industry: params.industry,
+    });
+  }
+
+  return buildStructuredEmailAsset({
+    subject: params.actionTitle,
+    previewLine: params.actionSummary,
+    body:
+      params.actionSummary ??
+      `We’re currently promoting ${params.targetService.toLowerCase()} in ${params.serviceArea}.`,
+    cta: params.cta ?? "Learn more",
+    industry: params.industry,
   });
 }
 
@@ -1859,17 +2223,71 @@ Return a single structured next-best-action plan.
     serviceName: effectiveActionThesis.primaryService,
   });
 
+      const actionSpec = buildActionSpec({
+    actionName: campaignName,
+    targetService: campaignDraft.targetService,
+    rawOffer: campaignDraft.offer,
+    rawAudience:
+      campaignDraft.audience ??
+      effectiveActionThesis.audience ??
+      resolvedOpportunity.actionThesis.audience,
+    cta: campaignDraft.cta,
+    actionSummary: effectiveActionThesis.summary,
+    actionType: effectiveActionType,
+    routedLane: routedIntent.lane,
+    opportunityType: resolvedOpportunity.opportunityType,
+    campaignType: campaignDraft.campaignType,
+    serviceArea: profile.serviceArea,
+  });
+
+      const reviewAction = isReviewActionType({
+    actionType: effectiveActionType,
+    campaignType: campaignDraft.campaignType,
+    routedLane: routedIntent.lane,
+  });
+
+  const visibilityAction = isVisibilityActionType({
+    actionType: effectiveActionType,
+    campaignType: campaignDraft.campaignType,
+    routedLane: routedIntent.lane,
+    opportunityType: resolvedOpportunity.opportunityType,
+  });
+
+  const isOfferAction = actionSpec.offerType !== "none";
+
+  const includedAssetTypes = getAssetTypesForAction({
+    executionMode: effectiveExecutionMode,
+    actionType: effectiveActionType,
+    campaignType: campaignDraft.campaignType,
+    routedLane: routedIntent.lane,
+    opportunityType: resolvedOpportunity.opportunityType,
+  });
+
+    const generatedAdCopy = await generateAdCopyWithAI({
+    businessName: profile.businessName,
+    serviceArea: profile.serviceArea,
+    targetService: effectiveActionThesis.primaryService,
+    actionTitle: effectiveActionThesis.title,
+    actionSummary: effectiveActionThesis.summary,
+    targetAudience: actionSpec.targetAudience,
+    offer: campaignDraft.offer,
+    cta: effectiveActionThesis.ctaHint,
+    isReviewAction: reviewAction,
+    isVisibilityAction: visibilityAction,
+    isOfferAction,
+  });
+
   const campaign = await prisma.campaign.create({
     data: {
       workspaceId: workspace.id,
       recommendationId: null,
       revenueOpportunityId: null,
-      name: campaignName,
+      name: actionSpec.actionName,
       campaignType: campaignDraft.campaignType,
       objective: campaignDraft.objective,
-      targetService: campaignDraft.targetService,
-      offer: campaignDraft.offer,
-      audience: campaignDraft.audience,
+      targetService: actionSpec.targetService,
+      offer: actionSpec.offerLabel,
+      audience: actionSpec.targetAudience,
       serviceArea: profile.serviceArea,
       estimatedLeads,
       estimatedBookedJobs,
@@ -1899,7 +2317,13 @@ Return a single structured next-best-action plan.
           summary: effectiveActionThesis.summary,
         },
         actionPack: parsed.actionPack,
-        campaignDraft,
+        actionSpec,
+        campaignDraft: {
+          ...campaignDraft,
+          offer: actionSpec.offerLabel,
+          audience: actionSpec.targetAudience,
+          cta: actionSpec.cta,
+        },
         creativeGuidance: campaignDraft.creativeGuidance,
         matchedOpportunityKey: consumesRecommendationSlot
           ? resolvedOpportunity.opportunityKey
@@ -1931,104 +2355,171 @@ Return a single structured next-best-action plan.
     },
   });
 
+  const assetData: Array<{
+    campaignId: string;
+    assetType: AssetType;
+    title: string;
+    content: string;
+  }> = [];
+
+  if (includedAssetTypes.includes("GOOGLE_BUSINESS")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "GOOGLE_BUSINESS",
+      title:
+        effectiveExecutionMode === "ACTION_PACK"
+          ? "Google Business Action Draft"
+          : "Google Business Post",
+      content: buildStructuredGoogleBusinessAsset({
+                title: generatedAdCopy?.googleBusiness?.title ?? effectiveActionThesis.title,
+        summary:
+          generatedAdCopy?.googleBusiness?.description ??
+          buildGoogleBusinessDescriptionFromAction({
+            actionSummary: effectiveActionThesis.summary,
+            serviceArea: profile.serviceArea,
+            cta: effectiveActionThesis.ctaHint,
+            offer: campaignDraft.offer,
+            isReviewAction: reviewAction,
+            isVisibilityAction: visibilityAction,
+            targetService: effectiveActionThesis.primaryService,
+          }),
+        cta: generatedAdCopy?.googleBusiness?.cta ?? effectiveActionThesis.ctaHint,
+        offer: sanitizeCustomerFacingOffer(campaignDraft.offer),
+        imageKey: effectiveActionThesis.imageKey,
+        imageMode: effectiveActionThesis.imageMode,
+        industry: structuredIndustry,
+        serviceArea: profile.serviceArea,
+      }),
+    });
+  }
+
+  if (includedAssetTypes.includes("META")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "META",
+      title:
+        effectiveExecutionMode === "ACTION_PACK"
+          ? "Meta Action Draft"
+          : "Meta Ad Copy",
+      content: buildStructuredMetaAsset({
+                headline:
+          generatedAdCopy?.meta?.headline ??
+          buildMetaHeadline({
+            actionTitle: effectiveActionThesis.title,
+            targetService: effectiveActionThesis.primaryService,
+            isReviewAction: reviewAction,
+            isVisibilityAction: visibilityAction,
+          }),
+        primaryText:
+          generatedAdCopy?.meta?.primaryText ??
+          buildMetaPrimaryTextFromAction({
+            actionSummary: effectiveActionThesis.summary,
+            serviceArea: profile.serviceArea,
+            cta: effectiveActionThesis.ctaHint,
+            offer: campaignDraft.offer,
+            isReviewAction: reviewAction,
+            isVisibilityAction: visibilityAction,
+            targetService: effectiveActionThesis.primaryService,
+          }),
+        cta: generatedAdCopy?.meta?.cta ?? effectiveActionThesis.ctaHint,
+        offer: sanitizeCustomerFacingOffer(campaignDraft.offer),
+        imageKey: effectiveActionThesis.imageKey,
+        imageMode: effectiveActionThesis.imageMode,
+        industry: structuredIndustry,
+        serviceArea: profile.serviceArea,
+      }),
+    });
+  }
+
+  if (includedAssetTypes.includes("GOOGLE_ADS")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "GOOGLE_ADS",
+      title: "Google Ads Copy",
+            content: formatGoogleAds(
+        generatedAdCopy?.googleAds ?? parsed.assets.googleAds
+      ),
+    });
+  }
+
+  if (includedAssetTypes.includes("YELP")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "YELP",
+      title: "Yelp Ad Copy",
+            content: formatYelp(generatedAdCopy?.yelp ?? parsed.assets.yelpAd),
+    });
+  }
+
+    if (includedAssetTypes.includes("EMAIL")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "EMAIL",
+      title: reviewAction
+        ? "Review Request Email"
+        : parsed.assets.emailCampaign.subjectLine ?? "Email Campaign",
+      content: buildEmailAssetFromAction({
+        actionTitle: effectiveActionThesis.title,
+        actionSummary: effectiveActionThesis.summary,
+        cta: effectiveActionThesis.ctaHint,
+        targetService: effectiveActionThesis.primaryService,
+        serviceArea: profile.serviceArea,
+        isReviewAction: reviewAction,
+        isVisibilityAction: visibilityAction,
+        isOfferAction,
+        industry: structuredIndustry,
+      }),
+    });
+  }
+
+  if (includedAssetTypes.includes("BLOG")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "BLOG",
+      title:
+        effectiveExecutionMode === "ACTION_PACK"
+          ? parsed.actionPack.actionTitle ?? "Blog Article"
+          : "Blog Article",
+      content: await buildStructuredBlogAsset({
+        title:
+          effectiveExecutionMode === "ACTION_PACK"
+            ? parsed.actionPack.actionTitle ?? effectiveActionThesis.title
+            : effectiveActionThesis.title,
+        businessName: profile.businessName,
+        serviceArea: profile.serviceArea,
+        primaryService: effectiveActionThesis.primaryService,
+                summary: cleanInternalMarketingLanguage(
+          generatedAdCopy?.googleBusiness?.description ?? effectiveActionThesis.summary
+        ),
+        whyBullets: effectiveActionThesis.whyThisActionBullets ?? [],
+        cta: effectiveActionThesis.ctaHint,
+        imageKey: effectiveActionThesis.imageKey,
+        imageMode: effectiveActionThesis.imageMode,
+        industry: structuredIndustry,
+      }),
+    });
+  }
+
+  if (includedAssetTypes.includes("AEO_FAQ")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "AEO_FAQ",
+      title: "AEO FAQ",
+      content: formatFaq(parsed.assets.aeoFaq),
+    });
+  }
+
+  if (includedAssetTypes.includes("ANSWER_SNIPPET")) {
+    assetData.push({
+      campaignId: campaign.id,
+      assetType: "ANSWER_SNIPPET",
+      title: "Answer Snippet",
+      content: parsed.assets.answerSnippet,
+    });
+  }
+
   await prisma.campaignAsset.createMany({
-    data: [
-                        {
-        campaignId: campaign.id,
-        assetType: "GOOGLE_BUSINESS",
-        title:
-          effectiveExecutionMode === "ACTION_PACK"
-            ? "Google Business Action Draft"
-            : "Google Business Post",
-        content: buildStructuredGoogleBusinessAsset({
-          title: effectiveActionThesis.title,
-          summary: parsed.assets.yelpAd.body,
-          cta: effectiveActionThesis.ctaHint,
-          offer: parsed.assets.yelpAd.offer,
-          imageKey: effectiveActionThesis.imageKey,
-          imageMode: effectiveActionThesis.imageMode,
-          industry: structuredIndustry,
-          serviceArea: profile.serviceArea,
-        }),
-      },
-                        {
-        campaignId: campaign.id,
-        assetType: "META",
-        title:
-          effectiveExecutionMode === "ACTION_PACK"
-            ? "Meta Action Draft"
-            : "Meta Ad Copy",
-        content: buildStructuredMetaAsset({
-          headline: effectiveActionThesis.title,
-          primaryText: parsed.assets.yelpAd.body,
-          cta: effectiveActionThesis.ctaHint,
-          offer: parsed.assets.yelpAd.offer,
-          imageKey: effectiveActionThesis.imageKey,
-          imageMode: effectiveActionThesis.imageMode,
-          industry: structuredIndustry,
-          serviceArea: profile.serviceArea,
-        }),
-      },
-      {
-        campaignId: campaign.id,
-        assetType: "GOOGLE_ADS",
-        title: "Google Ads Copy",
-        content: formatGoogleAds(parsed.assets.googleAds),
-      },
-      {
-        campaignId: campaign.id,
-        assetType: "YELP",
-        title: "Yelp Ad Copy",
-        content: formatYelp(parsed.assets.yelpAd),
-      },
-      {
-        campaignId: campaign.id,
-        assetType: "EMAIL",
-        title: parsed.assets.emailCampaign.subjectLine ?? "Email Campaign",
-        content: buildStructuredEmailAsset({
-          subject: parsed.assets.emailCampaign.subjectLine,
-          previewLine: effectiveActionThesis.summary,
-          body: parsed.assets.emailCampaign.body,
-          cta: effectiveActionThesis.ctaHint,
-          industry: structuredIndustry,
-        }),
-      },
-      {
-        campaignId: campaign.id,
-        assetType: "BLOG",
-        title:
-          effectiveExecutionMode === "ACTION_PACK"
-            ? parsed.actionPack.actionTitle ?? "Blog Article"
-            : "Blog Article",
-        content: await buildStructuredBlogAsset({
-          title:
-            effectiveExecutionMode === "ACTION_PACK"
-              ? parsed.actionPack.actionTitle ?? effectiveActionThesis.title
-              : effectiveActionThesis.title,
-          businessName: profile.businessName,
-          serviceArea: profile.serviceArea,
-          primaryService: effectiveActionThesis.primaryService,
-          summary: effectiveActionThesis.summary,
-          whyBullets: effectiveActionThesis.whyThisActionBullets ?? [],
-          cta: effectiveActionThesis.ctaHint,
-          imageKey: effectiveActionThesis.imageKey,
-          imageMode: effectiveActionThesis.imageMode,
-          industry: structuredIndustry,
-        }),
-      },
-      {
-        campaignId: campaign.id,
-        assetType: "AEO_FAQ",
-        title: "AEO FAQ",
-        content: formatFaq(parsed.assets.aeoFaq),
-      },
-      {
-        campaignId: campaign.id,
-        assetType: "ANSWER_SNIPPET",
-        title: "Answer Snippet",
-        content: parsed.assets.answerSnippet,
-      },
-    ],
+    data: assetData,
   });
 
   if (consumesRecommendationSlot) {

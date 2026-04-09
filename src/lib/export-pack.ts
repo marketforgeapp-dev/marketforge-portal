@@ -38,6 +38,48 @@ type BriefJsonShape = {
     whyThisMatters?: string;
     rationale?: string;
   };
+  actionSpec?: {
+    constructType?: string;
+    secondaryConstructType?: string | null;
+    businessGoal?: string;
+    actionName?: string;
+    targetService?: string;
+    targetAudience?: string;
+    audienceRationale?: string;
+    audienceSourceType?: string;
+    offerType?: string;
+    offerLabel?: string | null;
+    offerValue?: string | null;
+    offerDuration?: string | null;
+    offerConditions?: string | null;
+    offerFulfillmentNotes?: string | null;
+    coreMessageAngle?: string;
+    cta?: string;
+    proofOrDifferentiator?: string | null;
+    messageGuardrails?: string[];
+    whatHappensWhenLaunched?: string;
+    executionMode?: string;
+    automationEligibility?: string;
+    executionMechanism?: {
+      channelType?: string;
+      triggerType?: string;
+      deliverySurface?: string;
+      operatorActionSummary?: string;
+      requiredAssets?: string[];
+      requiredAccess?: string[];
+      manualSteps?: string[];
+      futureAutomationHook?: string;
+    };
+    operationalDependencies?: {
+      business_readiness?: string[];
+      offer_readiness?: string[];
+      asset_readiness?: string[];
+      channel_access?: string[];
+      tracking_readiness?: string[];
+      staff_behavior?: string[];
+      website_or_landing_readiness?: string[];
+    };
+  };
   campaignDraft?: {
     description?: string;
     offer?: string;
@@ -187,6 +229,39 @@ function toCurrency(value: number | null | undefined) {
   return `$${Number(value ?? 0).toLocaleString()}`;
 }
 
+function formatLabel(value?: string | null) {
+  if (!value) return "Not provided";
+
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function flattenDependencyGroups(
+  dependencies?: {
+    business_readiness?: string[];
+    offer_readiness?: string[];
+    asset_readiness?: string[];
+    channel_access?: string[];
+    tracking_readiness?: string[];
+    staff_behavior?: string[];
+    website_or_landing_readiness?: string[];
+  }
+): string[] {
+  if (!dependencies) return [];
+
+  return [
+    ...(dependencies.business_readiness ?? []),
+    ...(dependencies.offer_readiness ?? []),
+    ...(dependencies.asset_readiness ?? []),
+    ...(dependencies.channel_access ?? []),
+    ...(dependencies.tracking_readiness ?? []),
+    ...(dependencies.staff_behavior ?? []),
+    ...(dependencies.website_or_landing_readiness ?? []),
+  ];
+}
+
 function getPlatformBudgetLine(
   lines: Array<{ label: string; percentage: number; recommendedBudget: number }>,
   label: string
@@ -311,6 +386,34 @@ export async function buildCampaignExportPack({
   const email = parseStructuredAsset<EmailAssetPayload>(emailAsset);
   const blog = parseStructuredAsset<BlogAssetPayload>(blogAsset);
 
+  const actionSpec = brief?.actionSpec ?? null;
+  const actionConstruct = formatLabel(actionSpec?.constructType);
+  const actionAudience =
+    actionSpec?.targetAudience ??
+    brief?.campaignDraft?.audience ??
+    campaign.audience ??
+    "Not provided";
+  const actionOffer =
+    actionSpec?.offerLabel ??
+    brief?.campaignDraft?.offer ??
+    campaign.offer ??
+    "No special offer";
+  const actionCta =
+    actionSpec?.cta ??
+    brief?.campaignDraft?.cta ??
+    "Not provided";
+  const actionWhatHappens =
+    actionSpec?.whatHappensWhenLaunched ??
+    actionSpec?.executionMechanism?.operatorActionSummary ??
+    "Use the approved assets in this pack to launch the action manually.";
+  const actionCoreMessage =
+    actionSpec?.coreMessageAngle ??
+    brief?.campaignDraft?.description ??
+    "Not provided";
+  const actionDependencies = flattenDependencyGroups(
+    actionSpec?.operationalDependencies
+  );
+
     const approvedAssetTypes = campaign.assets
     .filter((asset) => asset.isApproved)
     .map((asset) => asset.assetType);
@@ -337,16 +440,27 @@ const budgetRecommendation = getBudgetAllocationRecommendation(
     throw new Error("Failed to create export root folder.");
   }
 
-  const startHere = `# MarketForge Launch Pack
+    const startHere = `# MarketForge Launch Pack
 
 This pack is designed so that an operator with little or no platform experience can launch the approved assets step by step.
 
-## Campaign
+## Action Summary
 - Name: ${campaign.name}
+- Action Type: ${actionConstruct}
 - Target Service: ${campaign.targetService ?? "General service"}
-- Offer: ${campaign.offer ?? "See campaign brief"}
-- Audience: ${campaign.audience ?? "See campaign brief"}
+- Who This Is For: ${actionAudience}
+- Offer: ${actionOffer}
+- CTA: ${actionCta}
 - Service Area: ${campaign.serviceArea ?? profile?.serviceArea ?? "Not specified"}
+
+## What This Action Is Meant To Do
+${actionCoreMessage}
+
+## What Will Happen When You Launch It
+${actionWhatHappens}
+
+## What You Need Before Launch
+${actionDependencies.length > 0 ? actionDependencies.map((item) => `- ${item}`).join("\n") : "- Review the campaign summary and operator checklist before launch."}
 
 ## Budget Guidance
 - Action Budget: ${toCurrency(budgetRecommendation.actionBudget)}
@@ -411,7 +525,7 @@ Each folder contains:
   root.file(
     "manifest.json",
     JSON.stringify(
-      {
+            {
         campaignId: campaign.id,
         campaignCode: campaign.campaignCode,
         campaignName: campaign.name,
@@ -419,7 +533,9 @@ Each folder contains:
         serviceArea: campaign.serviceArea ?? profile?.serviceArea ?? null,
         targetService: campaign.targetService ?? null,
         offer: campaign.offer ?? null,
+        audience: campaign.audience ?? null,
         status: campaign.status,
+        actionSpec: brief?.actionSpec ?? null,
         execution: brief?.execution ?? null,
         assetsIncluded: campaign.assets
           .filter((asset) => asset.isApproved)
@@ -469,16 +585,30 @@ ${campaign.campaignCode}
   );
 
   const briefFolder = root.folder("01-campaign-brief");
-  briefFolder?.file(
+    briefFolder?.file(
     "campaign-summary.md",
     `# Campaign Summary
 
 ## Campaign
 - Name: ${campaign.name}
 - Description: ${brief?.campaignDraft?.description ?? "Not provided"}
-- Offer: ${brief?.campaignDraft?.offer ?? campaign.offer ?? "Not provided"}
-- CTA: ${brief?.campaignDraft?.cta ?? "Not provided"}
-- Audience: ${brief?.campaignDraft?.audience ?? campaign.audience ?? "Not provided"}
+- Offer: ${actionOffer}
+- CTA: ${actionCta}
+- Audience: ${actionAudience}
+
+## Action Structure
+- Action Type: ${actionConstruct}
+- Business Goal: ${formatLabel(actionSpec?.businessGoal)}
+- Target Service: ${actionSpec?.targetService ?? campaign.targetService ?? "Not provided"}
+
+## Why This Audience
+${actionSpec?.audienceRationale ?? "Not provided"}
+
+## What Will Happen When Launched
+${actionWhatHappens}
+
+## What You Need Before Launch
+${actionDependencies.length > 0 ? actionDependencies.map((item) => `- ${item}`).join("\n") : "- Not provided"}
 
 ## User Prompt
 ${brief?.userPrompt ?? "Not stored"}
@@ -963,7 +1093,7 @@ Before publishing
   );
 
   const opsFolder = root.folder("11-operator-checklist");
-  opsFolder?.file(
+    opsFolder?.file(
     "launch-checklist.md",
     `# Operator Launch Checklist
 
@@ -972,6 +1102,8 @@ Use this checklist only after reviewing 00-START-HERE.md and 01-campaign-brief/c
 Complete each relevant channel in order and check every item before marking the action as launched.
 
 ## Before launch
+- [ ] Confirm who this action is for
+- [ ] Confirm what this action is meant to do
 - [ ] Confirm action budget in 00-START-HERE.md
 - [ ] Confirm platform budget in the channel operator notes
 - [ ] Confirm business phone number

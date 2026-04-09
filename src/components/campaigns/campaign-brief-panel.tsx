@@ -13,6 +13,48 @@ type CampaignBriefData = {
   structuredIndustry?: string | null;
   imageKey?: string | null;
   imageMode?: "SERVICE_IMAGE" | "LOGO" | null;
+    actionSpec?: {
+    constructType?: string;
+    secondaryConstructType?: string | null;
+    businessGoal?: string;
+    actionName?: string;
+    targetService?: string;
+    targetAudience?: string;
+    audienceRationale?: string;
+    audienceSourceType?: string;
+    offerType?: string;
+    offerLabel?: string | null;
+    offerValue?: string | null;
+    offerDuration?: string | null;
+    offerConditions?: string | null;
+    offerFulfillmentNotes?: string | null;
+    coreMessageAngle?: string;
+    cta?: string;
+    proofOrDifferentiator?: string | null;
+    messageGuardrails?: string[];
+    whatHappensWhenLaunched?: string;
+    executionMode?: string;
+    automationEligibility?: string;
+    executionMechanism?: {
+      channelType?: string;
+      triggerType?: string;
+      deliverySurface?: string;
+      operatorActionSummary?: string;
+      requiredAssets?: string[];
+      requiredAccess?: string[];
+      manualSteps?: string[];
+      futureAutomationHook?: string;
+    };
+    operationalDependencies?: {
+      business_readiness?: string[];
+      offer_readiness?: string[];
+      asset_readiness?: string[];
+      channel_access?: string[];
+      tracking_readiness?: string[];
+      staff_behavior?: string[];
+      website_or_landing_readiness?: string[];
+    };
+  };
   parsedIntent?: {
     serviceCategory?: string;
     intent?: string;
@@ -94,6 +136,15 @@ function formatExecutionMode(value?: string | null) {
   return value === "ACTION_PACK" ? "Action Pack" : "Campaign Launch";
 }
 
+function formatLabel(value?: string | null) {
+  if (!value) return "Not recorded";
+
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export function CampaignBriefPanel({
   campaignId,
   status,
@@ -107,6 +158,7 @@ export function CampaignBriefPanel({
 }: Props) {
   const parsed = parseBriefJson(briefJson);
 
+  const actionSpec = parsed?.actionSpec;
   const parsedIntent = parsed?.parsedIntent;
   const opportunityCheck = parsed?.opportunityCheck;
   const actionThesis = parsed?.actionThesis;
@@ -122,21 +174,23 @@ export function CampaignBriefPanel({
   const [isEditing, setIsEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const [draftName, setDraftName] = useState(campaignName);
+    const [draftName, setDraftName] = useState(
+    actionSpec?.actionName ?? campaignName
+  );
   const [draftTargetService, setDraftTargetService] = useState(
-    targetService ?? ""
+    actionSpec?.targetService ?? targetService ?? ""
   );
   const [draftOffer, setDraftOffer] = useState(
-    campaignDraft?.offer ?? offer ?? ""
+    actionSpec?.offerLabel ?? campaignDraft?.offer ?? offer ?? ""
   );
   const [draftAudience, setDraftAudience] = useState(
-    campaignDraft?.audience ?? audience ?? ""
+    actionSpec?.targetAudience ?? campaignDraft?.audience ?? audience ?? ""
   );
   const [draftDescription, setDraftDescription] = useState(
-    campaignDraft?.description ?? actionThesis?.summary ?? ""
+    actionSpec?.coreMessageAngle ?? campaignDraft?.description ?? actionThesis?.summary ?? ""
   );
   const [draftCta, setDraftCta] = useState(
-    campaignDraft?.cta ?? actionThesis?.ctaHint ?? ""
+    actionSpec?.cta ?? campaignDraft?.cta ?? actionThesis?.ctaHint ?? ""
   );
   const [draftRecommendedImage, setDraftRecommendedImage] = useState(
     creativeGuidance?.recommendedImage ?? ""
@@ -168,11 +222,11 @@ export function CampaignBriefPanel({
             Action Details
           </p>
           <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900">
-            Optional strategy context
+            Action structure and execution context
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-            This information supports trust and review, but it is not required
-            to approve the action.
+            Review who this action is for, what it is promoting, and what is
+            required to execute it cleanly.
           </p>
         </div>
 
@@ -502,36 +556,116 @@ export function CampaignBriefPanel({
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                  Action Strategy
+                  Action Structure
                 </p>
 
-                <div className="mt-2 space-y-2 text-sm text-gray-900">
-                  <p>
-                    Description:{" "}
-                    {(isEditing ? draftDescription : campaignDraft?.description) ||
-                      actionThesis?.summary ||
-                      "—"}
-                  </p>
-                  <p>
-                    Offer:{" "}
-                    {(isEditing ? draftOffer : campaignDraft?.offer) ||
-                      actionThesis?.offerHint ||
-                      "—"}
-                  </p>
-                  <p>
-                    Audience:{" "}
-                    {(isEditing ? draftAudience : campaignDraft?.audience) ||
-                      actionThesis?.audience ||
-                      "—"}
-                  </p>
-                  <p>
-                    CTA:{" "}
-                    {(isEditing ? draftCta : campaignDraft?.cta) ||
-                      actionThesis?.ctaHint ||
-                      "—"}
-                  </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Construct Type
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(actionSpec?.constructType)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Business Goal
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(actionSpec?.businessGoal)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Target Audience
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {(isEditing ? draftAudience : actionSpec?.targetAudience) ||
+                        campaignDraft?.audience ||
+                        actionThesis?.audience ||
+                        "—"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-gray-700">
+                      {actionSpec?.audienceRationale || "No audience rationale stored."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Offer
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {(isEditing ? draftOffer : actionSpec?.offerLabel) ||
+                        "No special offer"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-gray-700">
+                      Type: {formatLabel(actionSpec?.offerType)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Core Message Angle
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {(isEditing ? draftDescription : actionSpec?.coreMessageAngle) ||
+                        campaignDraft?.description ||
+                        actionThesis?.summary ||
+                        "—"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      CTA
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {(isEditing ? draftCta : actionSpec?.cta) ||
+                        campaignDraft?.cta ||
+                        actionThesis?.ctaHint ||
+                        "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  Execution Readout
+                </p>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Execution Mode
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(actionSpec?.executionMode)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Automation Eligibility
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(actionSpec?.automationEligibility)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      What Happens When Launched
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {actionSpec?.whatHappensWhenLaunched || "Not recorded"}
+                    </p>
+                  </div>
                 </div>
               </div>
 

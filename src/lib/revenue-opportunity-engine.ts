@@ -449,19 +449,19 @@ function buildDisplayContract(params: {
 
   if (familyKey === "ai-search-visibility" || actionFraming === "AEO_CONTENT") {
     return {
-      displayMoveLabel: "Improve AI Search Visibility",
-      displaySummary: `Strengthen answer-engine visibility for the most commercially important services in ${area}.`,
+      displayMoveLabel: "Make It Easier for Homeowners to Find You Online",
+      displaySummary: `Make it easier for homeowners in ${area} to find your most important services online.`,
       imageKey: "company-logo",
       imageMode: "LOGO",
       actionThesis: {
         familyKey,
         primaryService: prettyService,
-        angle: "AI search visibility",
+        angle: "online visibility",
         title: bestMove,
-        summary: `Improve AI search visibility for important services in ${area}.`,
-        audience: `Homeowners searching for trusted local providers in ${area}`,
-        offerHint: "Stronger answer-engine coverage",
-        ctaHint: "Improve AI visibility",
+        summary: `Make it easier for homeowners in ${area} to find your most important services online.`,
+        audience: `Homeowners in ${area} searching online for trusted local providers`,
+        offerHint: "",
+        ctaHint: "Review visibility action",
         imageKey: "company-logo",
         imageMode: "LOGO",
       },
@@ -469,20 +469,40 @@ function buildDisplayContract(params: {
   }
 
   const framingSummaryMap: Record<ActionFraming, string> = {
-    PAID_CAMPAIGN: `Drive more high-intent bookings for ${prettyService.toLowerCase()} in ${area}.`,
-    SCHEDULE_FILL: `Use open capacity to generate more ${prettyService.toLowerCase()} bookings in ${area}.`,
-    REPUTATION: `Improve trust and conversion for ${prettyService.toLowerCase()} leads in ${area}.`,
-    PROMOTION: `Promote a stronger commercial offer for ${prettyService.toLowerCase()} in ${area}.`,
-    LOCAL_VISIBILITY: `Improve local visibility for ${prettyService.toLowerCase()} in ${area}.`,
-    AEO_CONTENT: `Improve AI search visibility for ${prettyService.toLowerCase()} in ${area}.`,
-    MIXED: `Use a blended growth move for ${prettyService.toLowerCase()} in ${area}.`,
+    PAID_CAMPAIGN: `Create more booked ${prettyService.toLowerCase()} jobs in ${area}.`,
+    SCHEDULE_FILL: `Use open capacity to book more ${prettyService.toLowerCase()} work in ${area}.`,
+    REPUTATION: `Show homeowners why your business is a strong choice for ${prettyService.toLowerCase()} in ${area}.`,
+    PROMOTION: `Promote a higher-value ${prettyService.toLowerCase()} option in ${area}.`,
+    LOCAL_VISIBILITY: `Help more homeowners in ${area} find your ${prettyService.toLowerCase()} services.`,
+    AEO_CONTENT: `Make it easier for homeowners in ${area} to find your services online.`,
+    MIXED: `Create more booked ${prettyService.toLowerCase()} jobs in ${area}.`,
+  };
+
+  const audienceMap: Record<ActionFraming, string> = {
+    PAID_CAMPAIGN: `Homeowners in ${area} who need ${prettyService.toLowerCase()}`,
+    SCHEDULE_FILL: `Homeowners in ${area} with service needs that are easier to book this week`,
+    REPUTATION: `Homeowners in ${area} comparing providers for ${prettyService.toLowerCase()} and looking for a company they can trust`,
+    PROMOTION: `Homeowners in ${area} considering ${prettyService.toLowerCase()} and likely to respond to a stronger high-value option`,
+    LOCAL_VISIBILITY: `Homeowners in ${area} searching for ${prettyService.toLowerCase()} help`,
+    AEO_CONTENT: `Homeowners in ${area} searching online for trusted local providers`,
+    MIXED: `Homeowners in ${area} who need ${prettyService.toLowerCase()}`,
+  };
+
+  const ctaMap: Record<ActionFraming, string> = {
+    PAID_CAMPAIGN: `Book ${prettyService.toLowerCase()}`,
+    SCHEDULE_FILL: "Book now",
+    REPUTATION: "See why homeowners choose us",
+    PROMOTION: `Book ${prettyService.toLowerCase()}`,
+    LOCAL_VISIBILITY: "Review visibility action",
+    AEO_CONTENT: "Review visibility action",
+    MIXED: `Book ${prettyService.toLowerCase()}`,
   };
 
   return {
     displayMoveLabel: bestMove,
     displaySummary:
       framingSummaryMap[actionFraming] ??
-      `Generate more ${prettyService.toLowerCase()} demand in ${area}.`,
+      `Create more ${prettyService.toLowerCase()} jobs in ${area}.`,
     imageKey:
       familyKey === "general-plumbing"
         ? "general-plumbing"
@@ -495,10 +515,13 @@ function buildDisplayContract(params: {
       title: bestMove,
       summary:
         framingSummaryMap[actionFraming] ??
-        `Generate more ${prettyService.toLowerCase()} demand in ${area}.`,
-      audience: `Homeowners in ${area} who need ${prettyService.toLowerCase()}`,
-      offerHint: `Relevant ${prettyService.toLowerCase()} offer`,
-      ctaHint: `Book ${prettyService.toLowerCase()}`,
+        `Create more ${prettyService.toLowerCase()} jobs in ${area}.`,
+      audience:
+        audienceMap[actionFraming] ??
+        `Homeowners in ${area} who need ${prettyService.toLowerCase()}`,
+      offerHint: "",
+      ctaHint:
+        ctaMap[actionFraming] ?? `Book ${prettyService.toLowerCase()}`,
       imageKey:
         familyKey === "general-plumbing"
           ? "general-plumbing"
@@ -595,33 +618,33 @@ function getSeasonalBestMove(params: {
     }
 
     if (kind === "trust") {
-      return `Build Trust for ${prettyName} During a Slower Month`;
+      return `Show Homeowners Why Your ${prettyName} Service Is the Right Choice`;
     }
   }
 
   if (seasonalityTiming.timing === "BUSY") {
     if (kind === "urgent") {
-      return `Capture High-Intent ${prettyName} Demand`;
+      return `Get More ${prettyName} Jobs Now`;
     }
 
     if (kind === "premium") {
-      return `Promote ${prettyName} Premium Offer`;
+      return `Promote Higher-Value ${prettyName} Service`;
     }
   }
 
   if (seasonalityTiming.timing === "PEAK") {
     if (kind === "urgent") {
-      return `Capture Peak ${prettyName} Demand`;
+      return `Get More ${prettyName} Jobs During Peak Demand`;
     }
 
     if (kind === "premium") {
-      return `Promote ${prettyName} Peak-Season Offer`;
+      return `Promote Higher-Value ${prettyName} Service`;
     }
   }
 
   if (seasonalityTiming.timing === "SHOULDER") {
     if (kind === "trust") {
-      return `Build Trust Before ${prettyName} Demand Peaks`;
+      return `Show Homeowners Why Your ${prettyName} Service Is the Right Choice`;
     }
 
     if (kind === "capacity") {
@@ -757,13 +780,13 @@ function getVariantBestMove(params: {
     case "primary":
       return canonicalService.blueprint.defaultBestMove;
     case "urgent":
-      return `Promote Fast ${prettyName} Response`;
+      return `Get More ${prettyName} Jobs Now`;
     case "capacity":
-      return `Fill Schedule with ${prettyName} Jobs`;
+      return `Fill Schedule with ${prettyName}`;
     case "trust":
-      return `Promote Review-Backed ${prettyName} Offer`;
+      return `Show Homeowners Why Your ${prettyName} Service Is the Right Choice`;
     case "premium":
-      return `Promote ${prettyName} Premium Offer`;
+      return `Promote Higher-Value ${prettyName} Service`;
     default:
       return canonicalService.blueprint.defaultBestMove;
   }
@@ -780,13 +803,13 @@ function getVariantTitle(params: {
     case "primary":
       return canonicalService.blueprint.title;
     case "urgent":
-      return `${prettyName} Fast Response Opportunity`;
+      return `${prettyName} Immediate Revenue Opportunity`;
     case "capacity":
       return `${prettyName} Schedule Fill Opportunity`;
     case "trust":
-      return `${prettyName} Trust & Conversion Opportunity`;
+      return `${prettyName} Credibility Opportunity`;
     case "premium":
-      return `${prettyName} Premium Revenue Opportunity`;
+      return `${prettyName} Higher-Value Service Opportunity`;
     default:
       return canonicalService.blueprint.title;
   }
@@ -978,8 +1001,6 @@ function buildWhyNowBullets(params: {
     canonicalService,
     kind,
     availableJobsEstimate,
-    competitorNarrative,
-    enrichment,
     seasonalityTiming,
     reputationSignal,
     revenueValueScore,
@@ -989,73 +1010,52 @@ function buildWhyNowBullets(params: {
 
   const service = prettyServiceName(canonicalService.canonicalName);
 
-  // ----------------------------------------
-  // BULLET 1 — COMMERCIAL VALUE
-  // ----------------------------------------
-  let commercialBullet = "";
-
+  let bulletOne = "";
   if (revenueValueScore >= 80) {
-    commercialBullet = `${service} is one of the stronger revenue-producing services in your mix and supports higher-value jobs.`;
+    bulletOne = `${service} is one of the clearest ways for you to generate meaningful revenue right now.`;
   } else if (revenueValueScore >= 65) {
-    commercialBullet = `${service} represents a solid revenue opportunity with consistent job value potential.`;
+    bulletOne = `${service} is a solid revenue opportunity and can help create dependable job flow.`;
   } else {
-    commercialBullet = `${service} can contribute incremental revenue and help support overall job volume.`;
+    bulletOne = `${service} can still help create incremental revenue without needing a major strategic shift.`;
   }
 
   if (canonicalService.isPreferred) {
-    commercialBullet += ` This is also a preferred service for your business.`;
+    bulletOne += ` It is also one of the services your business most wants to grow.`;
   }
 
   if (canonicalService.isHighestMargin) {
-    commercialBullet += ` It also carries strong margin potential.`;
+    bulletOne += ` It also has stronger profit potential than many of your other service lines.`;
   }
 
-  // ----------------------------------------
-  // BULLET 2 — COMPETITIVE POSITION
-  // ----------------------------------------
-  let competitiveBullet = "";
-
+  let bulletTwo = "";
   if (reputationSignal.position === "LAGGING") {
-    competitiveBullet = `Your Google reputation is currently behind competing providers in this service lane, which creates a real risk of losing jobs at the decision stage.`;
+    bulletTwo = `Homeowners are likely comparing you against competitors here, and your Google reputation is currently giving them less confidence than it should.`;
   } else if (reputationSignal.position === "LEADING") {
-    competitiveBullet = `Your Google reputation is currently stronger than many competitors, which gives you an advantage when homeowners are choosing who to hire.`;
+    bulletTwo = `Your Google reputation is already stronger than many competitors in this lane, which gives you a real advantage when homeowners are deciding who to hire.`;
+  } else if (competitivePositionScore >= 70) {
+    bulletTwo = `There is a real opening here because this service is valuable and the local competitive pressure looks manageable.`;
   } else {
-    competitiveBullet = competitorNarrative;
+    bulletTwo = `This service is important enough that even a modest improvement in visibility or conversion can turn into real booked work.`;
   }
 
-  if (competitivePositionScore >= 75 && reputationSignal.position === "LEADING") {
-    competitiveBullet += ` This is a good opportunity to press that advantage.`;
-  }
-
-  if (competitivePositionScore <= 50 && reputationSignal.position === "LAGGING") {
-    competitiveBullet += ` Strengthening trust and positioning here should improve win rates.`;
-  }
-
-  // ----------------------------------------
-  // BULLET 3 — TIMING / ACTION
-  // ----------------------------------------
-  let timingBullet = "";
-
+  let bulletThree = "";
   if (kind === "capacity") {
-    timingBullet = `You have available capacity that can support roughly ${availableJobsEstimate} additional jobs, making this a good opportunity to fill schedule.`;
+    bulletThree = `You have room in the schedule for roughly ${availableJobsEstimate} more jobs, so this is one of the easiest places to create revenue without overloading the team.`;
   } else if (kind === "urgent") {
-    timingBullet = `This service is driven by high-intent demand, so acting now increases the likelihood of capturing immediate bookings.`;
+    bulletThree = `Homeowners usually do not wait long to act on this kind of need, so this is a strong opportunity to win jobs quickly.`;
   } else if (kind === "premium") {
-    timingBullet = `Market conditions support a stronger offer here, making this a good moment to push higher-value work.`;
+    bulletThree = `This is the kind of service where better positioning can help you win higher-value work instead of only competing on price.`;
   } else if (kind === "trust") {
-    timingBullet = `Improving trust and proof right now can increase conversion on existing demand.`;
+    bulletThree = `This is a service where homeowners want to feel confident before they book, so clearer proof and credibility can directly improve conversion.`;
+  } else if (marketTimingIntentScore >= 75) {
+    bulletThree = `The timing is supportive right now, so this is a strong moment to put real attention behind this service.`;
+  } else if (marketTimingIntentScore >= 60) {
+    bulletThree = `There is enough demand and timing support here to justify action now instead of waiting.`;
   } else {
-    // primary
-    if (marketTimingIntentScore >= 75) {
-      timingBullet = `Current demand, timing, and homeowner intent signals make this a strong moment to prioritize this service.`;
-    } else if (marketTimingIntentScore >= 60) {
-      timingBullet = `Market timing and homeowner demand are supportive enough to justify action here.`;
-    } else {
-      timingBullet = seasonalityTiming.explanation;
-    }
+    bulletThree = seasonalityTiming.explanation;
   }
 
-  return [commercialBullet, competitiveBullet, timingBullet];
+  return [bulletOne, bulletTwo, bulletThree];
 }
 
 function buildRevenueVariantCandidates(params: {
@@ -1153,7 +1153,7 @@ function buildRevenueVariantCandidates(params: {
   100
 );
 
-  const variantKinds: RevenueVariantKind[] =
+  const seasonalPriority: RevenueVariantKind[] =
     seasonalityTiming.timing === "SLOW"
       ? ["capacity", "trust", "primary", "premium", "urgent"]
       : seasonalityTiming.timing === "BUSY"
@@ -1163,6 +1163,35 @@ function buildRevenueVariantCandidates(params: {
           : seasonalityTiming.timing === "SHOULDER"
             ? ["trust", "capacity", "primary", "premium", "urgent"]
             : ["primary", "urgent", "capacity", "trust", "premium"];
+
+  const enabledVariantKinds = new Set<RevenueVariantKind>(["primary"]);
+
+  if (
+    enrichment.urgencyRelevance !== "LOW" ||
+    canonicalService.familyKey === "burst-pipe-repair" ||
+    canonicalService.familyKey === "emergency-plumbing"
+  ) {
+    enabledVariantKinds.add("urgent");
+  }
+
+  if (capacityFit !== "LOW" && !canonicalService.blueprint.nicheLongCycle) {
+    enabledVariantKinds.add("capacity");
+  }
+
+  if (
+    reputationSignal.position === "LAGGING" ||
+    (competitivePositionScore >= 70 && canonicalService.blueprint.valueBias >= 8)
+  ) {
+    enabledVariantKinds.add("trust");
+  }
+
+  if (canonicalService.blueprint.valueBias >= 10 || canonicalService.isHighestMargin) {
+    enabledVariantKinds.add("premium");
+  }
+
+  const variantKinds = seasonalPriority.filter((kind) =>
+    enabledVariantKinds.has(kind)
+  );
 
   return variantKinds.map((kind) => {
     const campaignType = getVariantCampaignType({ canonicalService, kind });
@@ -1225,9 +1254,9 @@ function buildRevenueVariantCandidates(params: {
             : kind === "capacity"
               ? "schedule fill"
               : kind === "trust"
-                ? "trust & proof"
+                ? "proof and credibility"
                 : kind === "premium"
-                  ? "premium offer"
+                  ? "higher-value positioning"
                   : "core revenue",
       },
       recommendedCampaignType: campaignType,
@@ -1286,13 +1315,13 @@ function buildRevenueVariantCandidates(params: {
       homeownerIntentStrength: enrichment.homeownerIntentStrength,
       homeownerIntentReason: enrichment.homeownerIntentReason,
       actionFraming,
-      actionFramingReason:
+            actionFramingReason:
         kind === "capacity"
           ? "This variant is designed to turn open capacity into bookings."
           : kind === "trust"
             ? "This variant is designed to improve conversion with stronger proof."
             : kind === "premium"
-              ? "This variant is designed to create a stronger commercial offer."
+              ? "This variant is designed to create a stronger premium positioning move."
               : kind === "urgent"
                 ? "This variant is designed to capture urgent booking intent."
                 : "This variant is the core revenue move for the service family.",
@@ -1359,7 +1388,7 @@ function buildVisibilityCandidate(params: {
         ? `${focusServices[0]} and ${focusServices[1]}`
         : `${focusServices[0]}, ${focusServices[1]}, and ${focusServices[2]}`;
 
-  const bestMove = `Improve AI Search Visibility for ${serviceSummary}`;
+    const bestMove = `Make It Easier for Homeowners to Find ${serviceSummary} Online`;
 
   const displayContract = buildDisplayContract({
     familyKey: "ai-search-visibility",
@@ -1376,25 +1405,25 @@ function buildVisibilityCandidate(params: {
     opportunityType: "AI_SEARCH_VISIBILITY",
     bestMove,
     displayMoveLabel: displayContract.displayMoveLabel,
-    displaySummary: `Improve AI search visibility for ${serviceSummary} so the strongest service lanes are easier to discover organically.`,
+    displaySummary: `Make it easier for homeowners to find ${serviceSummary} when they search online.`,
     imageKey: displayContract.imageKey,
     imageMode: displayContract.imageMode,
     actionThesis: {
       ...displayContract.actionThesis,
       primaryService: serviceSummary,
-      summary: `Improve AI search visibility for ${serviceSummary} in ${
-        profile.serviceArea?.trim() || "your service area"
-      }.`,
+    summary: `Make it easier for homeowners to find ${serviceSummary} in ${
+       profile.serviceArea?.trim() || "your service area"
+      } when they search online.`,
     },
     recommendedCampaignType: "AEO_FAQ",
     sourceTags: uniqueTags(["Demand", "AEO"]),
-    whyNowBullets: [
-      "AEO readiness is still below the threshold where AI search visibility should be considered strong.",
-      `The best visibility upside is currently tied to ${serviceSummary}.`,
-      "This should appear as one consolidated visibility lane, not one filler action per service family.",
+        whyNowBullets: [
+      "Homeowners cannot book you if they do not find you clearly when they search online.",
+      `The biggest visibility upside right now is tied to ${serviceSummary}.`,
+      "This should be one clear visibility action, not a scattered set of filler tasks.",
     ],
     whyThisMatters:
-      "AI search visibility should only surface when the baseline is genuinely weak and the opportunity can improve discovery for important services.",
+      "When homeowners have trouble finding your most important services online, you can lose jobs before they ever call.",
     rawOpportunityScore: Math.round(clamp(32 + visibilityGapScore * 0.7, 35, 78)),
     seasonalityRelevance: "MEDIUM",
     seasonalityReason: "Visibility improvements compound over time across important service lanes.",

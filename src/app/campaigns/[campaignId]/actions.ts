@@ -131,6 +131,13 @@ export async function saveCampaignBriefEdits(input: {
       ? (currentBrief.campaignDraft as Record<string, unknown>)
       : {};
 
+    const currentActionSpec =
+    currentBrief.actionSpec &&
+    typeof currentBrief.actionSpec === "object" &&
+    !Array.isArray(currentBrief.actionSpec)
+      ? (currentBrief.actionSpec as Record<string, unknown>)
+      : {};
+
   const currentCreativeGuidance =
     currentBrief.creativeGuidance &&
     typeof currentBrief.creativeGuidance === "object" &&
@@ -147,12 +154,21 @@ export async function saveCampaignBriefEdits(input: {
       audience: input.audience || null,
       briefJson: {
         ...currentBrief,
-        campaignDraft: {
+                campaignDraft: {
           ...currentCampaignDraft,
           description: input.description,
           offer: input.offer,
           audience: input.audience,
           cta: input.cta,
+        },
+        actionSpec: {
+          ...currentActionSpec,
+          actionName: input.name,
+          targetService: input.targetService,
+          targetAudience: input.audience,
+          offerLabel: input.offer || null,
+          cta: input.cta,
+          coreMessageAngle: input.description,
         },
         creativeGuidance: {
           ...currentCreativeGuidance,

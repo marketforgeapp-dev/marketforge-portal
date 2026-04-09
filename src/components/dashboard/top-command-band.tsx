@@ -33,6 +33,13 @@ type Props = {
 };
 
 type CampaignBriefData = {
+  actionSpec?: {
+    constructType?: string;
+    targetAudience?: string;
+    offerLabel?: string | null;
+    cta?: string;
+    whatHappensWhenLaunched?: string;
+  };
   campaignDraft?: {
     description?: string;
     offer?: string;
@@ -66,6 +73,70 @@ function formatActionFraming(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function formatSignalLevel(value: string) {
+  switch (value) {
+    case "HIGH":
+      return "High";
+    case "MEDIUM":
+      return "Medium";
+    case "LOW":
+      return "Low";
+    default:
+      return value;
+  }
+}
+
+function formatCapacityFit(value: string) {
+  switch (value) {
+    case "HIGH":
+      return "Strong";
+    case "MEDIUM":
+      return "Moderate";
+    case "LOW":
+      return "Limited";
+    default:
+      return value;
+  }
+}
+
+function formatActionTypeLabel(value: string) {
+  switch (value) {
+    case "PAID_CAMPAIGN":
+      return "Job Generation";
+    case "SCHEDULE_FILL":
+      return "Schedule Fill";
+    case "REPUTATION":
+      return "Proof & Credibility";
+    case "PROMOTION":
+      return "Higher-Value Service";
+    case "LOCAL_VISIBILITY":
+      return "Local Visibility";
+    case "AEO_CONTENT":
+      return "Online Visibility";
+    case "MIXED":
+      return "Growth Action";
+    default:
+      return formatActionFraming(value);
+  }
+}
+
+function humanizeReasonText(value?: string | null) {
+  const text = (value ?? "").trim();
+
+  if (!text) return "No additional insight recorded yet.";
+
+  return text
+    .replace(/\bAI search visibility\b/gi, "how homeowners find you online")
+    .replace(/\banswer-engine\b/gi, "online search")
+    .replace(/\baction framing\b/gi, "recommended move")
+    .replace(/\bvariant\b/gi, "approach")
+    .replace(/\bcommercial offer\b/gi, "customer offer")
+    .replace(/\bpremium positioning\b/gi, "higher-value positioning")
+    .replace(/\bhomeowner intent\b/gi, "likelihood homeowners will act")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getStatusLabel(heroCampaign: HeroCampaignData) {
   if (!heroCampaign) return "Not Generated";
 
@@ -89,20 +160,24 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: P
   const brief = getBriefData(heroCampaign?.briefJson);
     const [showGeneratingOverlay, setShowGeneratingOverlay] = useState(false);
 
-  const offerText =
+    const offerText =
+    brief?.actionSpec?.offerLabel ??
     heroCampaign?.offer ??
     brief?.campaignDraft?.offer ??
-    brief?.actionThesis?.offerHint ??
-    "Offer will populate when the action package is generated.";
+    "No special offer";
 
   const audienceText =
+    brief?.actionSpec?.targetAudience ??
     heroCampaign?.audience ??
     brief?.campaignDraft?.audience ??
     brief?.actionThesis?.audience ??
     "Audience guidance will populate when the action package is generated.";
 
   const ctaText =
-    brief?.campaignDraft?.cta ?? brief?.actionThesis?.ctaHint ?? "Book now";
+    brief?.actionSpec?.cta ??
+    brief?.campaignDraft?.cta ??
+    brief?.actionThesis?.ctaHint ??
+    "Book now";
 
     const actionBudget = getRecommendedActionBudget({
     assetTypes: heroCampaign?.assets.map((asset) => asset.assetType) ?? [],
@@ -178,40 +253,40 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: P
               </ul>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-4">
+                        <div className="grid gap-3 sm:grid-cols-4">
               <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                  Urgency
+                  Time Sensitivity
                 </p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {hero.urgencyRelevance}
+                  {formatSignalLevel(hero.urgencyRelevance)}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                  Intent
+                  Likelihood to Act
                 </p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {hero.homeownerIntentStrength}
+                  {formatSignalLevel(hero.homeownerIntentStrength)}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                  Capacity
+                  Room in Schedule
                 </p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {hero.capacityFit}
+                  {formatCapacityFit(hero.capacityFit)}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-white p-3.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                  Action Type
+                  Recommended Move
                 </p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {formatActionFraming(hero.actionFraming)}
+                  {formatActionTypeLabel(hero.actionFraming)}
                 </p>
               </div>
             </div>
@@ -266,7 +341,21 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: P
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl bg-gray-50 p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                    Construct
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-gray-900">
+                    {brief?.actionSpec?.constructType
+                      ? brief.actionSpec.constructType
+                          .toLowerCase()
+                          .replace(/_/g, " ")
+                          .replace(/\b\w/g, (char) => char.toUpperCase())
+                      : "Not recorded"}
+                  </p>
+                </div>
+
                 <div className="rounded-xl bg-gray-50 p-3">
                   <p className="text-[10px] uppercase tracking-wide text-gray-500">
                     Offer
@@ -276,7 +365,7 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: P
                   </p>
                 </div>
 
-                <div className="rounded-xl bg-gray-50 p-3">
+                <div className="rounded-xl bg-gray-50 p-3 sm:col-span-2">
                   <p className="text-[10px] uppercase tracking-wide text-gray-500">
                     Audience
                   </p>
@@ -287,14 +376,37 @@ export function TopCommandBand({ hero, heroCampaign, logoUrl, industryLabel }: P
               </div>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3.5 shadow-sm">
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3.5 shadow-sm">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                Intelligence Readout
+                Why This Move Makes Sense
               </p>
-              <div className="mt-2 space-y-1.5 text-sm leading-5 text-gray-700">
-                <p>{hero.seasonalityReason}</p>
-                <p>{hero.homeownerIntentReason}</p>
-                <p>{hero.actionFramingReason}</p>
+              <div className="mt-2 space-y-2 text-sm leading-5 text-gray-700">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Timing
+                  </p>
+                  <p className="mt-1">
+                    {humanizeReasonText(hero.seasonalityReason)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Homeowner Behavior
+                  </p>
+                  <p className="mt-1">
+                    {humanizeReasonText(hero.homeownerIntentReason)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Why This Action
+                  </p>
+                  <p className="mt-1">
+                    {humanizeReasonText(hero.actionFramingReason)}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
