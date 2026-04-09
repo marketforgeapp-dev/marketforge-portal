@@ -1,3 +1,11 @@
+---
+title: Internal Execution Guide
+summary: Founder-led MarketForge internal execution SOP for campaigns and actions.
+order: 1
+---
+
+# Internal Execution Guide
+
 MARKETFORGE INTERNAL OPERATIONAL GUIDE  
 ACTION / CAMPAIGN EXECUTION GUIDE  
 VERSION: FOUNDER-LED EXECUTION PHASE

@@ -1,107 +1,108 @@
-\# MarketForge Terms & Conditions
+---
+title: Terms & Conditions
+summary: The core service terms, platform fee boundaries, attribution expectations, and customer responsibilities.
+order: 3
+---
 
-\#\# Overview
+# MarketForge Terms & Conditions
 
-These Terms & Conditions govern the use of MarketForge by customer businesses.
+## Overview
 
-By using MarketForge, the customer agrees to these terms.
+These Terms & Conditions govern the use of MarketForge.
 
-\---
+By using MarketForge, you agree to these terms.
 
-\#\# Nature of the service
+---
+
+## Nature of Service
 
 MarketForge provides:
 
-\- business and competitor analysis  
-\- action and campaign recommendations  
-\- launch workflow support  
-\- lead and booked-job tracking  
-\- performance visibility where available
+* business and market analysis
+* action generation and execution support
+* tracking and reporting
 
-MarketForge does \*\*not\*\* guarantee any specific revenue outcome, lead volume, ranking position, or advertising result.
+MarketForge does not guarantee specific outcomes.
 
-\---
+---
 
-\#\# Customer responsibilities
+## Customer Responsibilities
 
-The customer is responsible for:
+You agree to:
 
-\- providing accurate business information  
-\- reviewing and approving actions before launch  
-\- confirming that offers, service details, contact information, and service area details are accurate  
-\- reporting booked jobs and revenue honestly where required  
-\- providing required access or credentials when launch support depends on customer-owned accounts
+* provide accurate business information
+* approve actions before launch
+* maintain valid platform billing where required
+* provide access when needed
+* report booked jobs accurately
 
-\---
+---
 
-\#\# Approval and launch
+## Third-Party Platform Fees
 
-Only approved actions should be launched.
+MarketForge is a subscription service.
 
-If customer information, branding, offers, or access details are incomplete or incorrect, launch timing and performance may be affected.
+Your subscription covers:
 
-\---
+* action generation
+* execution
+* tracking
+* reporting
 
-\#\# Attribution and reporting
+It does **not** include third-party platform fees.
 
-MarketForge aims to provide useful and commercially honest attribution.
+All costs related to platforms such as:
 
-Some leads or booked jobs may be:
+* Google Ads
+* Meta (Facebook/Instagram)
+* Yelp
+* or other advertising or service platforms
 
-\- directly attributable  
-\- likely influenced  
-\- organic / unknown
+are billed directly by those platforms and are the responsibility of the customer.
 
-Not all marketing channels support exact attribution.
+Failure to maintain valid billing on these platforms may impact execution and results.
 
-The customer agrees that MarketForge reporting is intended to improve decision-making, not to create a guarantee of exact attribution in every case.
+---
 
-\---
+## Access to Platforms
 
-\#\# Customer data
+You may provide access to third-party platforms to enable execution.
 
-MarketForge may store and process business profile information, campaign information, lead details, booked-job details, and related reporting data for the purpose of delivering the service.
+You are responsible for ensuring that access is authorized.
 
-MarketForge will use this data to operate the platform, support execution, and improve reporting and recommendations.
+---
 
-\---
+## Attribution
 
-\#\# Payment and billing
+MarketForge provides commercially useful attribution.
 
-Payment terms, pricing, billing cadence, and cancellation rules are governed by the customer’s applicable order form, plan selection, invoice, or subscription agreement.
+Not all channels allow exact tracking.
 
-\---
+---
 
-\#\# No guarantee of results
+## No Guarantee of Results
 
-MarketForge is designed to help the customer make better commercial decisions, launch actions more effectively, and improve revenue visibility.
+MarketForge does not guarantee:
 
-However, MarketForge does not guarantee:
+* leads
+* jobs
+* revenue
+* ROI
 
-\- increased leads  
-\- increased booked jobs  
-\- increased revenue  
-\- specific ROI  
-\- specific ad or organic performance
+---
 
-Results depend on many factors including business responsiveness, market conditions, budget, competition, timing, execution quality, and service demand.
+## Limitation of Liability
 
-\---
+MarketForge is not liable for indirect or consequential damages.
 
-\#\# Limitation of liability
+---
 
-To the fullest extent permitted by law, MarketForge will not be liable for indirect, incidental, special, consequential, or punitive damages arising from use of the platform or related services.
+## Updates
 
-\---
+Terms may be updated periodically.
 
-\#\# Changes
+---
 
-MarketForge may update these Terms & Conditions from time to time. Updated terms will apply once published.
+## Contact
 
-\---
-
-\#\# Contact
-
-For questions regarding these terms, contact:
-
-marketforgelabs@gmail.com  
+[marketforgelabs@gmail.com](mailto:marketforgelabs@gmail.com)

@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { label: "Reports", href: "/reports" },
   { label: "AEO", href: "/aeo" },
   { label: "Settings", href: "/settings" },
+  { label: "Resources", href: "/resources" },
 ];
 
 export function DashboardSidebar() {
@@ -51,7 +52,8 @@ export function DashboardSidebar() {
 
       <nav className="mt-4 space-y-2">
         {NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link

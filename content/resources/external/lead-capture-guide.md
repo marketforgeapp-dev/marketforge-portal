@@ -1,168 +1,95 @@
-\# MarketForge Lead Capture Guide
+---
+title: Lead & Revenue Reporting Guide
+summary: How to report booked jobs and revenue clearly so MarketForge can connect actions to measurable business outcomes.
+order: 2
+---
 
-\#\# Purpose
+# MarketForge Lead & Revenue Reporting Guide
 
-MarketForge tracks which actions are producing real booked jobs and revenue for your business.
+## Overview
 
-To keep this simple, your team does \*\*not\*\* need to log into MarketForge to enter every lead manually unless that is part of your operating process.
+MarketForge is designed to track which actions are generating real business outcomes.
 
-Instead, your team only needs to send MarketForge a lightweight update with booked jobs tied to current activity. MarketForge will handle tracking, attribution, and reporting.
+To keep this process simple, your team does not need to manage complex tracking systems or enter every lead manually.
 
-\---
+Instead, your role is to provide lightweight updates on booked jobs. MarketForge handles attribution, analysis, and reporting.
 
-\#\# What your business is responsible for
+---
 
-For each booked job, provide the following information:
+## What to Report
 
-1\. Customer name  
-2\. Service performed or booked  
-3\. Job value / revenue amount  
-4\. Date booked  
-5\. Any source clue, if known
+For each booked job, provide:
 
-Examples of source clues:
+* Customer name
+* Service performed or booked
+* Revenue amount (actual or estimated)
+* Date booked
+* Source clue (if known)
 
-\- “Customer mentioned Facebook ad”  
-\- “Found us on Google”  
-\- “Came from website form”  
-\- “Mentioned Google Business post”  
-\- “Not sure”
+If the source is unknown, that is completely acceptable. Do not guess.
 
-If the source is unknown, that is okay. Do not guess.
+---
 
-\---
+## What You Do NOT Need to Track
 
-\#\# What your business does not need to do
+Your team does not need to:
 
-Your business does \*\*not\*\* need to:
+* Assign exact campaign attribution
+* Learn marketing terminology
+* Maintain detailed spreadsheets
+* Track every inbound lead or phone call
 
-\- choose exact campaign attribution  
-\- learn marketing terminology  
-\- maintain a complicated spreadsheet  
-\- track every phone call that does not become a booked job
+MarketForge handles attribution, matching, and reporting.
 
-MarketForge handles:
+---
 
-\- attribution  
-\- campaign matching  
-\- revenue entry  
-\- reporting
+## What Should Be Reported
 
-\---
-
-\#\# What should be reported
-
-Report \*\*booked jobs only\*\*.
+Report **booked jobs only**.
 
 Do not report:
 
-\- missed calls  
-\- unqualified leads  
-\- duplicate follow-ups for the same customer/job  
-\- estimate requests that did not become booked work
+* Missed calls
+* Unqualified leads
+* Duplicate entries
+* Estimates that did not convert
 
-If one customer books one job, report it once.
+---
 
-\---
+## Reporting Frequency
 
-\#\# Reporting schedule
+**Minimum:** once per week
+**Recommended:** twice per week
 
-\#\#\# Minimum standard  
-Send one update \*\*every Friday\*\*.
+Consistency is more important than precision.
 
-\#\#\# Recommended standard  
-Send updates \*\*twice per week\*\*:
+---
 
-\- Tuesday afternoon  
-\- Friday afternoon
+## Standard Format
 
-\---
-
-\#\# Preferred reporting format
-
-Use any of the following:
-
-\- text message  
-\- email  
-\- shared note  
-\- screenshot from current system  
-\- short written list
-
-Use whichever is easiest and fastest.
-
-\---
-
-\#\# Best format to send
-
-Copy and paste this for each booked job:
-
-Customer Name:    
-Service:    
-Revenue:    
-Date Booked:    
+Customer Name:
+Service:
+Revenue:
+Date Booked:
 Source Clue (if known):
 
-Example:
+---
 
-Customer Name: John Smith    
-Service: Water Heater Replacement    
-Revenue: $2,400    
-Date Booked: 2026-03-24    
-Source Clue: Mentioned Google ad
-
-\---
-
-\#\# If multiple jobs are sent at once
-
-Send them as a simple list, one job per section.
-
-\---
-
-\#\# If exact revenue is not known yet
-
-If exact revenue is not available, send the best estimate currently available.
-
-Example:
-
-Revenue: Estimated $1,200
-
-Then send an update later if the final amount changes.
-
-\---
-
-\#\# If the source is unclear
-
-Use one of these:
-
-\- Not sure  
-\- Unknown  
-\- Customer did not say
-
-Do not invent a source.
-
-\---
-
-\#\# Goal
+## Goal
 
 The goal is not perfect attribution.
 
-The goal is to give MarketForge enough visibility to:
+The goal is to:
 
-\- track booked jobs  
-\- measure revenue impact  
-\- determine which actions are working  
-\- improve future recommendations
+* track outcomes
+* measure impact
+* identify what is working
+* improve future recommendations
 
-\---
+---
 
-\#\# Summary
+## Summary
 
-Your only job is to send a simple list of booked jobs with:
+Provide simple, consistent job reporting.
 
-\- customer name  
-\- service  
-\- revenue  
-\- date booked  
-\- source clue if known
-
-MarketForge handles the rest.  
+MarketForge handles the rest.

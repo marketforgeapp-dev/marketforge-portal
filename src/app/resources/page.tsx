@@ -1,37 +1,86 @@
-import Link from "next/link";
-import { getResourcesByAudience } from "@/lib/resources";
+import { redirect } from "next/navigation";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { ResourceAccordion } from "@/components/resources/resource-accordion";
+import { getCurrentWorkspace } from "@/lib/get-current-workspace";
+import { prisma } from "@/lib/prisma";
+import { getResourcesByAudience, getResourceBySlug } from "@/lib/resources";
 
 export default async function ResourcesPage() {
-  const resources = await getResourcesByAudience("external");
+  const workspace = await getCurrentWorkspace();
+
+  if (!workspace) {
+    redirect("/onboarding");
+  }
+
+  if (!workspace.onboardingCompletedAt) {
+    redirect("/onboarding");
+  }
+
+  const profile = await prisma.businessProfile.findUnique({
+    where: { workspaceId: workspace.id },
+  });
+
+  if (!profile) {
+    redirect("/onboarding");
+  }
+
+  const resourceMeta = await getResourcesByAudience("external");
+
+  const resources: Array<{
+    slug: string;
+    title: string;
+    summary: string;
+    markdown: string;
+  }> = [];
+
+  for (const item of resourceMeta) {
+    const resource = await getResourceBySlug("external", item.slug);
+
+    if (!resource) {
+      continue;
+    }
+
+    resources.push({
+      slug: resource.slug,
+      title: resource.title,
+      summary: resource.summary,
+      markdown: resource.markdown,
+    });
+  }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-10 md:px-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <section className="rounded-3xl border border-gray-200 bg-white px-6 py-6 shadow-sm">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
-            MarketForge Resources
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-gray-900">
-            Customer guides and terms
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-            Reference MarketForge customer-facing guides and legal resources.
-          </p>
-        </section>
+    <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
+        <DashboardSidebar />
 
-        <section className="space-y-3">
-          {resources.map((resource) => (
-            <Link
-              key={resource.slug}
-              href={`/resources/${resource.slug}`}
-              className="block rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:border-gray-300"
-            >
-              <p className="font-semibold text-gray-900">{resource.title}</p>
-              <p className="mt-1 text-sm text-gray-600">{resource.summary}</p>
-            </Link>
-          ))}
-        </section>
+        <main className="min-w-0 flex-1 space-y-5">
+          <DashboardHeader
+            workspaceName={workspace.name}
+            logoUrl={profile.logoUrl}
+          />
+
+          <section className="mf-card rounded-3xl p-6 md:p-8">
+            <div className="max-w-4xl">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#D79C11]">
+                Resources
+              </p>
+
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 md:text-4xl">
+                Execution, reporting, access, and policy guidance
+              </h1>
+
+              <p className="mt-3 text-sm leading-6 text-gray-600 md:text-base">
+                Review the documents that support action execution, reporting,
+                platform access, support, and the core policies behind your use
+                of MarketForge.
+              </p>
+            </div>
+          </section>
+
+          <ResourceAccordion resources={resources} />
+        </main>
       </div>
-    </main>
+    </div>
   );
 }

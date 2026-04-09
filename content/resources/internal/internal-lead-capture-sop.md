@@ -1,3 +1,11 @@
+---
+title: Internal Lead Capture SOP
+summary: Internal procedure for entering, attributing, and reporting booked jobs.
+order: 2
+---
+
+# Internal Lead Capture SOP
+
 \# MARKETFORGE — LEAD CAPTURE SOP  
 \#\# Internal operating procedure for entering and attributing booked jobs
 
