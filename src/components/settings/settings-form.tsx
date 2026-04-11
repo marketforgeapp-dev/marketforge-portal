@@ -4,7 +4,14 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { OnboardingFormData } from "@/types/onboarding";
 import type { CompetitorCandidate } from "@/lib/google-places-competitors";
-import { saveSettings, fetchBusinessCandidates } from "@/app/settings/actions";
+import {
+  saveSettings,
+  fetchBusinessCandidates,
+  cancelSubscriptionAtPeriodEnd,
+  resumeSubscription,
+  createPaymentMethodUpdatePortalSession,
+  createSubscriptionManagementPortalSession,
+} from "@/app/settings/actions";
 import { SystemStatusOverlay } from "@/components/system/system-status-overlay";
 
 type Props = {
@@ -22,6 +29,16 @@ type Props = {
     reviewCount: number | null;
   } | null;
   businessCandidates?: CompetitorCandidate[];
+  workspaceStatus:
+    | "PENDING_ACTIVATION"
+    | "ACTIVE"
+    | "PAST_DUE"
+    | "CANCELED";
+  billingPlanLabel: string;
+  billingCurrentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
 };
 
 type ServicePricingRow = {
@@ -99,6 +116,51 @@ function formatPhone(value: string) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+function formatWorkspaceStatusLabel(
+  status: "PENDING_ACTIVATION" | "ACTIVE" | "PAST_DUE" | "CANCELED"
+): string {
+  if (status === "PENDING_ACTIVATION") return "Pending Activation";
+  if (status === "PAST_DUE") return "Past Due";
+  if (status === "CANCELED") return "Canceled";
+  return "Active";
+}
+
+function getWorkspaceStatusClasses(
+  status: "PENDING_ACTIVATION" | "ACTIVE" | "PAST_DUE" | "CANCELED"
+): string {
+  if (status === "ACTIVE") {
+    return "bg-emerald-100 text-emerald-800";
+  }
+
+  if (status === "PAST_DUE") {
+    return "bg-amber-100 text-amber-800";
+  }
+
+  if (status === "CANCELED") {
+    return "bg-red-100 text-red-800";
+  }
+
+  return "bg-gray-100 text-gray-700";
+}
+
+function formatBillingDate(value: string | null): string {
+  if (!value) {
+    return "Not available";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Not available";
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 function normalizeServicePricingRows(
   preferredServices: string[],
   existingRows: ServicePricingRow[] | undefined
@@ -169,6 +231,12 @@ export function SettingsForm({
   focusSection = null,
   currentBusinessMatch = null,
   businessCandidates = [],
+  workspaceStatus,
+  billingPlanLabel,
+  billingCurrentPeriodEnd,
+  cancelAtPeriodEnd,
+  stripeCustomerId,
+  stripeSubscriptionId,
 }: Props) {
   const router = useRouter();
   const [formData, setFormData] = useState<OnboardingFormData>(() => ({
@@ -206,7 +274,9 @@ export function SettingsForm({
         }
       : null
   );
-  const [isPending, startTransition] = useTransition();
+    const [isPending, startTransition] = useTransition();
+  const [isBillingPending, startBillingTransition] = useTransition();
+  const [billingError, setBillingError] = useState<string | null>(null);
   const [preferredServicesInput, setPreferredServicesInput] = useState(() =>
     arrayToCommaSeparated(initialData.preferredServices ?? [])
   );
@@ -381,7 +451,7 @@ export function SettingsForm({
     });
   }
 
-    function handleSave() {
+  function handleSave() {
     setSaveMessage(null);
     setSaveError(null);
     setShowRefreshingOverlay(true);
@@ -409,16 +479,90 @@ export function SettingsForm({
         }
 
         setSaveMessage(
-  isFinalizeMode
+    isFinalizeMode
     ? "Recommendation inputs saved. Redirecting to Command Center..."
     : "Settings saved successfully. Redirecting to Command Center..."
-);
+      );
         router.push("/dashboard");
         router.refresh();
       } catch (error) {
         console.error(error);
         setSaveError("Something went wrong while saving settings.");
         setShowRefreshingOverlay(false);
+      }
+    });
+  }
+
+  function handleCancelSubscription() {
+    setBillingError(null);
+
+    startBillingTransition(async () => {
+      try {
+        const result = await cancelSubscriptionAtPeriodEnd();
+
+        if (!result?.success) {
+          setBillingError("Failed to schedule cancellation.");
+        }
+      } catch (error) {
+        console.error(error);
+        setBillingError("Failed to schedule cancellation.");
+      }
+    });
+  }
+
+  function handleResumeSubscription() {
+    setBillingError(null);
+
+    startBillingTransition(async () => {
+      try {
+        const result = await resumeSubscription();
+
+        if (!result?.success) {
+          setBillingError("Failed to resume subscription.");
+        }
+      } catch (error) {
+        console.error(error);
+        setBillingError("Failed to resume subscription.");
+      }
+    });
+  }
+
+    function handleUpdatePaymentMethod() {
+    setBillingError(null);
+
+    startBillingTransition(async () => {
+      try {
+        const result = await createPaymentMethodUpdatePortalSession();
+
+        if (!result?.success || !result.url) {
+          setBillingError("Failed to open payment method update.");
+          return;
+        }
+
+        router.push(result.url);
+      } catch (error) {
+        console.error(error);
+        setBillingError("Failed to open payment method update.");
+      }
+    });
+  }
+
+  function handleManageSubscription() {
+    setBillingError(null);
+
+    startBillingTransition(async () => {
+      try {
+        const result = await createSubscriptionManagementPortalSession();
+
+        if (!result?.success || !result.url) {
+          setBillingError("Failed to open subscription management.");
+          return;
+        }
+
+        router.push(result.url);
+      } catch (error) {
+        console.error(error);
+        setBillingError("Failed to open subscription management.");
       }
     });
   }
@@ -1264,17 +1408,168 @@ const result = await fetchBusinessCandidates({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-bold text-gray-900">
-          Billing and Subscription
-        </h2>
-        <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
-          <p className="font-medium text-gray-900">Coming soon</p>
-          <p className="mt-1 text-sm text-gray-600">
-            Billing details, subscription plan management, and payment methods
-            will appear here in a future release.
-          </p>
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">
+              Billing and Subscription
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Review your current workspace billing state and subscription
+              details. Subscription controls will be added next.
+            </p>
+          </div>
+
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${getWorkspaceStatusClasses(
+              workspaceStatus
+            )}`}
+          >
+            {formatWorkspaceStatusLabel(workspaceStatus)}
+          </span>
         </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Workspace Type
+            </p>
+            <p className="mt-2 text-sm font-medium text-gray-900">
+              {isDemo ? "Demo Workspace" : "Live Workspace"}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Current Plan
+            </p>
+            <p className="mt-2 text-sm font-medium text-gray-900">
+              {billingPlanLabel}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Current Period End
+            </p>
+            <p className="mt-2 text-sm font-medium text-gray-900">
+              {formatBillingDate(billingCurrentPeriodEnd)}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Cancel at Period End
+            </p>
+            <p className="mt-2 text-sm font-medium text-gray-900">
+              {cancelAtPeriodEnd ? "Scheduled" : "Not Scheduled"}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Stripe Customer
+            </p>
+            <p className="mt-2 break-all text-sm font-medium text-gray-900">
+              {stripeCustomerId ?? "Not connected"}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Stripe Subscription
+            </p>
+            <p className="mt-2 break-all text-sm font-medium text-gray-900">
+              {stripeSubscriptionId ?? "Not connected"}
+            </p>
+          </div>
+        </div>
+
+        {workspaceStatus === "PAST_DUE" ? (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Billing action is required. This workspace is currently past due.
+            Payment method update and recovery controls will be added in the
+            next billing batch.
+          </div>
+        ) : null}
+
+        {workspaceStatus === "CANCELED" ? (
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            This subscription has been canceled. Reactivation controls will be
+            added in the next billing batch.
+          </div>
+        ) : null}
+
+        {cancelAtPeriodEnd && workspaceStatus === "ACTIVE" ? (
+          <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+            This subscription is scheduled to end at the end of the current
+            billing period. Access remains available until then.
+          </div>
+        ) : null}
+                <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleUpdatePaymentMethod}
+            disabled={isBillingPending || !stripeCustomerId}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+              isBillingPending || !stripeCustomerId
+                ? "cursor-not-allowed bg-slate-400"
+                : "bg-slate-700 hover:bg-slate-800"
+            }`}
+          >
+            Update Payment Method
+          </button>
+
+          <button
+            type="button"
+            onClick={handleManageSubscription}
+            disabled={isBillingPending || !stripeCustomerId}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+              isBillingPending || !stripeCustomerId
+                ? "cursor-not-allowed bg-slate-400"
+                : "bg-slate-700 hover:bg-slate-800"
+            }`}
+          >
+            Manage Subscription
+          </button>
+        </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+          {workspaceStatus === "ACTIVE" && !cancelAtPeriodEnd ? (
+            <button
+              type="button"
+              onClick={handleCancelSubscription}
+              disabled={isBillingPending}
+              className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                isBillingPending
+                  ? "cursor-not-allowed bg-red-300"
+                  : "bg-red-600 hover:bg-red-700"
+              }`}
+            >
+              Cancel at Period End
+            </button>
+          ) : null}
+
+          {workspaceStatus === "ACTIVE" && cancelAtPeriodEnd ? (
+            <button
+              type="button"
+              onClick={handleResumeSubscription}
+              disabled={isBillingPending}
+              className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                isBillingPending
+                  ? "cursor-not-allowed bg-blue-300"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              Resume Subscription
+            </button>
+          ) : null}
+        </div>
+
+        {billingError ? (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {billingError}
+          </div>
+        ) : null}
       </section>
 
       {(saveMessage || saveError) && (

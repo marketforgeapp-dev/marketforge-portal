@@ -28,17 +28,29 @@ model User {
 }
 
 model Workspace {
-  id                      String        @id @default(cuid())
-  name                    String
-  slug                    String        @unique
-  industry                IndustryType?
-  isDemo                  Boolean       @default(false)
-  onboardingCompletedAt   DateTime?
+  id       String        @id @default(cuid())
+  name     String
+  slug     String        @unique
+  industry IndustryType?
+  isDemo   Boolean       @default(false)
+
+  status WorkspaceStatus @default(PENDING_ACTIVATION)
+
+  onboardingCompletedAt DateTime?
+  activatedAt           DateTime?
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripePriceId        String?
+
+  cancelAtPeriodEnd Boolean   @default(false)
+  currentPeriodEnd  DateTime?
+
   demoInitializedAt       DateTime?
   lastCompetitorRefreshAt DateTime?
   lastReputationRefreshAt DateTime?
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   members                     WorkspaceMember[]
   businessProfile             BusinessProfile?
@@ -54,6 +66,11 @@ model Workspace {
   baselineSnapshots           CampaignBaselineSnapshot[]
   businessReputationSnapshots BusinessReputationSnapshot[]
   competitorMetricsSnapshots  CompetitorMetricsSnapshot[]
+
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@index([currentPeriodEnd])
 }
 
 model WorkspaceOpportunitySnapshot {
@@ -588,4 +605,11 @@ enum LeadStatus {
   ESTIMATE_SCHEDULED
   BOOKED
   LOST
+}
+
+enum WorkspaceStatus {
+  PENDING_ACTIVATION
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }

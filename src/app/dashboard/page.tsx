@@ -12,12 +12,16 @@ import { getRecommendedActionBudget } from "@/lib/budget-allocation-recommendati
 export default async function DashboardPage() {
   const workspace = await getCurrentWorkspace();
 
-  if (!workspace) {
+      if (!workspace) {
     redirect("/onboarding");
   }
 
-  if (!workspace.onboardingCompletedAt) {
+  if (workspace.status === "PENDING_ACTIVATION") {
     redirect("/onboarding");
+  }
+
+  if (workspace.status === "PAST_DUE" || workspace.status === "CANCELED") {
+    redirect("/settings");
   }
 
   if (workspace.isDemo && !workspace.demoInitializedAt) {

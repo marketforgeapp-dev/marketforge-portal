@@ -5,6 +5,8 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
+import { stripe } from "@/lib/stripe";
+import { redirect } from "next/navigation";
 import {
   lookupBusinessCandidates,
   lookupSingleCompetitor,
@@ -587,4 +589,135 @@ export async function fetchBusinessCandidates(input: {
     console.error("Failed to fetch business candidates", error);
     return { success: false, candidates: [] };
   }
+}
+
+async function getCurrentWorkspaceForSettingsActions() {
+  const { userId: clerkUserId } = await auth();
+
+  if (!clerkUserId) {
+    throw new Error("Unauthorized");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { clerkUserId },
+    include: {
+      workspaces: {
+        include: {
+          workspace: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+    },
+  });
+
+  if (!user || user.workspaces.length === 0) {
+    throw new Error("Workspace not found");
+  }
+
+  return user.workspaces[0].workspace;
+}
+
+export async function cancelSubscriptionAtPeriodEnd() {
+  const workspace = await getCurrentWorkspaceForSettingsActions();
+
+  if (!workspace.stripeSubscriptionId) {
+    throw new Error("No active subscription found");
+  }
+
+  const subscription = await stripe.subscriptions.update(
+    workspace.stripeSubscriptionId,
+    {
+      cancel_at_period_end: true,
+    }
+  );
+
+  await prisma.workspace.update({
+    where: { id: workspace.id },
+    data: {
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+
+  return { success: true };
+}
+
+export async function resumeSubscription() {
+  const workspace = await getCurrentWorkspaceForSettingsActions();
+
+  if (!workspace.stripeSubscriptionId) {
+    throw new Error("No subscription found");
+  }
+
+  const subscription = await stripe.subscriptions.update(
+    workspace.stripeSubscriptionId,
+    {
+      cancel_at_period_end: false,
+    }
+  );
+
+  await prisma.workspace.update({
+    where: { id: workspace.id },
+    data: {
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+
+  return { success: true };
+}
+
+function getBillingReturnUrl() {
+  const appUrl = process.env.APP_URL;
+
+  if (!appUrl) {
+    throw new Error("Missing APP_URL");
+  }
+
+  return `${appUrl}/settings`;
+}
+
+export async function createPaymentMethodUpdatePortalSession() {
+  const workspace = await getCurrentWorkspaceForSettingsActions();
+
+  if (!workspace.stripeCustomerId) {
+    throw new Error("No Stripe customer found for this workspace.");
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: workspace.stripeCustomerId,
+    return_url: getBillingReturnUrl(),
+    flow_data: {
+      type: "payment_method_update",
+    },
+  });
+
+  return {
+    success: true,
+    url: session.url,
+  };
+}
+
+export async function createSubscriptionManagementPortalSession() {
+  const workspace = await getCurrentWorkspaceForSettingsActions();
+
+  if (!workspace.stripeCustomerId) {
+    throw new Error("No Stripe customer found for this workspace.");
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: workspace.stripeCustomerId,
+    return_url: getBillingReturnUrl(),
+  });
+
+  return {
+    success: true,
+    url: session.url,
+  };
 }

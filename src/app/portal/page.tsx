@@ -25,9 +25,9 @@ export default async function PortalHome() {
       redirect("/portal//admin");
     }
 
-    const workspace = await getCurrentWorkspace();
+        const workspace = await getCurrentWorkspace();
 
-    if (!workspace || !workspace.onboardingCompletedAt) {
+    if (!workspace || workspace.status === "PENDING_ACTIVATION") {
       redirect("/portal/onboarding");
     }
 

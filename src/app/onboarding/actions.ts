@@ -7,6 +7,8 @@ import { slugify } from "@/lib/slugify";
 import { onboardingSchema } from "@/lib/onboarding-schema";
 import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
 import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
+import { stripe } from "@/lib/stripe";
+import { BILLING_PRICE_IDS, isDemoEmail } from "@/lib/billing";
 
 function toNullableString(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -146,20 +148,22 @@ export async function saveOnboarding(input: unknown) {
     ? await prisma.workspace.update({
         where: { id: existingMembership.workspaceId },
         data: {
-          name: businessName,
-          industry: values.industry,
-          isDemo: false,
-          onboardingCompletedAt: now,
-        },
+              name: businessName,
+              industry: values.industry,
+              isDemo: false,
+              status: "PENDING_ACTIVATION",
+              onboardingCompletedAt: now,
+},
       })
     : await prisma.workspace.create({
         data: {
-          name: businessName,
-          slug: fallbackWorkspaceSlug,
-          industry: values.industry,
-          isDemo: false,
-          onboardingCompletedAt: now,
-        },
+              name: businessName,
+              slug: fallbackWorkspaceSlug,
+              industry: values.industry,
+              isDemo: false,
+              status: "PENDING_ACTIVATION",
+              onboardingCompletedAt: now,
+              },
       });
 
   await prisma.workspaceMember.upsert({
@@ -429,5 +433,177 @@ revalidatePath("/reports");
   return {
     success: true,
     workspaceId: workspace.id,
+  };
+}
+
+export async function activateWorkspace(input: {
+  plan: "STANDARD_MONTHLY" | "STANDARD_YEARLY";
+  paymentMethodId: string;
+}) {
+  const { userId: clerkUserId } = await auth();
+
+  if (!clerkUserId) {
+    throw new Error("Unauthorized");
+  }
+
+  const clerkUser = await currentUser();
+  const email = clerkUser?.emailAddresses?.[0]?.emailAddress?.trim() || null;
+  const firstName = clerkUser?.firstName?.trim() || "";
+  const lastName = clerkUser?.lastName?.trim() || "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+  const appUser = await prisma.user.findUnique({
+    where: { clerkUserId },
+  });
+
+  if (!appUser) {
+    throw new Error("User not found");
+  }
+
+  const membership = await prisma.workspaceMember.findFirst({
+    where: {
+      userId: appUser.id,
+    },
+    include: {
+      workspace: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  if (!membership?.workspace) {
+    throw new Error("Workspace not found");
+  }
+
+  const workspace = membership.workspace;
+
+  if (workspace.status === "ACTIVE") {
+    return {
+      success: true,
+      bypassed: false,
+    };
+  }
+console.log("Demo check:", {
+  email,
+  isDemo: isDemoEmail(email),
+});
+  if (isDemoEmail(email)) {
+    await prisma.workspace.update({
+      where: { id: workspace.id },
+      data: {
+        isDemo: true,
+        status: "ACTIVE",
+        activatedAt: new Date(),
+      },
+    });
+
+    revalidatePath("/onboarding");
+    revalidatePath("/settings");
+    revalidatePath("/dashboard");
+
+    return {
+      success: true,
+      bypassed: true,
+    };
+  }
+
+  const priceId =
+    input.plan === "STANDARD_YEARLY"
+      ? BILLING_PRICE_IDS.STANDARD_YEARLY
+      : BILLING_PRICE_IDS.STANDARD_MONTHLY;
+
+  if (!priceId) {
+    throw new Error("Missing Stripe price configuration");
+  }
+
+  if (!email) {
+    throw new Error("User email is required for billing");
+  }
+
+  let customerId = workspace.stripeCustomerId ?? null;
+
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email,
+      name: fullName || undefined,
+      metadata: {
+        workspaceId: workspace.id,
+      },
+    });
+
+    customerId = customer.id;
+  }
+
+  await stripe.paymentMethods.attach(input.paymentMethodId, {
+    customer: customerId,
+  }).catch((error) => {
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : "";
+
+    if (!message.includes("already")) {
+      throw error;
+    }
+  });
+
+  await stripe.customers.update(customerId, {
+    email,
+    name: fullName || undefined,
+    invoice_settings: {
+      default_payment_method: input.paymentMethodId,
+    },
+  });
+
+  const subscription = await stripe.subscriptions.create({
+    customer: customerId,
+    items: [{ price: priceId }],
+    default_payment_method: input.paymentMethodId,
+    payment_behavior: "error_if_incomplete",
+    payment_settings: {
+      save_default_payment_method: "on_subscription",
+    },
+    metadata: {
+      workspaceId: workspace.id,
+    },
+  });
+
+  if (
+    subscription.status !== "active" &&
+    subscription.status !== "trialing"
+  ) {
+    throw new Error(
+      `Subscription activation failed with status: ${subscription.status}`
+    );
+  }
+
+    const currentPeriodEndTimestamp =
+    subscription.items.data[0]?.current_period_end;
+
+  const currentPeriodEnd =
+    typeof currentPeriodEndTimestamp === "number"
+      ? new Date(currentPeriodEndTimestamp * 1000)
+      : null;
+
+  await prisma.workspace.update({
+    where: { id: workspace.id },
+    data: {
+      isDemo: false,
+      status: "ACTIVE",
+      activatedAt: new Date(),
+      stripeCustomerId: customerId,
+      stripeSubscriptionId: subscription.id,
+      stripePriceId: priceId,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      currentPeriodEnd,
+    },
+  });
+
+  revalidatePath("/onboarding");
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+
+  return {
+    success: true,
+    bypassed: false,
   };
 }

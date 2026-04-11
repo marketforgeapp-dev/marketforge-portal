@@ -16,6 +16,22 @@ function toFormString(value: string | null | undefined): string {
   return value ?? "";
 }
 
+function getBillingPlanLabel(stripePriceId: string | null | undefined): string {
+  if (!stripePriceId) {
+    return "Not connected";
+  }
+
+  if (stripePriceId === process.env.STRIPE_STANDARD_MONTHLY_PRICE_ID) {
+    return "Standard Monthly";
+  }
+
+  if (stripePriceId === process.env.STRIPE_STANDARD_YEARLY_PRICE_ID) {
+    return "Standard Annual";
+  }
+
+  return "Custom / Unknown Plan";
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -28,7 +44,7 @@ export default async function SettingsPage({
   const isFinalizeMode = resolvedSearchParams?.intent === "finalize";
   const focusSection = resolvedSearchParams?.focus ?? null;
 
-  if (!workspace || !workspace.onboardingCompletedAt) {
+    if (!workspace || workspace.status === "PENDING_ACTIVATION") {
     redirect("/onboarding");
   }
 
@@ -119,6 +135,10 @@ export default async function SettingsPage({
     seasonalityNotes: toFormString(profile.seasonalityNotes),
   };
 
+    const billingPlanLabel = getBillingPlanLabel(fullWorkspace.stripePriceId);
+  const billingCurrentPeriodEnd =
+    fullWorkspace.currentPeriodEnd?.toISOString() ?? null;
+
   return (
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
@@ -146,15 +166,21 @@ export default async function SettingsPage({
           </section>
 
           <SettingsForm
-  workspaceName={fullWorkspace.name}
-  isDemo={fullWorkspace.isDemo}
-  initialData={initialData}
-  primaryEmail={primaryEmail}
-  isFinalizeMode={isFinalizeMode}
-  focusSection={focusSection}
-  currentBusinessMatch={currentBusinessMatch}
-  businessCandidates={[]}
-/>
+            workspaceName={fullWorkspace.name}
+            isDemo={fullWorkspace.isDemo}
+            initialData={initialData}
+            primaryEmail={primaryEmail}
+            isFinalizeMode={isFinalizeMode}
+            focusSection={focusSection}
+            currentBusinessMatch={currentBusinessMatch}
+            businessCandidates={[]}
+            workspaceStatus={fullWorkspace.status}
+            billingPlanLabel={billingPlanLabel}
+            billingCurrentPeriodEnd={billingCurrentPeriodEnd}
+            cancelAtPeriodEnd={fullWorkspace.cancelAtPeriodEnd}
+            stripeCustomerId={fullWorkspace.stripeCustomerId}
+            stripeSubscriptionId={fullWorkspace.stripeSubscriptionId}
+          />
         </main>
       </div>
     </div>

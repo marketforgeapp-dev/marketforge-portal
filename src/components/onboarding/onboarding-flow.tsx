@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { OnboardingFormData } from "@/types/onboarding";
 import { OnboardingProgress } from "./onboarding-progress";
@@ -14,21 +14,28 @@ import { WebsiteSeoStep } from "./steps/website-seo-step";
 import { MarketInitializationStep } from "./steps/market-initialization-step";
 import { OnboardingAiPrefill } from "@/components/onboarding/onboarding-ai-prefill";
 import type { OnboardingPrefillResult } from "@/lib/onboarding-prefill-schema";
-import { saveOnboarding } from "@/app/onboarding/actions";
+import { activateWorkspace, saveOnboarding } from "@/app/onboarding/actions";
 import { OnboardingTopbar } from "@/components/onboarding/onboarding-topbar";
 import {
   dedupeServicesForIndustry,
   mergeAndDedupeServicesForIndustry,
 } from "@/lib/service-normalization";
 import type { SupportedIndustry } from "@/lib/industry-service-map";
+import { ActivationStep } from "@/components/onboarding/steps/activation-step";
+
+type Props = {
+  initialData?: OnboardingFormData;
+  initialStep?: number;
+};
 
 const STEP_LABELS = [
   "Business Info",
   "Services",
   "Capacity",
   "Competitors",
-  "Website / SEO",
-  "Market Initialization",
+  "Website & SEO",
+  "Seasonality Identification",
+  "Activation",
 ];
 
 const INITIAL_FORM_DATA: OnboardingFormData = {
@@ -76,6 +83,8 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   slowMonths: [],
   seasonalityNotes: "",
 };
+const IS_DEMO_ACTIVATION_MODE =
+  process.env.NEXT_PUBLIC_ENABLE_DEMO_ACTIVATION === "true";
 
 function resolveSupportedIndustry(
   industry: OnboardingFormData["industry"]
@@ -93,12 +102,20 @@ function getIndustryLabel(industry: OnboardingFormData["industry"]): string {
   return "Plumbing";
 }
 
-export function OnboardingFlow() {
+export function OnboardingFlow({
+  initialData,
+  initialStep = 0,
+}: Props) {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<OnboardingFormData>(INITIAL_FORM_DATA);
+  const [currentStep, setCurrentStep] = useState(
+    Math.min(Math.max(initialStep, 0), STEP_LABELS.length - 1)
+  );
+    const [formData, setFormData] = useState<OnboardingFormData>(
+    initialData ?? INITIAL_FORM_DATA
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSavingOverlay, setShowSavingOverlay] = useState(false);
+  const [isSavingForActivation, setIsSavingForActivation] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const totalSteps = STEP_LABELS.length;
@@ -164,76 +181,61 @@ export function OnboardingFlow() {
     });
   }
 
-  const normalizedFormData = useMemo(() => {
-    return {
-      ...formData,
-            primaryServices: dedupeServicesForIndustry(
-        formData.primaryServices,
-        resolveSupportedIndustry(formData.industry)
-      ),
-            preferredServices: dedupeServicesForIndustry(
-        formData.preferredServices.length > 0
-          ? formData.preferredServices
-          : formData.primaryServices,
-        resolveSupportedIndustry(formData.industry)
-      ),
-            deprioritizedServices: dedupeServicesForIndustry(
-        formData.deprioritizedServices,
-        resolveSupportedIndustry(formData.industry)
-      ),
-    };
-  }, [formData]);
+    const normalizedFormData = {
+    ...formData,
+    primaryServices: dedupeServicesForIndustry(
+      formData.primaryServices,
+      resolveSupportedIndustry(formData.industry)
+    ),
+    preferredServices: dedupeServicesForIndustry(
+      formData.preferredServices.length > 0
+        ? formData.preferredServices
+        : formData.primaryServices,
+      resolveSupportedIndustry(formData.industry)
+    ),
+    deprioritizedServices: dedupeServicesForIndustry(
+      formData.deprioritizedServices,
+      resolveSupportedIndustry(formData.industry)
+    ),
+  };
 
-  const currentStepComponent = useMemo(() => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <BusinessInfoStep
-            formData={normalizedFormData}
-            setFormData={setFormData}
-          />
-        );
-      case 1:
-        return (
-          <ServicesStep
-            formData={normalizedFormData}
-            setFormData={setFormData}
-          />
-        );
-      case 2:
-        return (
-          <CapacityStep
-            formData={normalizedFormData}
-            setFormData={setFormData}
-          />
-        );
-      case 3:
-        return (
-          <CompetitorsStep
-            formData={normalizedFormData}
-            setFormData={setFormData}
-          />
-        );
-      case 4:
-        return (
-          <WebsiteSeoStep
-            formData={normalizedFormData}
-            setFormData={setFormData}
-          />
-        );
-      case 5:
-        return (
-          <MarketInitializationStep
-            formData={normalizedFormData}
-            setFormData={setFormData}
-          />
-        );
-      default:
-        return null;
+    const handleNext = () => {
+    if (currentStep === 5) {
+      setSubmitError(null);
+      setShowSavingOverlay(true);
+      setIsSavingForActivation(true);
+
+      startTransition(async () => {
+        try {
+          const result = await saveOnboarding({
+            ...normalizedFormData,
+            preferredServices:
+              normalizedFormData.preferredServices.length > 0
+                ? normalizedFormData.preferredServices
+                : normalizedFormData.primaryServices,
+          });
+
+          if (!result?.success) {
+            setSubmitError("Something went wrong while saving onboarding.");
+            setShowSavingOverlay(false);
+            setIsSavingForActivation(false);
+            return;
+          }
+
+          setCurrentStep(6);
+          setShowSavingOverlay(false);
+          setIsSavingForActivation(false);
+        } catch (error) {
+          console.error(error);
+          setSubmitError("Something went wrong while saving onboarding.");
+          setShowSavingOverlay(false);
+          setIsSavingForActivation(false);
+        }
+      });
+
+      return;
     }
-  }, [currentStep, normalizedFormData]);
 
-  const handleNext = () => {
     if (!isLastStep) setCurrentStep((prev) => prev + 1);
   };
 
@@ -241,34 +243,100 @@ export function OnboardingFlow() {
     if (!isFirstStep) setCurrentStep((prev) => prev - 1);
   };
 
-    const handleFinish = () => {
-  setSubmitError(null);
-  setShowSavingOverlay(true);
+    const handleFinish = async (input: {
+    plan: "STANDARD_MONTHLY" | "STANDARD_YEARLY";
+    paymentMethodId: string;
+  }) => {
+    setSubmitError(null);
 
-  startTransition(async () => {
-    try {
-      const result = await saveOnboarding({
-        ...normalizedFormData,
-        preferredServices:
-          normalizedFormData.preferredServices.length > 0
-            ? normalizedFormData.preferredServices
-            : normalizedFormData.primaryServices,
-      });
+    startTransition(async () => {
+      try {
+        const result = await activateWorkspace(input);
 
-      if (!result?.success) {
-        setSubmitError("Something went wrong while saving onboarding.");
-        setShowSavingOverlay(false);
-        return;
+        if (!result?.success) {
+          setSubmitError("Something went wrong while activating your workspace.");
+          return;
+        }
+
+        router.push("/settings?intent=finalize&focus=service-pricing");
+      } catch (error) {
+        console.error(error);
+
+        if (error instanceof Error && error.message.trim().length > 0) {
+          setSubmitError(error.message);
+          return;
+        }
+
+        setSubmitError("Something went wrong while activating your workspace.");
       }
+    });
+  };
 
-      router.push("/settings?intent=finalize&focus=service-pricing");
-    } catch (error) {
-      console.error(error);
-      setSubmitError("Something went wrong while saving onboarding.");
-      setShowSavingOverlay(false);
-    }
-  });
-};
+  let currentStepComponent: React.ReactNode = null;
+
+  switch (currentStep) {
+    case 0:
+      currentStepComponent = (
+        <BusinessInfoStep
+          formData={normalizedFormData}
+          setFormData={setFormData}
+        />
+      );
+      break;
+    case 1:
+      currentStepComponent = (
+        <ServicesStep
+          formData={normalizedFormData}
+          setFormData={setFormData}
+        />
+      );
+      break;
+    case 2:
+      currentStepComponent = (
+        <CapacityStep
+          formData={normalizedFormData}
+          setFormData={setFormData}
+        />
+      );
+      break;
+    case 3:
+      currentStepComponent = (
+        <CompetitorsStep
+          formData={normalizedFormData}
+          setFormData={setFormData}
+        />
+      );
+      break;
+    case 4:
+      currentStepComponent = (
+        <WebsiteSeoStep
+          formData={normalizedFormData}
+          setFormData={setFormData}
+        />
+      );
+      break;
+    case 5:
+      currentStepComponent = (
+        <MarketInitializationStep
+          formData={normalizedFormData}
+          setFormData={setFormData}
+        />
+      );
+      break;
+        case 6:
+      currentStepComponent = (
+        <ActivationStep
+          onActivate={handleFinish}
+          isPending={isPending}
+          submitError={submitError}
+          isDemoMode={IS_DEMO_ACTIVATION_MODE}
+        />
+      );
+      break;
+    default:
+      currentStepComponent = null;
+  }
+
     return (
     <>
       <div className="min-h-screen bg-slate-950 px-6 py-10">
@@ -283,11 +351,12 @@ export function OnboardingFlow() {
             Set up your business profile
           </h1>
           <p className="mt-2 max-w-3xl text-slate-400">
-  MarketForge uses your services, pricing, capacity, competitors, and local
-  visibility signals to identify the best revenue opportunities for your
-  business. After setup, you will confirm a final set of business inputs before
-  MarketForge prepares your first recommendations.
-</p>
+            MarketForge uses your services, pricing, capacity, competitors, and
+            local visibility signals to identify the best revenue opportunities
+            for your business. After setup, you will activate your workspace and
+            then confirm a final set of business inputs in Settings before
+            MarketForge prepares your first recommendations.
+          </p>
         </div>
 
         <div className="mb-6">
@@ -346,20 +415,7 @@ export function OnboardingFlow() {
               Back
             </button>
 
-            {isLastStep ? (
-              <button
-                type="button"
-                onClick={handleFinish}
-                disabled={isPending}
-                className={`rounded-lg px-6 py-3 font-medium text-white ${
-                  isPending
-                    ? "cursor-not-allowed bg-blue-400"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
-              >
-                {isPending ? "Saving..." : "Finish Setup"}
-              </button>
-            ) : (
+                        {isLastStep ? null : (
               <button
                 type="button"
                 onClick={handleNext}
@@ -386,12 +442,12 @@ export function OnboardingFlow() {
       </p>
 
       <h2 className="mt-3 text-2xl font-bold text-white">
-        Finalizing your setup
+        {isSavingForActivation ? "Preparing activation" : "Finalizing your setup"}
       </h2>
 
       <p className="mt-3 text-sm leading-6 text-slate-300">
-        Next, you’ll confirm the final inputs MarketForge uses to rank
-        opportunities correctly and prepare your first recommendations.
+        MarketForge is saving your business profile and preparing the final
+        activation step.
       </p>
 
       <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-slate-800">
