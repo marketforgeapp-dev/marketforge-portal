@@ -13,11 +13,19 @@ export type PlanValue = "STANDARD_MONTHLY" | "STANDARD_YEARLY";
 
 type ActivationStepProps = {
   onActivate: (
-    input: { plan: PlanValue; paymentMethodId: string }
+    input: {
+      plan: PlanValue;
+      paymentMethodId: string;
+      promoCode?: string;
+    }
   ) => Promise<void> | void;
   isPending: boolean;
   submitError: string | null;
   isDemoMode: boolean;
+  offerPreview: {
+    title: string;
+    description: string;
+  } | null;
 };
 
 const publishableKey =
@@ -30,15 +38,17 @@ function ActivationForm({
   isPending,
   submitError,
   isDemoMode,
+  offerPreview,
 }: ActivationStepProps) {
   const stripe = useStripe();
   const elements = useElements();
 
   const [selectedPlan, setSelectedPlan] =
     useState<PlanValue>("STANDARD_MONTHLY");
+  const [promoCode, setPromoCode] = useState("");
   const [cardError, setCardError] = useState<string | null>(null);
 
-    const buttonDisabled = useMemo(() => {
+  const buttonDisabled = useMemo(() => {
     if (isDemoMode) {
       return isPending;
     }
@@ -46,13 +56,14 @@ function ActivationForm({
     return isPending || !stripe || !elements;
   }, [elements, isDemoMode, isPending, stripe]);
 
-    async function handleSubmit() {
+  async function handleSubmit() {
     setCardError(null);
 
     if (isDemoMode) {
       await onActivate({
         plan: selectedPlan,
         paymentMethodId: "pm_demo_bypass",
+        promoCode: promoCode.trim() || undefined,
       });
       return;
     }
@@ -87,6 +98,7 @@ function ActivationForm({
     await onActivate({
       plan: selectedPlan,
       paymentMethodId: paymentMethod.id,
+      promoCode: promoCode.trim() || undefined,
     });
   }
 
@@ -106,6 +118,20 @@ function ActivationForm({
           execution, and tracking.
         </p>
       </div>
+
+      {offerPreview ? (
+        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-6">
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
+            Pricing Applied
+          </p>
+          <h3 className="mt-2 text-lg font-semibold text-white">
+            {offerPreview.title}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-200">
+            {offerPreview.description}
+          </p>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
         <p className="text-sm font-medium text-white">Choose your plan</p>
@@ -137,9 +163,26 @@ function ActivationForm({
             <p className="mt-1 text-sm text-slate-400">$15,000 / year</p>
           </button>
         </div>
+
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-white">
+            Promo Code
+          </label>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Enter a promo code if one was provided to you. Founding customer
+            pricing is applied automatically when eligible.
+          </p>
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="Enter promo code"
+            className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white placeholder:text-slate-500"
+          />
+        </div>
       </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
         <p className="text-sm font-medium text-white">
           {isDemoMode ? "Demo activation" : "Payment details"}
         </p>

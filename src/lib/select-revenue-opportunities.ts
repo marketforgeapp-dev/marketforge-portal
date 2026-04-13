@@ -302,7 +302,21 @@ function findLinkedCampaign(
 function sortSelectedOpportunities(
   opportunities: SelectedOpportunity[]
 ): SelectedOpportunity[] {
+  const surfaceRank: Record<string, number> = {
+    hero: 4,
+    surface: 3,
+    reserve: 2,
+    suppress: 1,
+  };
+
   return [...opportunities].sort((a, b) => {
+    const bSurface = surfaceRank[b.finalSurface] ?? 0;
+    const aSurface = surfaceRank[a.finalSurface] ?? 0;
+
+    if (bSurface !== aSurface) {
+      return bSurface - aSurface;
+    }
+
     if (b.adjustedScore !== a.adjustedScore) {
       return b.adjustedScore - a.adjustedScore;
     }
@@ -319,7 +333,10 @@ function buildVisibleRecommendationSet(
   rankedSelection: SelectedOpportunity[]
 ): SelectedOpportunity[] {
   const visible = rankedSelection.filter(
-    (opportunity) => !opportunity.isInExecution && !opportunity.isDeprioritized
+    (opportunity) =>
+      !opportunity.isInExecution &&
+      !opportunity.isDeprioritized &&
+      opportunity.finalSurface !== "suppress"
   );
 
   if (visible.length > 0) {
@@ -327,14 +344,15 @@ function buildVisibleRecommendationSet(
   }
 
   const nonExecution = rankedSelection.filter(
-    (opportunity) => !opportunity.isInExecution
+    (opportunity) =>
+      !opportunity.isInExecution && opportunity.finalSurface !== "suppress"
   );
 
   if (nonExecution.length > 0) {
     return nonExecution;
   }
 
-  return rankedSelection;
+  return rankedSelection.filter((opportunity) => opportunity.finalSurface !== "suppress");
 }
 
 function isAeoOpportunity(opportunity: {
@@ -358,18 +376,25 @@ function selectHeroOpportunity(
     visibleRecommendations.filter((opportunity) => !opportunity.isDeprioritized)
   );
 
-  const topNonAeo =
-    ordered.find((opportunity) => !isAeoOpportunity(opportunity)) ?? null;
+  const explicitHero =
+    ordered.find(
+      (opportunity) =>
+        opportunity.finalSurface === "hero" &&
+        opportunity.heroEligibleFinal
+    ) ?? null;
 
-  if (topNonAeo) {
-    return topNonAeo;
+  if (explicitHero) {
+    return explicitHero;
   }
 
-  if (ordered.length > 0) {
-    return ordered[0];
+  const bestSurface =
+    ordered.find((opportunity) => opportunity.finalSurface === "surface") ?? null;
+
+  if (bestSurface) {
+    return bestSurface;
   }
 
-  return sortSelectedOpportunities(visibleRecommendations)[0];
+  return ordered[0] ?? sortSelectedOpportunities(visibleRecommendations)[0];
 }
 
 function getTopCandidatesPerServiceFamily(
@@ -403,6 +428,28 @@ function pushUnique(
   bucket.push(candidate);
 }
 
+function canUseDemandShape(params: {
+  candidate: SelectedOpportunity;
+  demandShapeCounts: Map<string, number>;
+}): boolean {
+  const shape = params.candidate.demandShape;
+  const currentCount = params.demandShapeCounts.get(shape) ?? 0;
+
+  if (shape === "visibility") {
+    return currentCount < 1;
+  }
+
+  if (shape === "high-value-narrow") {
+    return currentCount < 2;
+  }
+
+  if (shape === "urgent-problem") {
+    return currentCount < 2;
+  }
+
+  return true;
+}
+
 function buildBacklogOpportunities(
   visibleRecommendations: SelectedOpportunity[],
   hero: SelectedOpportunity
@@ -411,7 +458,11 @@ function buildBacklogOpportunities(
     visibleRecommendations.filter(
       (opportunity) => opportunity.opportunityKey !== hero.opportunityKey
     )
-  ).filter((opportunity) => opportunity.eligibleForBacklog);
+    ).filter(
+    (opportunity) =>
+      opportunity.eligibleForBacklog &&
+      (opportunity.finalSurface === "surface" || opportunity.finalSurface === "reserve")
+  );
 
   const topPerServiceFamily = getTopCandidatesPerServiceFamily(remaining);
   const nonSearchFamilyLeaders = topPerServiceFamily.filter(
@@ -504,30 +555,52 @@ function buildSurfaceTopSet(
   visibleRecommendations: SelectedOpportunity[]
 ): SelectedOpportunity[] {
   const orderedVisible = sortSelectedOpportunities(
-    visibleRecommendations.filter((opportunity) => !opportunity.isDeprioritized)
+    visibleRecommendations.filter(
+      (opportunity) =>
+        !opportunity.isDeprioritized &&
+        (opportunity.finalSurface === "hero" || opportunity.finalSurface === "surface")
+    )
   );
 
   const fallbackOrderedVisible =
     orderedVisible.length > 0
       ? orderedVisible
-      : sortSelectedOpportunities(visibleRecommendations);
+      : sortSelectedOpportunities(
+          visibleRecommendations.filter(
+            (opportunity) => opportunity.finalSurface !== "suppress"
+          )
+        );
 
   const selected: SelectedOpportunity[] = [];
   const usedOpportunityKeys = new Set<string>();
   const usedServiceFamilies = new Set<string>();
+  const demandShapeCounts = new Map<string, number>();
 
-  // Pass 1:
-  // Take the single highest-scoring opportunity for each distinct service family first.
   for (const opportunity of fallbackOrderedVisible) {
     if (selected.length >= 6) break;
     if (usedServiceFamilies.has(opportunity.familyKey)) continue;
+    if (!canUseDemandShape({ candidate: opportunity, demandShapeCounts })) continue;
 
     pushUnique(selected, opportunity, usedOpportunityKeys);
     usedServiceFamilies.add(opportunity.familyKey);
+    demandShapeCounts.set(
+      opportunity.demandShape,
+      (demandShapeCounts.get(opportunity.demandShape) ?? 0) + 1
+    );
   }
 
-  // Pass 2:
-  // If we still do not have 6, backfill with the next-best remaining variants.
+  for (const opportunity of fallbackOrderedVisible) {
+    if (selected.length >= 6) break;
+    if (usedOpportunityKeys.has(opportunity.opportunityKey)) continue;
+    if (!canUseDemandShape({ candidate: opportunity, demandShapeCounts })) continue;
+
+    pushUnique(selected, opportunity, usedOpportunityKeys);
+    demandShapeCounts.set(
+      opportunity.demandShape,
+      (demandShapeCounts.get(opportunity.demandShape) ?? 0) + 1
+    );
+  }
+
   for (const opportunity of fallbackOrderedVisible) {
     if (selected.length >= 6) break;
     if (usedOpportunityKeys.has(opportunity.opportunityKey)) continue;
@@ -535,8 +608,6 @@ function buildSurfaceTopSet(
     pushUnique(selected, opportunity, usedOpportunityKeys);
   }
 
-  // Final rule:
-  // Once the visible 6 are chosen, sort them strictly by displayed score.
   return sortSelectedOpportunities(selected).slice(0, 6);
 }
 
@@ -570,7 +641,10 @@ export function selectRevenueOpportunities(params: {
         linkedCampaignId: linkedCampaign?.id ?? null,
         linkedCampaignStatus: linkedCampaign?.status ?? null,
         isInExecution,
-        adjustedScore: Math.max(1, Math.round(opportunity.rawOpportunityScore - penalty)),
+                adjustedScore: Math.max(
+          1,
+          Math.round(opportunity.finalRecommendationScore - penalty)
+        ),
         suppressionReason,
       };
     })

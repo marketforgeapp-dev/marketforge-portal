@@ -126,7 +126,6 @@ export function OpportunitiesGrid({ opportunities, logoUrl, industryLabel }: Pro
           const actionBudget = getRecommendedActionBudget({
             revenueLow: opportunity.revenueLow,
             revenueHigh: opportunity.revenueHigh,
-            score: opportunity.rawOpportunityScore,
             actionFraming: opportunity.actionFraming,
             opportunityType: opportunity.opportunityType,
           });
@@ -145,10 +144,6 @@ export function OpportunitiesGrid({ opportunities, logoUrl, industryLabel }: Pro
 
                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B07A12]">
                     {getOpportunityLabel(opportunity.opportunityType)}
-                  </span>
-
-                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-                    MarketForge Action Score {opportunity.rawOpportunityScore}
                   </span>
 
                   <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">

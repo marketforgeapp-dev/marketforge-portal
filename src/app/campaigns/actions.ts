@@ -20,6 +20,10 @@ import type {
   CampaignType,
   OpportunityType,
 } from "@/generated/prisma";
+import {
+  generateAndStoreCampaignImage,
+  shouldGenerateAiImage,
+} from "@/lib/ai-images";
 
 type CreateCampaignResult =
   | { success: true; campaignId: string; campaignName: string }
@@ -2355,14 +2359,93 @@ Return a single structured next-best-action plan.
     },
   });
 
-  const assetData: Array<{
+  const googleBusinessImage = shouldGenerateAiImage({
+    assetType: "GOOGLE_BUSINESS",
+    imageMode: effectiveActionThesis.imageMode,
+    isReviewAction: reviewAction,
+    isVisibilityAction: visibilityAction,
+  })
+    ? await generateAndStoreCampaignImage({
+        campaignId: campaign.id,
+        assetType: "GOOGLE_BUSINESS",
+        businessName: profile.businessName,
+        serviceArea: profile.serviceArea,
+        targetService: effectiveActionThesis.primaryService,
+        actionTitle: effectiveActionThesis.title,
+        actionSummary: effectiveActionThesis.summary,
+        audience: actionSpec.targetAudience,
+        offer: campaignDraft.offer,
+        cta: actionSpec.cta,
+      })
+    : {
+        url: null,
+        prompt: null,
+        status: "skipped" as const,
+        mimeType: null,
+      };
+
+    const metaImage = shouldGenerateAiImage({
+    assetType: "META",
+    imageMode: effectiveActionThesis.imageMode,
+    isReviewAction: reviewAction,
+    isVisibilityAction: visibilityAction,
+  })
+    ? await generateAndStoreCampaignImage({
+        campaignId: campaign.id,
+        assetType: "META",
+        businessName: profile.businessName,
+        serviceArea: profile.serviceArea,
+        targetService: effectiveActionThesis.primaryService,
+        actionTitle: effectiveActionThesis.title,
+        actionSummary: effectiveActionThesis.summary,
+        audience: actionSpec.targetAudience,
+        offer: campaignDraft.offer,
+        cta: actionSpec.cta,
+      })
+    : {
+        url: null,
+        prompt: null,
+        status: "skipped" as const,
+        mimeType: null,
+      };
+
+  const googleAdsImage = shouldGenerateAiImage({
+    assetType: "GOOGLE_ADS",
+    imageMode: effectiveActionThesis.imageMode,
+    isReviewAction: reviewAction,
+    isVisibilityAction: visibilityAction,
+  })
+    ? await generateAndStoreCampaignImage({
+        campaignId: campaign.id,
+        assetType: "GOOGLE_ADS",
+        businessName: profile.businessName,
+        serviceArea: profile.serviceArea,
+        targetService: effectiveActionThesis.primaryService,
+        actionTitle: effectiveActionThesis.title,
+        actionSummary: effectiveActionThesis.summary,
+        audience: actionSpec.targetAudience,
+        offer: campaignDraft.offer,
+        cta: actionSpec.cta,
+      })
+    : {
+        url: null,
+        prompt: null,
+        status: "skipped" as const,
+        mimeType: null,
+      };
+
+    const assetData: Array<{
     campaignId: string;
     assetType: AssetType;
     title: string;
     content: string;
+    aiImageUrl?: string | null;
+    aiImagePrompt?: string | null;
+    aiImageStatus?: string | null;
+    aiImageMimeType?: string | null;
   }> = [];
 
-  if (includedAssetTypes.includes("GOOGLE_BUSINESS")) {
+    if (includedAssetTypes.includes("GOOGLE_BUSINESS")) {
     assetData.push({
       campaignId: campaign.id,
       assetType: "GOOGLE_BUSINESS",
@@ -2371,7 +2454,7 @@ Return a single structured next-best-action plan.
           ? "Google Business Action Draft"
           : "Google Business Post",
       content: buildStructuredGoogleBusinessAsset({
-                title: generatedAdCopy?.googleBusiness?.title ?? effectiveActionThesis.title,
+        title: generatedAdCopy?.googleBusiness?.title ?? effectiveActionThesis.title,
         summary:
           generatedAdCopy?.googleBusiness?.description ??
           buildGoogleBusinessDescriptionFromAction({
@@ -2390,10 +2473,14 @@ Return a single structured next-best-action plan.
         industry: structuredIndustry,
         serviceArea: profile.serviceArea,
       }),
+      aiImageUrl: googleBusinessImage.url,
+      aiImagePrompt: googleBusinessImage.prompt,
+      aiImageStatus: googleBusinessImage.status,
+      aiImageMimeType: googleBusinessImage.mimeType,
     });
   }
 
-  if (includedAssetTypes.includes("META")) {
+    if (includedAssetTypes.includes("META")) {
     assetData.push({
       campaignId: campaign.id,
       assetType: "META",
@@ -2402,7 +2489,7 @@ Return a single structured next-best-action plan.
           ? "Meta Action Draft"
           : "Meta Ad Copy",
       content: buildStructuredMetaAsset({
-                headline:
+        headline:
           generatedAdCopy?.meta?.headline ??
           buildMetaHeadline({
             actionTitle: effectiveActionThesis.title,
@@ -2428,17 +2515,25 @@ Return a single structured next-best-action plan.
         industry: structuredIndustry,
         serviceArea: profile.serviceArea,
       }),
+      aiImageUrl: metaImage.url,
+      aiImagePrompt: metaImage.prompt,
+      aiImageStatus: metaImage.status,
+      aiImageMimeType: metaImage.mimeType,
     });
   }
 
-  if (includedAssetTypes.includes("GOOGLE_ADS")) {
+    if (includedAssetTypes.includes("GOOGLE_ADS")) {
     assetData.push({
       campaignId: campaign.id,
       assetType: "GOOGLE_ADS",
       title: "Google Ads Copy",
-            content: formatGoogleAds(
+      content: formatGoogleAds(
         generatedAdCopy?.googleAds ?? parsed.assets.googleAds
       ),
+      aiImageUrl: googleAdsImage.url,
+      aiImagePrompt: googleAdsImage.prompt,
+      aiImageStatus: googleAdsImage.status,
+      aiImageMimeType: googleAdsImage.mimeType,
     });
   }
 

@@ -31,6 +31,12 @@ import {
 } from "@/lib/reputation-signals";
 
 import { getSeasonalityTiming } from "@/lib/seasonality";
+import {
+  type OpportunitySurfaceDecision,
+  getServiceContextProfile,
+  evaluateDeterministicContext,
+  getAiContextFitBatch,
+} from "@/lib/opportunity-context-fit";
 
 export type OpportunitySourceTag =
   | "Demand"
@@ -72,7 +78,21 @@ export type RankedOpportunity = {
   jobsHigh: number;
   revenueLow: number;
   revenueHigh: number;
+
   rawOpportunityScore: number;
+  baseDeterministicScore: number;
+  deterministicContextAdjustment: number;
+  deterministicContextMultiplier: number;
+  aiContextFitScore: number | null;
+  aiContextAdjustment: number;
+  finalRecommendationScore: number;
+  finalSurface: OpportunitySurfaceDecision;
+  heroEligibleFinal: boolean;
+  decisionRationale: string;
+  variantKind: RevenueVariantKind | "visibility";
+  contextType: string;
+  demandShape: DemandShape;
+
   confidenceScore: number;
   confidenceLabel: OpportunityConfidenceLabel;
   capacityFit: CapacityFit;
@@ -149,6 +169,7 @@ type SignalEnrichment = Awaited<
   : never;
 
 type OpportunityCandidate = {
+  opportunityKey: string;
   familyKey: string;
   title: string;
   serviceName: string;
@@ -163,7 +184,22 @@ type OpportunityCandidate = {
   sourceTags: OpportunitySourceTag[];
   whyNowBullets: string[];
   whyThisMatters: string;
+
   rawOpportunityScore: number;
+  baseDeterministicScore: number;
+  variantKind: RevenueVariantKind | "visibility";
+
+  deterministicContextAdjustment: number;
+  deterministicContextMultiplier: number;
+  aiContextFitScore: number | null;
+  aiContextAdjustment: number;
+  finalRecommendationScore: number;
+  finalSurface: OpportunitySurfaceDecision;
+  heroEligibleFinal: boolean;
+  decisionRationale: string;
+  contextType: string;
+  demandShape: DemandShape;
+
   seasonalityRelevance: InferredSignalLevel;
   seasonalityReason: string;
   urgencyRelevance: InferredSignalLevel;
@@ -183,6 +219,198 @@ type RevenueVariantKind =
   | "capacity"
   | "trust"
   | "premium";
+
+export type DemandShape =
+  | "everyday-core"
+  | "urgent-problem"
+  | "high-value-narrow"
+  | "schedule-fill"
+  | "trust-build"
+  | "visibility";
+
+function toOpportunityKey(params: {
+  serviceName: string;
+  opportunityType: OpportunityType;
+  bestMove: string;
+}) {
+  return buildOpportunityKey(params);
+}
+
+function clampAiAdjustment(contextFitScore: number | null): number {
+  if (contextFitScore === null) return 0;
+  return clamp((contextFitScore - 50) * 0.24, -12, 12);
+}
+
+function mergeSurfaceDecision(params: {
+  deterministicSurface: OpportunitySurfaceDecision;
+  aiSurface: OpportunitySurfaceDecision | null;
+  heroEligibleDeterministic: boolean;
+  heroEligibleAi: boolean | null;
+}): {
+  finalSurface: OpportunitySurfaceDecision;
+  heroEligibleFinal: boolean;
+} {
+  if (params.deterministicSurface === "suppress") {
+    return {
+      finalSurface: "suppress",
+      heroEligibleFinal: false,
+    };
+  }
+
+  let finalSurface: OpportunitySurfaceDecision = params.deterministicSurface;
+
+  if (params.aiSurface) {
+  if (params.aiSurface === "suppress") {
+    finalSurface = "suppress";
+  } else if (params.aiSurface === "reserve") {
+    finalSurface = "reserve";
+  } else if (params.aiSurface === "surface" && finalSurface === "hero") {
+    finalSurface = "surface";
+  } else if (
+    params.aiSurface === "hero" &&
+    params.deterministicSurface !== "reserve" &&
+    params.heroEligibleDeterministic
+  ) {
+    finalSurface = "hero";
+  }
+}
+
+  const heroEligibleFinal =
+    params.heroEligibleDeterministic &&
+    params.heroEligibleAi !== false &&
+    finalSurface === "hero";
+
+  return {
+    finalSurface,
+    heroEligibleFinal,
+  };
+}
+
+function limitCandidatesPerFamily(
+  candidates: OpportunityCandidate[]
+): OpportunityCandidate[] {
+  const byFamily = new Map<string, OpportunityCandidate[]>();
+
+  for (const candidate of candidates) {
+    const existing = byFamily.get(candidate.familyKey) ?? [];
+    existing.push(candidate);
+    byFamily.set(candidate.familyKey, existing);
+  }
+
+  const limited: OpportunityCandidate[] = [];
+
+  for (const [familyKey, familyCandidates] of byFamily.entries()) {
+    const contextProfile = getServiceContextProfile(familyKey);
+    const ordered = [...familyCandidates].sort(
+      (a, b) => b.rawOpportunityScore - a.rawOpportunityScore
+    );
+
+    limited.push(...ordered.slice(0, contextProfile.maxVisiblePerFamily + 1));
+  }
+
+  return limited.sort((a, b) => b.rawOpportunityScore - a.rawOpportunityScore);
+}
+
+function getDemandShape(params: {
+  familyKey: string;
+  kind: RevenueVariantKind | "visibility";
+}): DemandShape {
+  if (params.familyKey === "ai-search-visibility" || params.kind === "visibility") {
+    return "visibility";
+  }
+
+  if (params.kind === "capacity") {
+    return "schedule-fill";
+  }
+
+  if (params.kind === "trust") {
+    return "trust-build";
+  }
+
+  if (params.kind === "urgent") {
+    return "urgent-problem";
+  }
+
+  const lowFrequencyFamilies = new Set([
+    "slab-leak-repair",
+    "gas-line",
+    "tankless-water-heater",
+    "water-softener",
+    "sewer-line",
+    "sewer-line-septic",
+    "repiping",
+    "custom-home-plumbing-installation",
+    "system-replacement",
+    "lot-clearing",
+    "arborist-consultation",
+    "septic-installation",
+    "drain-field-repair",
+  ]);
+
+  if (lowFrequencyFamilies.has(params.familyKey) || params.kind === "premium") {
+    return "high-value-narrow";
+  }
+
+  return "everyday-core";
+}
+
+function buildCompetitorSummaryForAi(params: {
+  serviceName: string;
+  competitors: Competitor[];
+  profile: BusinessProfile;
+}): string {
+  const normalizedService = normalize(params.serviceName);
+  const serviceTokens = normalizedService.split(" ").filter((token) => token.length > 2);
+
+  const overlappingCompetitors = params.competitors.filter((competitor) =>
+    (competitor.serviceFocus ?? []).some((focus) => {
+      const normalizedFocus = normalize(focus);
+      return serviceTokens.some((token) => normalizedFocus.includes(token));
+    })
+  );
+
+  const competitorPool =
+    overlappingCompetitors.length > 0 ? overlappingCompetitors : params.competitors;
+
+  const strongCompetitors = competitorPool.filter(
+    (competitor) =>
+      (competitor.rating ?? 0) >= 4.5 && (competitor.reviewCount ?? 0) >= 40
+  ).length;
+
+  const overlapCount = overlappingCompetitors.length;
+
+  const businessRating = params.profile.googleRating ?? null;
+const businessReviewCount = params.profile.googleReviewCount ?? null;
+
+  return [
+    `Matched competitor count for this lane: ${overlapCount}.`,
+    `Competitor pool size considered: ${competitorPool.length}.`,
+    `Strong review competitors in this lane: ${strongCompetitors}.`,
+    `Business Google rating: ${businessRating ?? "unknown"}.`,
+    `Business Google review count: ${businessReviewCount ?? "unknown"}.`,
+  ].join(" ");
+}
+
+function shouldAllowUrgentVariant(params: {
+  canonicalService: CanonicalService;
+  enrichment: SignalEnrichment;
+}): boolean {
+  const emergencyFamilies = new Set([
+    "burst-pipe-repair",
+    "emergency-plumbing",
+    "emergency-septic",
+    "storm-cleanup",
+  ]);
+
+  if (emergencyFamilies.has(params.canonicalService.familyKey)) {
+    return true;
+  }
+
+  return (
+    params.enrichment.urgencyRelevance === "HIGH" &&
+    params.enrichment.homeownerIntentStrength === "HIGH"
+  );
+}
 
 function normalize(value: string): string {
   return value.trim().toLowerCase();
@@ -1085,16 +1313,15 @@ function buildRevenueVariantCandidates(params: {
 
   const reputationSignal = deriveWorkspaceReputationSignal(profile, competitors);
 
-  const preferenceBoost = canonicalService.isPreferred
-    ? 16
-    : canonicalService.isHighestMargin
-      ? 8
+    const preferenceBoost = canonicalService.isPreferred ? 6 : 0;
+
+  const marginBoost = canonicalService.isHighestMargin ? 72 : 50;
+
+  const deprioritizedPenalty = canonicalService.isDeprioritized
+    ? 14
+    : canonicalService.isLowestPriority
+      ? 6
       : 0;
-
-  const marginBoost = canonicalService.isHighestMargin ? 85 : 50;
-
-  const deprioritizedPenalty =
-    canonicalService.isDeprioritized || canonicalService.isLowestPriority ? 36 : 0;
 
   const serviceDemandScore = clamp(
     50 + canonicalService.blueprint.demandBias + preferenceBoost,
@@ -1121,10 +1348,10 @@ function buildRevenueVariantCandidates(params: {
     getStaticSeasonalityBias(enrichment.seasonalityRelevance) +
     seasonalityTiming.demandScoreAdjustment;
 
-  const revenueValueScore = scoreRevenueValue({
+    const revenueValueScore = scoreRevenueValue({
     serviceDemandScore,
     serviceValueScore,
-    preferredServiceBoost: canonicalService.isPreferred ? 85 : 50,
+    preferredServiceBoost: canonicalService.isPreferred ? 62 : 50,
     marginBoost,
   });
 
@@ -1166,10 +1393,11 @@ function buildRevenueVariantCandidates(params: {
 
   const enabledVariantKinds = new Set<RevenueVariantKind>(["primary"]);
 
-  if (
-    enrichment.urgencyRelevance !== "LOW" ||
-    canonicalService.familyKey === "burst-pipe-repair" ||
-    canonicalService.familyKey === "emergency-plumbing"
+    if (
+    shouldAllowUrgentVariant({
+      canonicalService,
+      enrichment,
+    })
   ) {
     enabledVariantKinds.add("urgent");
   }
@@ -1241,6 +1469,11 @@ function buildRevenueVariantCandidates(params: {
       title,
       serviceName: canonicalService.canonicalName,
       opportunityType,
+            opportunityKey: toOpportunityKey({
+        serviceName: canonicalService.canonicalName,
+        opportunityType,
+        bestMove,
+      }),
       bestMove,
       displayMoveLabel: displayContract.displayMoveLabel,
       displaySummary: displayContract.displaySummary,
@@ -1307,7 +1540,24 @@ function buildRevenueVariantCandidates(params: {
                   : `${prettyServiceName(
                       canonicalService.canonicalName
                     )} matters because it combines revenue potential, live market demand, and a credible local competitive opening.`,
-      rawOpportunityScore: Math.round(clamp(variantScore, 1, 100)),
+            rawOpportunityScore: Math.round(clamp(variantScore, 1, 100)),
+            baseDeterministicScore: Math.round(clamp(variantScore, 1, 100)),
+      variantKind: kind,
+      deterministicContextAdjustment: 0,
+      deterministicContextMultiplier: 1,
+      aiContextFitScore: null,
+      aiContextAdjustment: 0,
+      finalRecommendationScore: Math.round(clamp(variantScore, 1, 100)),
+      finalSurface: "surface",
+      heroEligibleFinal:
+        !canonicalService.isDeprioritized &&
+        (kind === "primary" || kind === "urgent" || kind === "premium"),
+      decisionRationale: "Pending deterministic and AI context-fit evaluation.",
+      contextType: getServiceContextProfile(canonicalService.familyKey).contextType,
+            demandShape: getDemandShape({
+        familyKey: canonicalService.familyKey,
+        kind,
+      }),
       seasonalityRelevance: enrichment.seasonalityRelevance,
       seasonalityReason: enrichment.seasonalityReason,
       urgencyRelevance: enrichment.urgencyRelevance,
@@ -1403,6 +1653,11 @@ function buildVisibilityCandidate(params: {
     title: "AI Search Visibility Opportunity",
     serviceName: serviceSummary,
     opportunityType: "AI_SEARCH_VISIBILITY",
+        opportunityKey: toOpportunityKey({
+      serviceName: serviceSummary,
+      opportunityType: "AI_SEARCH_VISIBILITY",
+      bestMove,
+    }),
     bestMove,
     displayMoveLabel: displayContract.displayMoveLabel,
     displaySummary: `Make it easier for homeowners to find ${serviceSummary} when they search online.`,
@@ -1425,6 +1680,18 @@ function buildVisibilityCandidate(params: {
     whyThisMatters:
       "When homeowners have trouble finding your most important services online, you can lose jobs before they ever call.",
     rawOpportunityScore: Math.round(clamp(32 + visibilityGapScore * 0.7, 35, 78)),
+        baseDeterministicScore: Math.round(clamp(32 + visibilityGapScore * 0.7, 35, 78)),
+    variantKind: "visibility",
+    deterministicContextAdjustment: 0,
+    deterministicContextMultiplier: 1,
+    aiContextFitScore: null,
+    aiContextAdjustment: 0,
+    finalRecommendationScore: Math.round(clamp(32 + visibilityGapScore * 0.7, 35, 78)),
+    finalSurface: "surface",
+    heroEligibleFinal: false,
+    decisionRationale: "Pending deterministic and AI context-fit evaluation.",
+    contextType: "visibility",
+        demandShape: "visibility",
     seasonalityRelevance: "MEDIUM",
     seasonalityReason: "Visibility improvements compound over time across important service lanes.",
     urgencyRelevance: "LOW",
@@ -1439,6 +1706,142 @@ function buildVisibilityCandidate(params: {
     eligibleForHero: false,
     isDeprioritized: false,
   };
+}
+
+async function applyContextAndAiScoring(params: {
+  profile: BusinessProfile;
+  candidates: OpportunityCandidate[];
+  visibilityGapScore: number;
+  competitors: Competitor[];
+}): Promise<OpportunityCandidate[]> {
+  const { profile, visibilityGapScore, competitors } = params;
+
+  const deterministicEvaluated = params.candidates.map((candidate) => {
+    const deterministicContext = evaluateDeterministicContext({
+      familyKey: candidate.familyKey,
+      variantKind: candidate.variantKind,
+      seasonalityRelevance: candidate.seasonalityRelevance,
+      urgencyRelevance: candidate.urgencyRelevance,
+      homeownerIntentStrength: candidate.homeownerIntentStrength,
+      visibilityGapScore:
+        candidate.familyKey === "ai-search-visibility" ? visibilityGapScore : undefined,
+      baseScore: candidate.baseDeterministicScore,
+      isDeprioritized: candidate.isDeprioritized,
+    });
+
+    const deterministicAdjustedScore = clamp(
+      (candidate.baseDeterministicScore + deterministicContext.deterministicAdjustment) *
+        deterministicContext.deterministicMultiplier,
+      1,
+      100
+    );
+
+    return {
+      ...candidate,
+      deterministicContextAdjustment: deterministicContext.deterministicAdjustment,
+      deterministicContextMultiplier: deterministicContext.deterministicMultiplier,
+      finalRecommendationScore: Math.round(deterministicAdjustedScore),
+      finalSurface: deterministicContext.preliminarySurface,
+      heroEligibleFinal: deterministicContext.heroEligibleDeterministic,
+      decisionRationale: deterministicContext.deterministicReason,
+      contextType: deterministicContext.contextType,
+    };
+  });
+
+  const aiMap = await getAiContextFitBatch({
+    profile: {
+      businessName: profile.businessName,
+      city: profile.city,
+      state: profile.state,
+      serviceArea: profile.serviceArea,
+      averageJobValue: profile.averageJobValue,
+      preferredServices: profile.preferredServices,
+      deprioritizedServices: profile.deprioritizedServices,
+      weeklyCapacity: profile.weeklyCapacity,
+      hasFaqContent: profile.hasFaqContent,
+      hasBlog: profile.hasBlog,
+      hasServicePages: profile.hasServicePages,
+      hasGoogleBusinessPage: profile.hasGoogleBusinessPage,
+      aeoReadinessScore: profile.aeoReadinessScore,
+      googleRating: profile.googleRating,
+      googleReviewCount: profile.googleReviewCount,
+    },
+    candidates: deterministicEvaluated.map((candidate) => {
+      const contextProfile = getServiceContextProfile(candidate.familyKey);
+
+      const deterministicContext = evaluateDeterministicContext({
+        familyKey: candidate.familyKey,
+        variantKind: candidate.variantKind,
+        seasonalityRelevance: candidate.seasonalityRelevance,
+        urgencyRelevance: candidate.urgencyRelevance,
+        homeownerIntentStrength: candidate.homeownerIntentStrength,
+        visibilityGapScore:
+          candidate.familyKey === "ai-search-visibility" ? visibilityGapScore : undefined,
+        baseScore: candidate.baseDeterministicScore,
+        isDeprioritized: candidate.isDeprioritized,
+      });
+
+      return {
+        opportunityKey: candidate.opportunityKey,
+        familyKey: candidate.familyKey,
+        title: candidate.title,
+        serviceName: candidate.serviceName,
+        bestMove: candidate.bestMove,
+        opportunityType: candidate.opportunityType,
+        actionFraming: candidate.actionFraming,
+        variantKind: candidate.variantKind,
+        rawBaseScore: candidate.baseDeterministicScore,
+        seasonalityRelevance: candidate.seasonalityRelevance,
+        seasonalityReason: candidate.seasonalityReason,
+        urgencyRelevance: candidate.urgencyRelevance,
+        urgencyReason: candidate.urgencyReason,
+        homeownerIntentStrength: candidate.homeownerIntentStrength,
+        homeownerIntentReason: candidate.homeownerIntentReason,
+        whyNowBullets: candidate.whyNowBullets,
+        whyThisMatters: candidate.whyThisMatters,
+        visibilityGapScore:
+          candidate.familyKey === "ai-search-visibility" ? visibilityGapScore : undefined,
+        competitorSummary: buildCompetitorSummaryForAi({
+          serviceName: candidate.serviceName,
+          competitors,
+          profile,
+        }),
+        contextProfile,
+        deterministicContext,
+      };
+    }),
+  });
+
+  return deterministicEvaluated.map((candidate) => {
+    const ai = aiMap.get(candidate.opportunityKey) ?? null;
+    const aiAdjustment = clampAiAdjustment(ai?.contextFitScore ?? null);
+
+    const mergedSurface = mergeSurfaceDecision({
+      deterministicSurface: candidate.finalSurface,
+      aiSurface: ai?.recommendedSurface ?? null,
+      heroEligibleDeterministic: candidate.heroEligibleFinal,
+      heroEligibleAi: ai?.heroEligible ?? null,
+    });
+
+    const finalRecommendationScore = clamp(
+      candidate.finalRecommendationScore + aiAdjustment,
+      1,
+      100
+    );
+
+    return {
+      ...candidate,
+      aiContextFitScore: ai?.contextFitScore ?? null,
+      aiContextAdjustment: aiAdjustment,
+      finalRecommendationScore: Math.round(finalRecommendationScore),
+      rawOpportunityScore: Math.round(finalRecommendationScore),
+      finalSurface: mergedSurface.finalSurface,
+      heroEligibleFinal: mergedSurface.heroEligibleFinal,
+      decisionRationale:
+        ai?.decisionRationale?.trim() ||
+        candidate.decisionRationale,
+    };
+  });
 }
 
 function buildRankedOpportunity(params: {
@@ -1481,11 +1884,11 @@ function buildRankedOpportunity(params: {
   const rangeProfile = getFamilyRangeProfile(candidate.familyKey);
 
   let scoreDrivenHigh = 2;
-  if (candidate.rawOpportunityScore >= 84) {
+    if (candidate.finalRecommendationScore >= 84) {
     scoreDrivenHigh = rangeProfile.maxHigh;
-  } else if (candidate.rawOpportunityScore >= 74) {
+    } else if (candidate.finalRecommendationScore >= 74) {
     scoreDrivenHigh = Math.max(rangeProfile.minHigh + 1, rangeProfile.minHigh);
-  } else if (candidate.rawOpportunityScore >= 64) {
+    } else if (candidate.finalRecommendationScore >= 64) {
     scoreDrivenHigh = rangeProfile.minHigh;
   } else {
     scoreDrivenHigh = Math.max(1, rangeProfile.minHigh - 1);
@@ -1534,7 +1937,19 @@ function buildRankedOpportunity(params: {
     jobsHigh,
     revenueLow,
     revenueHigh,
-    rawOpportunityScore: candidate.rawOpportunityScore,
+        rawOpportunityScore: candidate.finalRecommendationScore,
+    baseDeterministicScore: candidate.baseDeterministicScore,
+    deterministicContextAdjustment: candidate.deterministicContextAdjustment,
+    deterministicContextMultiplier: candidate.deterministicContextMultiplier,
+    aiContextFitScore: candidate.aiContextFitScore,
+    aiContextAdjustment: candidate.aiContextAdjustment,
+    finalRecommendationScore: candidate.finalRecommendationScore,
+    finalSurface: candidate.finalSurface,
+    heroEligibleFinal: candidate.heroEligibleFinal,
+    decisionRationale: candidate.decisionRationale,
+    variantKind: candidate.variantKind,
+    contextType: candidate.contextType,
+        demandShape: candidate.demandShape,
     confidenceScore: adjustedConfidenceScore,
     confidenceLabel: adjustedConfidenceLabel,
     capacityFit,
@@ -1720,34 +2135,50 @@ export async function buildRevenueOpportunityEngine(params: {
     visibilityGapScore,
   });
 
-  const candidates = [...candidateBuckets, ...(visibilityCandidate ? [visibilityCandidate] : [])]
-    .sort((a, b) => b.rawOpportunityScore - a.rawOpportunityScore);
+    const rawCandidates = [
+    ...candidateBuckets,
+    ...(visibilityCandidate ? [visibilityCandidate] : []),
+  ].sort((a, b) => b.rawOpportunityScore - a.rawOpportunityScore);
+
+  const governedCandidates = limitCandidatesPerFamily(rawCandidates);
+
+  const contextFitCandidates = await applyContextAndAiScoring({
+    profile,
+    candidates: governedCandidates,
+    visibilityGapScore,
+    competitors,
+  });
 
   const defaultAvgJobValue = Number(profile.averageJobValue ?? 450);
 
   const rankedOpportunities = applyOpportunityScoreIndex(
-  candidates.map((candidate) =>
-    buildRankedOpportunity({
-      candidate,
-      profile,
-      defaultAvgJobValue,
-      availableJobsEstimate,
-      baseConfidenceScore,
-      capacityFit,
-      performanceSignal: getPerformanceSignal(
-        performanceSignals,
-        candidate.recommendedCampaignType
-      ),
-    })
-  )
-);
+    contextFitCandidates.map((candidate) =>
+      buildRankedOpportunity({
+        candidate,
+        profile,
+        defaultAvgJobValue,
+        availableJobsEstimate,
+        baseConfidenceScore,
+        capacityFit,
+        performanceSignal: getPerformanceSignal(
+          performanceSignals,
+          candidate.recommendedCampaignType
+        ),
+      })
+    )
+  );
 
-const top =
-  rankedOpportunities.find(
+  const top =
+    rankedOpportunities.find(
       (opportunity) =>
-        opportunity.eligibleForHero &&
-        !opportunity.isDeprioritized &&
-        opportunity.opportunityType !== "AI_SEARCH_VISIBILITY"
+        opportunity.heroEligibleFinal &&
+        opportunity.finalSurface === "hero" &&
+        !opportunity.isDeprioritized
+    ) ??
+    rankedOpportunities.find(
+      (opportunity) =>
+        opportunity.finalSurface === "surface" &&
+        !opportunity.isDeprioritized
     ) ??
     rankedOpportunities.find((opportunity) => !opportunity.isDeprioritized) ??
     rankedOpportunities[0];

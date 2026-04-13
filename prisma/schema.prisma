@@ -39,9 +39,13 @@ model Workspace {
   onboardingCompletedAt DateTime?
   activatedAt           DateTime?
 
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  stripePriceId        String?
+  stripeCustomerId             String?
+  stripeSubscriptionId         String?
+  stripeSubscriptionScheduleId String?
+  stripePriceId                String?
+
+  appliedOfferType     BillingOfferType?
+  appliedPromotionCode String?
 
   cancelAtPeriodEnd Boolean   @default(false)
   currentPeriodEnd  DateTime?
@@ -70,6 +74,7 @@ model Workspace {
   @@index([status])
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
+  @@index([stripeSubscriptionScheduleId])
   @@index([currentPeriodEnd])
 }
 
@@ -403,6 +408,11 @@ model CampaignAsset {
   content      String
   metadataJson Json?
 
+  aiImageUrl      String?
+  aiImagePrompt   String?
+  aiImageStatus   String?
+  aiImageMimeType String?
+
   version    Int       @default(1)
   isApproved Boolean   @default(false)
   approvedAt DateTime?
@@ -612,4 +622,11 @@ enum WorkspaceStatus {
   ACTIVE
   PAST_DUE
   CANCELED
+}
+
+enum BillingOfferType {
+  FOUNDER_1
+  FOUNDER_2
+  FOUNDER_3
+  PROMO_CODE
 }

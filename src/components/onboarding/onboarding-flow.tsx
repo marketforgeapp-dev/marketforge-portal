@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { OnboardingFormData } from "@/types/onboarding";
 import { OnboardingProgress } from "./onboarding-progress";
@@ -14,7 +14,11 @@ import { WebsiteSeoStep } from "./steps/website-seo-step";
 import { MarketInitializationStep } from "./steps/market-initialization-step";
 import { OnboardingAiPrefill } from "@/components/onboarding/onboarding-ai-prefill";
 import type { OnboardingPrefillResult } from "@/lib/onboarding-prefill-schema";
-import { activateWorkspace, saveOnboarding } from "@/app/onboarding/actions";
+import {
+  activateWorkspace,
+  getActivationOfferPreview,
+  saveOnboarding,
+} from "@/app/onboarding/actions";
 import { OnboardingTopbar } from "@/components/onboarding/onboarding-topbar";
 import {
   dedupeServicesForIndustry,
@@ -116,11 +120,38 @@ export function OnboardingFlow({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSavingOverlay, setShowSavingOverlay] = useState(false);
   const [isSavingForActivation, setIsSavingForActivation] = useState(false);
+  const [activationOfferPreview, setActivationOfferPreview] = useState<{
+    title: string;
+    description: string;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const totalSteps = STEP_LABELS.length;
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === totalSteps - 1;
+
+    useEffect(() => {
+    if (currentStep !== 6) {
+      return;
+    }
+
+    let isMounted = true;
+
+    void getActivationOfferPreview()
+      .then((result) => {
+        if (!isMounted) return;
+        setActivationOfferPreview(result);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!isMounted) return;
+        setActivationOfferPreview(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentStep]);
 
   function applyAiPrefill(prefill: OnboardingPrefillResult) {
     setFormData((current) => {
@@ -243,9 +274,10 @@ export function OnboardingFlow({
     if (!isFirstStep) setCurrentStep((prev) => prev - 1);
   };
 
-    const handleFinish = async (input: {
+  const handleFinish = async (input: {
     plan: "STANDARD_MONTHLY" | "STANDARD_YEARLY";
     paymentMethodId: string;
+    promoCode?: string;
   }) => {
     setSubmitError(null);
 
@@ -323,13 +355,14 @@ export function OnboardingFlow({
         />
       );
       break;
-        case 6:
+    case 6:
       currentStepComponent = (
         <ActivationStep
           onActivate={handleFinish}
           isPending={isPending}
           submitError={submitError}
           isDemoMode={IS_DEMO_ACTIVATION_MODE}
+          offerPreview={activationOfferPreview}
         />
       );
       break;

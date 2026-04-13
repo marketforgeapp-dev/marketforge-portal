@@ -182,24 +182,53 @@ function PlatformShell({
   );
 }
 
+function getAssetDisplayImage(params: {
+  aiImageUrl?: string | null;
+  fallback: {
+    src: string;
+    alt: string;
+  };
+}) {
+  if (params.aiImageUrl) {
+    return {
+      src: params.aiImageUrl,
+      alt: "Creative generated for this action",
+      isAi: true,
+    };
+  }
+
+  return {
+    src: params.fallback.src,
+    alt: params.fallback.alt,
+    isAi: false,
+  };
+}
+
 function GoogleBusinessPreview({
   payload,
   logoUrl,
   businessName,
   industryLabel,
+  aiImageUrl,
 }: {
   payload: GoogleBusinessAssetPayload;
   logoUrl?: string | null;
   businessName?: string | null;
   industryLabel?: string | null;
+  aiImageUrl?: string | null;
 }) {
-const image = getActionImage({
-  industry: payload.industry,
-  workspaceIndustry: industryLabel,
-  imageKey: payload.imageKey,
-  imageMode: payload.imageMode,
-  logoUrl,
-});
+  const fallbackImage = getActionImage({
+    industry: payload.industry,
+    workspaceIndustry: industryLabel,
+    imageKey: payload.imageKey,
+    imageMode: payload.imageMode,
+    logoUrl,
+  });
+
+  const image = getAssetDisplayImage({
+    aiImageUrl,
+    fallback: fallbackImage,
+  });
 
   return (
     <PlatformShell label="Google Business Profile Post Preview">
@@ -223,6 +252,11 @@ const image = getActionImage({
               className="h-full w-full object-cover aspect-square"
             />
           </div>
+                  {image.isAi ? (
+          <div className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+            Creative generated for this action
+          </div>
+        ) : null}
 
           <p className="mt-4 text-sm font-semibold text-gray-900">
             {payload.title}
@@ -249,19 +283,26 @@ function FacebookPreview({
   businessName,
   websiteUrl,
   industryLabel,
+  aiImageUrl,
 }: {
   payload: MetaAssetPayload;
   logoUrl?: string | null;
   businessName?: string | null;
   websiteUrl?: string | null;
   industryLabel?: string | null;
+  aiImageUrl?: string | null;
 }) {
-const image = getActionImage({
+const fallbackImage = getActionImage({
   industry: payload.industry,
   workspaceIndustry: industryLabel,
   imageKey: payload.imageKey,
   imageMode: payload.imageMode,
   logoUrl,
+});
+
+const image = getAssetDisplayImage({
+  aiImageUrl,
+  fallback: fallbackImage,
 });
 
   return (
@@ -294,6 +335,11 @@ const image = getActionImage({
               className="h-full w-full object-cover aspect-[1.91/1]"
             />
           </div>
+                    {image.isAi ? (
+            <div className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+              Creative generated for this action
+            </div>
+          ) : null}
 
                     <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
             <p className="text-[11px] uppercase tracking-wide text-gray-500">
@@ -327,18 +373,25 @@ function InstagramPreview({
   logoUrl,
   businessName,
   industryLabel,
+  aiImageUrl,
 }: {
   payload: MetaAssetPayload;
   logoUrl?: string | null;
   businessName?: string | null;
   industryLabel?: string | null;
+  aiImageUrl?: string | null;
 }) {
-const image = getActionImage({
+const fallbackImage = getActionImage({
   industry: payload.industry,
   workspaceIndustry: industryLabel,
   imageKey: payload.imageKey,
   imageMode: payload.imageMode,
   logoUrl,
+});
+
+const image = getAssetDisplayImage({
+  aiImageUrl,
+  fallback: fallbackImage,
 });
 
   return (
@@ -362,7 +415,13 @@ const image = getActionImage({
             className="h-full w-full object-cover aspect-square"
           />
         </div>
-
+        {image.isAi ? (
+          <div className="px-4 pt-3">
+            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+              Creative generated for this action
+            </span>
+          </div>
+        ) : null}
         <div className="px-4 py-3">
           <p className="text-sm font-semibold text-gray-900">
             {payload.headline}
@@ -379,20 +438,39 @@ const image = getActionImage({
 function GoogleAdsPreview({
   title,
   content,
+  aiImageUrl,
 }: {
   title: string | null;
   content: string;
+  aiImageUrl?: string | null;
 }) {
   return (
     <PlatformShell label="Google Ads Search Preview">
-      <div className="rounded-2xl border border-gray-200 bg-white p-4">
-        <p className="text-xs text-gray-500">Ad • business.com</p>
-        <p className="mt-2 text-lg font-medium text-[#1a0dab]">
-          {title || "Local Service Near You"} | Book Today | Fast Response
-        </p>
-        <p className="mt-2 text-sm leading-6 text-gray-800">
-          {content || "Google Ads copy preview will appear here."}
-        </p>
+      <div className="space-y-4">
+        {aiImageUrl ? (
+          <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+            <img
+              src={aiImageUrl}
+              alt="Creative generated for this action"
+              className="h-full w-full object-cover aspect-[1.91/1]"
+            />
+            <div className="border-t border-gray-200 bg-emerald-50 px-4 py-2">
+              <span className="inline-flex rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                Creative generated for this action
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-4">
+          <p className="text-xs text-gray-500">Ad • business.com</p>
+          <p className="mt-2 text-lg font-medium text-[#1a0dab]">
+            {title || "Local Service Near You"} | Book Today | Fast Response
+          </p>
+          <p className="mt-2 text-sm leading-6 text-gray-800">
+            {content || "Google Ads copy preview will appear here."}
+          </p>
+        </div>
       </div>
     </PlatformShell>
   );
@@ -564,33 +642,36 @@ function AssetPreview({
 }) {
   const structured = parseStructuredAsset(asset);
 
-  if (asset.assetType === "GOOGLE_BUSINESS" && structured?.kind === "GOOGLE_BUSINESS") {
+    if (asset.assetType === "GOOGLE_BUSINESS" && structured?.kind === "GOOGLE_BUSINESS") {
     return (
-  <GoogleBusinessPreview
-    payload={structured}
-    logoUrl={logoUrl}
-    businessName={businessName}
-    industryLabel={industryLabel}
-  />
-);
+      <GoogleBusinessPreview
+        payload={structured}
+        logoUrl={logoUrl}
+        businessName={businessName}
+        industryLabel={industryLabel}
+        aiImageUrl={asset.aiImageUrl}
+      />
+    );
   }
 
-  if (asset.assetType === "META" && structured?.kind === "META") {
+    if (asset.assetType === "META" && structured?.kind === "META") {
     return (
       <div className="grid gap-4 xl:grid-cols-2">
         <FacebookPreview
-  payload={structured}
-  logoUrl={logoUrl}
-  businessName={businessName}
-  industryLabel={industryLabel}
-  websiteUrl={websiteUrl}
-/>
-<InstagramPreview
-  payload={structured}
-  logoUrl={logoUrl}
-  businessName={businessName}
-  industryLabel={industryLabel}
-/>
+          payload={structured}
+          logoUrl={logoUrl}
+          businessName={businessName}
+          industryLabel={industryLabel}
+          websiteUrl={websiteUrl}
+          aiImageUrl={asset.aiImageUrl}
+        />
+        <InstagramPreview
+          payload={structured}
+          logoUrl={logoUrl}
+          businessName={businessName}
+          industryLabel={industryLabel}
+          aiImageUrl={asset.aiImageUrl}
+        />
       </div>
     );
   }
@@ -609,11 +690,12 @@ function AssetPreview({
 );
   }
 
-  if (asset.assetType === "GOOGLE_ADS") {
+    if (asset.assetType === "GOOGLE_ADS") {
     return (
       <GoogleAdsPreview
         title={asset.title}
         content={asset.content}
+        aiImageUrl={asset.aiImageUrl}
       />
     );
   }
@@ -1121,12 +1203,38 @@ export function CampaignAssetsReview({
 
   const canEdit = status !== "LAUNCHED" && status !== "COMPLETED";
   const groupedAssets = useMemo(() => groupAssetsForReview(assets), [assets]);
+  const pendingApprovalCount = useMemo(
+    () => assets.filter((asset) => !asset.isApproved).length,
+    [assets]
+  );
 
   async function handleApprove(assetId: string) {
     startTransition(async () => {
       await fetch(`/api/campaign-assets/${assetId}/approve`, {
         method: "POST",
       });
+      router.refresh();
+    });
+  }
+
+    async function handleApproveAll() {
+    const assetIdsToApprove = assets
+      .filter((asset) => !asset.isApproved)
+      .map((asset) => asset.id);
+
+    if (assetIdsToApprove.length === 0) {
+      return;
+    }
+
+    startTransition(async () => {
+      await Promise.all(
+        assetIdsToApprove.map((assetId) =>
+          fetch(`/api/campaign-assets/${assetId}/approve`, {
+            method: "POST",
+          })
+        )
+      );
+
       router.refresh();
     });
   }
@@ -1184,15 +1292,30 @@ export function CampaignAssetsReview({
           </div>
         </div>
 
-                {canEdit ? (
-          <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            You can still edit before launch
-          </span>
-        ) : (
-          <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-            Locked after launch
-          </span>
-        )}
+                        <div className="flex flex-wrap items-center gap-2">
+          {canEdit ? (
+            <>
+              <button
+                type="button"
+                disabled={isPending || pendingApprovalCount === 0}
+                onClick={handleApproveAll}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pendingApprovalCount === 0
+                  ? "All Approved"
+                  : `Approve All${pendingApprovalCount > 0 ? ` (${pendingApprovalCount})` : ""}`}
+              </button>
+
+              <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                You can still edit before launch
+              </span>
+            </>
+          ) : (
+            <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+              Locked after launch
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 space-y-8">

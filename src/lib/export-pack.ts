@@ -11,8 +11,15 @@ import {
   getBudgetAllocationRecommendation,
 } from "@/lib/budget-allocation-recommendations";
 
+type CampaignAssetWithAiImage = CampaignAsset & {
+  aiImageUrl?: string | null;
+  aiImagePrompt?: string | null;
+  aiImageStatus?: string | null;
+  aiImageMimeType?: string | null;
+};
+
 type CampaignWithAssets = Campaign & {
-  assets: CampaignAsset[];
+  assets: CampaignAssetWithAiImage[];
 };
 
 type BuildExportPackParams = {
@@ -184,12 +191,12 @@ function extractEstimatedRange(
 }
 
 function approvedAssetByType(
-  assets: CampaignAsset[],
+  assets: CampaignAssetWithAiImage[],
   type: CampaignAsset["assetType"]
 ) {
-  return assets.find(
-    (asset) => asset.assetType === type && asset.isApproved
-  ) ?? null;
+  return (
+    assets.find((asset) => asset.assetType === type && asset.isApproved) ?? null
+  );
 }
 
 function parseStructuredAsset<T>(asset: CampaignAsset | null): T | null {
@@ -275,7 +282,15 @@ function buildPlatformBudgetSection(params: {
 }) {
   const matchedLines = params.labels
     .map((label) => getPlatformBudgetLine(params.lines, label))
-    .filter((line): line is { label: string; percentage: number; recommendedBudget: number } => Boolean(line));
+    .filter(
+      (
+        line
+      ): line is {
+        label: string;
+        percentage: number;
+        recommendedBudget: number;
+      } => Boolean(line)
+    );
 
   if (matchedLines.length === 0) {
     return `## Budget for This Platform
@@ -286,7 +301,9 @@ No separate platform budget is recommended because this platform is not part of 
   const linesText = matchedLines
     .map(
       (line) =>
-        `- ${line.label}: ${line.percentage}% (${toCurrency(line.recommendedBudget)})`
+        `- ${line.label}: ${line.percentage}% (${toCurrency(
+          line.recommendedBudget
+        )})`
     )
     .join("\n");
 
@@ -300,6 +317,68 @@ function sanitizeForFileName(value: string) {
     .replace(/[^a-zA-Z0-9-_ ]+/g, "")
     .trim()
     .replace(/\s+/g, "-");
+}
+
+function getImageExtensionFromMimeType(mimeType?: string | null) {
+  switch (mimeType) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/webp":
+      return "webp";
+    case "image/png":
+    default:
+      return "png";
+  }
+}
+
+async function fetchAiImageBuffer(url: string): Promise<Buffer | null> {
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error("[export-pack] failed to fetch AI image", {
+        url,
+        status: response.status,
+      });
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error("[export-pack] failed to download AI image", {
+      url,
+      error,
+    });
+    return null;
+  }
+}
+
+async function addAiImageToFolder(params: {
+  folder: JSZip | null;
+  fileBaseName: string;
+  asset: CampaignAssetWithAiImage | null;
+}) {
+  if (!params.folder || !params.asset?.aiImageUrl) {
+    return false;
+  }
+
+  const buffer = await fetchAiImageBuffer(params.asset.aiImageUrl);
+  if (!buffer) {
+    return false;
+  }
+
+  const extension = getImageExtensionFromMimeType(params.asset.aiImageMimeType);
+  params.folder.file(`${params.fileBaseName}.${extension}`, buffer);
+
+  if (params.asset.aiImagePrompt) {
+    params.folder.file(
+      `${params.fileBaseName}-prompt.txt`,
+      params.asset.aiImagePrompt
+    );
+  }
+
+  return true;
 }
 
 function generateUtmSet(campaign: Campaign) {
@@ -371,7 +450,10 @@ export async function buildCampaignExportPack({
   const estimatedRange = extractEstimatedRange(campaign.briefJson);
   const utm = generateUtmSet(campaign);
 
-  const googleBusinessAsset = approvedAssetByType(campaign.assets, "GOOGLE_BUSINESS");
+  const googleBusinessAsset = approvedAssetByType(
+    campaign.assets,
+    "GOOGLE_BUSINESS"
+  );
   const metaAsset = approvedAssetByType(campaign.assets, "META");
   const googleAds = approvedAssetByType(campaign.assets, "GOOGLE_ADS");
   const yelp = approvedAssetByType(campaign.assets, "YELP");
@@ -381,7 +463,8 @@ export async function buildCampaignExportPack({
   const answerSnippet = approvedAssetByType(campaign.assets, "ANSWER_SNIPPET");
   const seoAsset = approvedAssetByType(campaign.assets, "SEO");
 
-  const googleBusiness = parseStructuredAsset<GoogleBusinessAssetPayload>(googleBusinessAsset);
+  const googleBusiness =
+    parseStructuredAsset<GoogleBusinessAssetPayload>(googleBusinessAsset);
   const meta = parseStructuredAsset<MetaAssetPayload>(metaAsset);
   const email = parseStructuredAsset<EmailAssetPayload>(emailAsset);
   const blog = parseStructuredAsset<BlogAssetPayload>(blogAsset);
@@ -399,9 +482,7 @@ export async function buildCampaignExportPack({
     campaign.offer ??
     "No special offer";
   const actionCta =
-    actionSpec?.cta ??
-    brief?.campaignDraft?.cta ??
-    "Not provided";
+    actionSpec?.cta ?? brief?.campaignDraft?.cta ?? "Not provided";
   const actionWhatHappens =
     actionSpec?.whatHappensWhenLaunched ??
     actionSpec?.executionMechanism?.operatorActionSummary ??
@@ -414,25 +495,25 @@ export async function buildCampaignExportPack({
     actionSpec?.operationalDependencies
   );
 
-    const approvedAssetTypes = campaign.assets
+  const approvedAssetTypes = campaign.assets
     .filter((asset) => asset.isApproved)
     .map((asset) => asset.assetType);
 
-const budgetRecommendation = getBudgetAllocationRecommendation(
-  approvedAssetTypes,
-  {
-    revenueLow: estimatedRange?.revenueLow ?? null,
-    revenueHigh:
-      estimatedRange?.revenueHigh ??
-      (typeof campaign.estimatedRevenue === "number"
-        ? campaign.estimatedRevenue
-        : 0),
-  }
-);
+  const budgetRecommendation = getBudgetAllocationRecommendation(
+    approvedAssetTypes,
+    {
+      revenueLow: estimatedRange?.revenueLow ?? null,
+      revenueHigh:
+        estimatedRange?.revenueHigh ??
+        (typeof campaign.estimatedRevenue === "number"
+          ? campaign.estimatedRevenue
+          : 0),
+    }
+  );
+
   const businessName = sanitizeForFileName(profile?.businessName ?? "Business");
   const campaignName = sanitizeForFileName(campaign.name);
   const campaignIdShort = campaign.id.slice(0, 8);
-
   const exportBaseName = `${businessName}-${campaignIdShort}-${campaignName}`;
 
   const root = zip.folder(exportBaseName);
@@ -440,7 +521,7 @@ const budgetRecommendation = getBudgetAllocationRecommendation(
     throw new Error("Failed to create export root folder.");
   }
 
-    const startHere = `# MarketForge Launch Pack
+  const startHere = `# MarketForge Launch Pack
 
 This pack is designed so that an operator with little or no platform experience can launch the approved assets step by step.
 
@@ -460,7 +541,11 @@ ${actionCoreMessage}
 ${actionWhatHappens}
 
 ## What You Need Before Launch
-${actionDependencies.length > 0 ? actionDependencies.map((item) => `- ${item}`).join("\n") : "- Review the campaign summary and operator checklist before launch."}
+${
+  actionDependencies.length > 0
+    ? actionDependencies.map((item) => `- ${item}`).join("\n")
+    : "- Review the campaign summary and operator checklist before launch."
+}
 
 ## Budget Guidance
 - Action Budget: ${toCurrency(budgetRecommendation.actionBudget)}
@@ -469,7 +554,9 @@ ${actionDependencies.length > 0 ? actionDependencies.map((item) => `- ${item}`).
 ${budgetRecommendation.lines
   .map(
     (line) =>
-      `- ${line.label}: ${line.percentage}% (${toCurrency(line.recommendedBudget)})`
+      `- ${line.label}: ${line.percentage}% (${toCurrency(
+        line.recommendedBudget
+      )})`
   )
   .join("\n")}
 
@@ -504,13 +591,15 @@ Only approved assets are included.
 ## How to use this pack
 Each folder contains:
 - the exact approved copy to paste
-- platform-specific operator notes
+- approved image files where relevant
 - creative templates where relevant
 - UTM guidance where relevant
 - checks to complete before publishing
 
 ## Creative guidance
-- Recommended image: ${brief?.creativeGuidance?.recommendedImage ?? "Not provided"}
+- Recommended image: ${
+    brief?.creativeGuidance?.recommendedImage ?? "Not provided"
+  }
 - Avoid: ${brief?.creativeGuidance?.avoidImagery ?? "Not provided"}
 
 ## Important notes
@@ -518,6 +607,7 @@ Each folder contains:
 - Launch only the assets included in this pack.
 - Do not invent extra copy unless the client explicitly requests changes.
 - Use the budget guidance in this file and in each platform folder when launching.
+- If an approved AI-generated image file is included in a platform folder, use that exact image in execution so the launched creative matches the user-approved preview.
 `;
 
   root.file("00-START-HERE.md", startHere);
@@ -525,7 +615,7 @@ Each folder contains:
   root.file(
     "manifest.json",
     JSON.stringify(
-            {
+      {
         campaignId: campaign.id,
         campaignCode: campaign.campaignCode,
         campaignName: campaign.name,
@@ -585,7 +675,7 @@ ${campaign.campaignCode}
   );
 
   const briefFolder = root.folder("01-campaign-brief");
-    briefFolder?.file(
+  briefFolder?.file(
     "campaign-summary.md",
     `# Campaign Summary
 
@@ -599,7 +689,9 @@ ${campaign.campaignCode}
 ## Action Structure
 - Action Type: ${actionConstruct}
 - Business Goal: ${formatLabel(actionSpec?.businessGoal)}
-- Target Service: ${actionSpec?.targetService ?? campaign.targetService ?? "Not provided"}
+- Target Service: ${
+      actionSpec?.targetService ?? campaign.targetService ?? "Not provided"
+    }
 
 ## Why This Audience
 ${actionSpec?.audienceRationale ?? "Not provided"}
@@ -608,7 +700,11 @@ ${actionSpec?.audienceRationale ?? "Not provided"}
 ${actionWhatHappens}
 
 ## What You Need Before Launch
-${actionDependencies.length > 0 ? actionDependencies.map((item) => `- ${item}`).join("\n") : "- Not provided"}
+${
+  actionDependencies.length > 0
+    ? actionDependencies.map((item) => `- ${item}`).join("\n")
+    : "- Not provided"
+}
 
 ## User Prompt
 ${brief?.userPrompt ?? "Not stored"}
@@ -621,16 +717,26 @@ ${brief?.userPrompt ?? "Not stored"}
 - Promotion Type: ${brief?.parsedIntent?.promotionType ?? "Not stored"}
 
 ## Opportunity Check
-- Matched Opportunity: ${brief?.opportunityCheck?.matchedOpportunityTitle ?? "No strong match"}
-- Matched Recommendation: ${brief?.opportunityCheck?.matchedRecommendationTitle ?? "No strong match"}
+- Matched Opportunity: ${
+      brief?.opportunityCheck?.matchedOpportunityTitle ?? "No strong match"
+    }
+- Matched Recommendation: ${
+      brief?.opportunityCheck?.matchedRecommendationTitle ?? "No strong match"
+    }
 - Confidence: ${brief?.opportunityCheck?.confidenceScore ?? "Not stored"}%
 - Sources: ${(brief?.opportunityCheck?.sourceTags ?? []).join(" • ")}
 
 ## Why This Exists
-${(brief?.opportunityCheck?.whyNowBullets ?? []).map((item) => `- ${item}`).join("\n")}
+${(brief?.opportunityCheck?.whyNowBullets ?? [])
+  .map((item) => `- ${item}`)
+  .join("\n")}
 
 ## Why This Matters
-${brief?.opportunityCheck?.whyThisMatters ?? brief?.opportunityCheck?.rationale ?? "Not stored"}
+${
+  brief?.opportunityCheck?.whyThisMatters ??
+  brief?.opportunityCheck?.rationale ??
+  "Not stored"
+}
 
 ## Estimated Outcome
 - Estimated Leads: ${campaign.estimatedLeads ?? 0}
@@ -645,6 +751,17 @@ ${brief?.opportunityCheck?.whyThisMatters ?? brief?.opportunityCheck?.rationale 
     googleBusiness
       ? `${googleBusiness.title}\n\n${googleBusiness.description}\n\nCTA: ${googleBusiness.cta}`
       : "No approved Google Business asset found."
+  );
+  const googleBusinessAiImageIncluded = await addAiImageToFolder({
+    folder: googleBusinessFolder,
+    fileBaseName: "google-business-approved-creative",
+    asset: googleBusinessAsset,
+  });
+  googleBusinessFolder?.file(
+    "approved-image-note.txt",
+    googleBusinessAiImageIncluded
+      ? "Use the approved AI-generated image file in this folder when publishing the Google Business post."
+      : "No approved AI-generated image file was stored for this asset. Use the approved copy and existing fallback image guidance."
   );
   googleBusinessFolder?.file(
     "operator-notes.md",
@@ -661,7 +778,7 @@ Step-by-step
 2. Navigate to Posts or Updates
 3. Choose the most relevant post type
 4. Paste the copy from post-copy.txt
-5. Upload a square creative image
+5. Upload the approved image file in this folder if one is included; otherwise use the fallback image guidance
 6. Select the CTA button that best matches the offer
 7. Add the correct destination URL or phone number
 8. Preview the post
@@ -696,6 +813,17 @@ ${utm.googleBusiness.post}
       ? `${meta.headline}\n\n${meta.primaryText}\n\nCTA: ${meta.cta}`
       : "No approved Facebook / Meta copy found."
   );
+  const facebookAiImageIncluded = await addAiImageToFolder({
+    folder: facebookFolder,
+    fileBaseName: "facebook-approved-creative",
+    asset: metaAsset,
+  });
+  facebookFolder?.file(
+    "approved-image-note.txt",
+    facebookAiImageIncluded
+      ? "Use the approved AI-generated image file in this folder when creating the Facebook ad."
+      : "No approved AI-generated image file was stored for this asset. Use the approved copy and fallback image guidance."
+  );
   facebookFolder?.file(
     "operator-notes.md",
     `# Facebook Operator Notes
@@ -710,7 +838,7 @@ Step-by-step
 1. Open Facebook Business Manager or the Facebook Page
 2. Create the post or ad
 3. Paste the copy from facebook-copy.txt
-4. Upload the correct image or creative
+4. Upload the approved image file in this folder if one is included; otherwise use the fallback image guidance
 5. Confirm the CTA
 6. Confirm the destination URL or phone number
 7. Preview the ad or post
@@ -755,6 +883,17 @@ ${utm.facebook.feed}
       ? `${meta.headline}\n\n${meta.primaryText}\n\nCTA: ${meta.cta}`
       : "No approved Instagram / Meta copy found."
   );
+  const instagramAiImageIncluded = await addAiImageToFolder({
+    folder: instagramFolder,
+    fileBaseName: "instagram-approved-creative",
+    asset: metaAsset,
+  });
+  instagramFolder?.file(
+    "approved-image-note.txt",
+    instagramAiImageIncluded
+      ? "Use the approved AI-generated image file in this folder when creating the Instagram ad."
+      : "No approved AI-generated image file was stored for this asset. Use the approved copy and fallback image guidance."
+  );
   instagramFolder?.file(
     "operator-notes.md",
     `# Instagram Operator Notes
@@ -769,7 +908,7 @@ Step-by-step
 1. Open Instagram scheduling or Meta Business Suite
 2. Choose Feed, Story, or Reel placement
 3. Paste the copy from instagram-caption.txt
-4. Upload the correct creative size
+4. Upload the approved image file in this folder if one is included; otherwise use the fallback image guidance
 5. Confirm CTA or profile link destination
 6. Preview the post
 7. Publish or schedule it
@@ -821,6 +960,17 @@ Story: ${utm.instagram.story}
     "search-assets.txt",
     googleAds?.content ?? "No approved Google Ads copy found."
   );
+  const googleAdsAiImageIncluded = await addAiImageToFolder({
+    folder: googleAdsFolder,
+    fileBaseName: "google-ads-approved-creative",
+    asset: googleAds,
+  });
+  googleAdsFolder?.file(
+    "approved-image-note.txt",
+    googleAdsAiImageIncluded
+      ? "Use the approved AI-generated image file in this folder for the Google Ads image creative associated with this action."
+      : "No approved AI-generated image file was stored for this asset. Use the approved copy and fallback image guidance."
+  );
   googleAdsFolder?.file(
     "operator-notes.md",
     `# Google Ads Operator Notes
@@ -835,7 +985,7 @@ Step-by-step
 1. Open the correct Google Ads account
 2. Create a new Search campaign or open the intended ad group
 3. Copy the approved headlines and descriptions from search-assets.txt
-4. Paste the copy into the responsive search ad fields
+4. Upload the approved image file in this folder if one is included and the format is being used in execution
 5. Add the correct final URL
 6. Confirm the phone number or call extension if used
 7. Confirm targeting matches the business service area
@@ -876,7 +1026,7 @@ Step-by-step
 5. Confirm service area language matches the Yelp profile
 6. Confirm the phone number is correct
 7. Preview the content
-8. Publish or schedule
+8. Publish or schedule it
 
 Before publishing
 - Confirm the offer language complies with Yelp policy
@@ -939,10 +1089,7 @@ ${utm.email.click}
   );
 
   const blogFolder = root.folder("08-blog");
-  blogFolder?.file(
-    "blog-article.md",
-    buildBlogArticleMarkdown(blog)
-  );
+  blogFolder?.file("blog-article.md", buildBlogArticleMarkdown(blog));
   blogFolder?.file(
     "operator-notes.md",
     `# Blog Operator Notes
@@ -1009,8 +1156,8 @@ Before publishing
 `
   );
 
-const seoFolder = root.folder("10-seo");
-seoFolder?.file(
+  const seoFolder = root.folder("10-seo");
+  seoFolder?.file(
     "seo-guidance.md",
     `# SEO Optimization Guidance
 
@@ -1037,10 +1184,14 @@ Secondary keywords
 If a page exists, update:
 
 Title Tag
-"${campaign.targetService ?? "Service"} in ${campaign.serviceArea ?? "Your Area"} | ${profile?.businessName ?? "Local Experts"}"
+"${campaign.targetService ?? "Service"} in ${
+      campaign.serviceArea ?? "Your Area"
+    } | ${profile?.businessName ?? "Local Experts"}"
 
 H1
-"${campaign.targetService ?? "Service"} in ${campaign.serviceArea ?? "Your Area"}"
+"${campaign.targetService ?? "Service"} in ${
+      campaign.serviceArea ?? "Your Area"
+    }"
 
 ## Internal Linking Suggestions
 
@@ -1093,7 +1244,7 @@ Before publishing
   );
 
   const opsFolder = root.folder("11-operator-checklist");
-    opsFolder?.file(
+  opsFolder?.file(
     "launch-checklist.md",
     `# Operator Launch Checklist
 
@@ -1115,24 +1266,26 @@ Complete each relevant channel in order and check every item before marking the 
 
 ## Google Business
 - [ ] Post copy added
-- [ ] Square image exported from template
+- [ ] Approved AI image used if included in folder
 - [ ] Business profile posting complete
 
 ## Facebook
 - [ ] Correct format selected
 - [ ] Copy pasted from facebook-copy.txt
+- [ ] Approved AI image used if included in folder
 - [ ] CTA checked
 - [ ] Destination URL / phone checked
 
 ## Instagram
 - [ ] Correct format selected
 - [ ] Caption pasted from instagram-caption.txt
-- [ ] Visual exported from correct template
+- [ ] Approved AI image used if included in folder
 - [ ] Text placement checked for crop safety
 
 ## Google Ads
 - [ ] Headlines loaded
 - [ ] Descriptions loaded
+- [ ] Approved AI image used if included in folder
 - [ ] Final URL checked
 - [ ] Phone / call extension checked if applicable
 
