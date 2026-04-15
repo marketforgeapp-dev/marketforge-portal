@@ -10,6 +10,7 @@ import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { BILLING_PRICE_IDS, isDemoEmail } from "@/lib/billing";
+import { mergeAndDedupeServicesForIndustry } from "@/lib/service-normalization";
 import { sendWorkspaceCreatedNotification } from "@/lib/email/send-workspace-created-notification";
 
 function toNullableString(value: string | null | undefined): string | null {
@@ -34,17 +35,6 @@ function toNumberOrNull(value: number | null | undefined): number | null {
 function cleanStringArray(value: string[] | undefined): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => item.trim()).filter((item) => item.length > 0);
-}
-
-function uniqueMergedServices(...groups: string[][]): string[] {
-  return Array.from(
-    new Set(
-      groups
-        .flat()
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0)
-    )
-  );
 }
 
 type ResolvedActivationOffer =
@@ -342,17 +332,24 @@ export async function saveOnboarding(input: unknown) {
     },
   });
 
-    const preferredServices = uniqueMergedServices(
-    cleanStringArray(values.preferredServices),
-    cleanStringArray(values.primaryServices)
-  );
+  const preferredServices = mergeAndDedupeServicesForIndustry({
+    industry: values.industry,
+    groups: [
+      cleanStringArray(values.preferredServices),
+      cleanStringArray(values.primaryServices),
+    ],
+  });
 
-  const deprioritizedServices =
-    cleanStringArray(values.deprioritizedServices).length > 0
-      ? cleanStringArray(values.deprioritizedServices)
-      : values.lowestPriorityService
-        ? [values.lowestPriorityService]
-        : [];
+  const deprioritizedServices = mergeAndDedupeServicesForIndustry({
+    industry: values.industry,
+    groups: [
+      cleanStringArray(values.deprioritizedServices).length > 0
+        ? cleanStringArray(values.deprioritizedServices)
+        : values.lowestPriorityService
+          ? [values.lowestPriorityService]
+          : [],
+    ],
+  });
 
   const cityValue = toNullableString(values.city);
   const stateValue = toNullableString(values.state);

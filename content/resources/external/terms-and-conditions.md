@@ -8,7 +8,7 @@ order: 3
 
 ## Overview
 
-These Terms & Conditions govern the use of MarketForge.
+These Terms & Conditions govern your use of MarketForge.
 
 By using MarketForge, you agree to these terms.
 
@@ -22,7 +22,25 @@ MarketForge provides:
 * action generation and execution support
 * tracking and reporting
 
-MarketForge does not guarantee specific outcomes.
+MarketForge is designed to support decision-making and execution but does not guarantee specific outcomes.
+
+---
+
+## AI-Generated Content & Recommendations
+
+MarketForge uses artificial intelligence to generate:
+
+* recommendations
+* campaign strategies
+* written content
+* creative assets
+
+These outputs are designed to reflect best practices and relevant business context, but:
+
+* they are not guaranteed to be accurate, complete, or suitable for all situations
+* they should be reviewed prior to execution
+
+You are responsible for ensuring that all content and campaigns comply with applicable laws, platform policies, and business requirements.
 
 ---
 
@@ -31,9 +49,9 @@ MarketForge does not guarantee specific outcomes.
 You agree to:
 
 * provide accurate business information
-* approve actions before launch
-* maintain valid platform billing where required
-* provide access when needed
+* review and approve actions before launch
+* maintain valid billing on third-party platforms
+* provide access when required
 * report booked jobs accurately
 
 ---
@@ -42,33 +60,45 @@ You agree to:
 
 MarketForge is a subscription service.
 
-Your subscription covers:
+Your subscription includes:
 
 * action generation
-* execution
+* execution support
 * tracking
 * reporting
 
-It does **not** include third-party platform fees.
+It does **not** include:
 
-All costs related to platforms such as:
+* ad spend
+* platform fees
+* third-party charges
 
-* Google Ads
-* Meta (Facebook/Instagram)
-* Yelp
-* or other advertising or service platforms
+All such costs are billed directly by the respective platforms and are your responsibility.
 
-are billed directly by those platforms and are the responsibility of the customer.
+---
 
-Failure to maintain valid billing on these platforms may impact execution and results.
+## Subscription & Cancellation
+
+MarketForge operates on a subscription basis.
+
+* You may cancel your subscription at any time.
+* Cancellation will take effect at the end of your current billing period.
+* No partial refunds are provided for unused time within a billing period.
+
+Upon cancellation:
+
+* access to execution and new actions may be restricted
+* reporting access may remain available for a limited period
 
 ---
 
 ## Access to Platforms
 
-You may provide access to third-party platforms to enable execution.
+You may provide access to third-party platforms for execution.
 
-You are responsible for ensuring that access is authorized.
+You are responsible for ensuring that such access is authorized.
+
+MarketForge will only use access for execution-related purposes.
 
 ---
 
@@ -76,7 +106,7 @@ You are responsible for ensuring that access is authorized.
 
 MarketForge provides commercially useful attribution.
 
-Not all channels allow exact tracking.
+Not all channels support exact tracking.
 
 ---
 
@@ -93,16 +123,18 @@ MarketForge does not guarantee:
 
 ## Limitation of Liability
 
-MarketForge is not liable for indirect or consequential damages.
+MarketForge is not liable for indirect, incidental, or consequential damages arising from use of the platform.
 
 ---
 
 ## Updates
 
-Terms may be updated periodically.
+These terms may be updated periodically.
+
+Continued use of MarketForge constitutes acceptance of any updates.
 
 ---
 
 ## Contact
 
-[marketforgelabs@gmail.com](mailto:marketforgelabs@gmail.com)
+📧 [marketforgelabs@gmail.com](mailto:marketforgelabs@gmail.com)

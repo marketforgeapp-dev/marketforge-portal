@@ -14,8 +14,10 @@ MarketForge is committed to protecting your business data and handling all infor
 
 ## Information Collected
 
+MarketForge may collect:
+
 * business information
-* campaign data
+* campaign and action data
 * lead and revenue data
 * system usage data
 
@@ -23,53 +25,53 @@ MarketForge is committed to protecting your business data and handling all infor
 
 ## Use of Information
 
-Used to:
+Information is used to:
 
-* operate the platform
+* operate and improve the platform
 * execute actions
 * track performance
-* improve recommendations
+* generate recommendations
 
 ---
 
-## Third-Party Access
+## Third-Party Platform Access
 
 Execution may require access to:
 
 * Google Business Profile
-* websites
-* social platforms
+* websites or CMS platforms
+* social media accounts
 * review platforms
 
 ---
 
 ## Credential Handling
 
-If credentials are provided:
+When credentials are provided:
 
-* used only for execution
-* limited to authorized personnel
-* never shared or sold
-* retained only as long as needed
+* they are used only for execution purposes
+* access is limited to authorized personnel
+* credentials are never sold or shared
+* credentials are retained only as long as necessary
 
 ---
 
-## Data Retention
+## Data Retention & Removal
 
 MarketForge will:
 
-* delete credentials when no longer required
-* remove access upon cancellation
-* remove access when automation replaces manual execution
+* remove credentials when no longer required
+* remove access upon cancellation or request
+* transition away from credentials when automation becomes available
 
 ---
 
 ## Security
 
-Reasonable safeguards are used to protect data.
+MarketForge uses reasonable safeguards to protect data, but no system can guarantee absolute security.
 
 ---
 
 ## Contact
 
-[marketforgelabs@gmail.com](mailto:marketforgelabs@gmail.com)
+📧 [marketforgelabs@gmail.com](mailto:marketforgelabs@gmail.com)

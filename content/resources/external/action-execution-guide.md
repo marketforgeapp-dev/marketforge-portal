@@ -8,9 +8,9 @@ order: 1
 
 ## Overview
 
-This guide explains how MarketForge actions move from approval to execution and what your business should expect at each stage.
+This guide explains how MarketForge actions move from approval to execution, what timing to expect, and how responsibilities are shared between MarketForge and your business.
 
-MarketForge is designed to identify the highest-value opportunities, prepare them for launch, execute those actions, and provide visibility into what is driving leads, booked jobs, and revenue.
+MarketForge is designed to identify the highest-value opportunities, prepare them for launch, execute those actions, and provide clear visibility into what is driving leads, booked jobs, and revenue.
 
 ---
 
@@ -28,39 +28,44 @@ The action has been reviewed and confirmed as aligned with your business priorit
 The action is being prepared for launch, including finalizing assets, targeting, and execution details.
 
 **Launched**
-The action is live in market and should begin generating activity.
+The action is live and actively generating activity.
 
 **Completed**
-The action has been closed and is included in reporting and performance evaluation.
+The action has concluded and is included in reporting and performance analysis.
 
 ---
 
-## Launch Timing
+## Action Launch SLA
 
-Once an action is approved, MarketForge begins preparing it for launch immediately.
+Once an action is approved, MarketForge will initiate execution within **24 hours**.
 
-In most cases, approved actions are launched within **24 hours**.
+This includes:
 
-Launch timing may vary slightly depending on:
+* preparing platform-ready assets
+* confirming campaign structure
+* initiating launch steps across applicable channels
 
-* platform requirements
-* access availability
-* final asset preparation
+Please note:
 
-If any delays occur, they will be communicated clearly.
+* Third-party platforms (e.g., Google Ads, Meta) may require additional review time outside of MarketForge’s control.
+* Actions requiring access, credentials, or additional inputs may be delayed until all required information is provided.
+
+MarketForge will communicate proactively if any delays occur.
 
 ---
 
 ## What to Expect from Each Action
 
-For every approved and launched action, MarketForge will clearly define:
+Every action includes:
 
-* The service being promoted
-* The target audience
-* The channels being used
-* The offer and call-to-action (if applicable)
-* What will happen once the action is live
-* How performance will be tracked
+* service being promoted
+* target audience
+* channels used
+* offer and call-to-action (if applicable)
+* expected outcome
+* performance tracking approach
+
+All assets are designed to be **launch-ready**, not conceptual.
 
 ---
 
@@ -73,31 +78,36 @@ Your subscription includes:
 * action generation
 * execution support
 * tracking and reporting
-* AEO/SEO and related work
+* AEO/SEO-related work
 
-Certain actions may involve third-party platforms such as:
+It does **not** include third-party platform costs.
+
+Platforms such as:
 
 * Google Ads
 * Meta (Facebook/Instagram)
 * Yelp
-* other paid or platform-based channels
 
-**Any platform fees, ad spend, or third-party charges are billed directly by those platforms and are the responsibility of the customer.**
+bill you directly for:
 
-MarketForge does not collect, manage, or pay these external platform fees on your behalf.
+* ad spend
+* platform usage
+* related fees
+
+You are responsible for maintaining active billing on those platforms.
 
 ---
 
 ## Your Responsibilities
 
-To ensure successful execution and accurate reporting, your business is responsible for:
+To ensure successful execution, your business is responsible for:
 
-* Reviewing and approving actions before launch
-* Confirming service details, offers, and contact information are accurate
-* Maintaining valid billing methods on third-party platforms when required
-* Providing access to required platforms when needed
-* Reporting booked jobs and revenue consistently
-* Avoiding assumptions when the source of a job is unclear
+* reviewing and approving actions
+* confirming accuracy of service details and offers
+* maintaining valid platform billing
+* providing required access when needed
+* reporting booked jobs consistently
+* avoiding assumptions when attribution is unclear
 
 ---
 
@@ -105,28 +115,23 @@ To ensure successful execution and accurate reporting, your business is responsi
 
 MarketForge is responsible for:
 
-* Structuring actions into clear, executable plans
-* Preparing launch-ready assets and instructions
-* Supporting execution workflows
-* Tracking visibility into leads, booked jobs, and revenue
-* Maintaining organized reporting and performance insights
+* identifying and structuring high-value actions
+* preparing execution-ready assets
+* supporting execution workflows
+* providing visibility into performance
+* maintaining organized reporting
 
 ---
 
 ## Attribution Guidance
 
-Not all marketing channels support exact attribution.
+Not all channels support exact attribution.
 
-For example:
+MarketForge provides attribution that is:
 
-* Paid campaigns may be easier to track directly
-* Organic channels (SEO, AEO, local visibility) may influence outcomes over time
-
-MarketForge focuses on attribution that is:
-
-* Practical
-* Directionally accurate
-* Commercially useful
+* practical
+* directionally accurate
+* commercially useful
 
 ---
 
@@ -134,9 +139,9 @@ MarketForge focuses on attribution that is:
 
 MarketForge works best when:
 
-* The right actions are approved
-* Actions are executed consistently
-* Results are tracked clearly
-* Insights are used to improve future performance
+* the right actions are approved
+* execution is consistent
+* results are tracked clearly
+* insights are applied over time
 
-The goal is not just activity — it is **measurable business outcomes**.
+The goal is not activity — it is **measurable business outcomes**.

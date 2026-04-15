@@ -175,6 +175,10 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
       "24 hour plumber",
       "same day plumbing",
       "after hours plumbing",
+      "24 7 emergency service",
+      "24/7 emergency service",
+      "emergency service",
+      "emergency plumbing service",
     ],
   },
   {
@@ -297,6 +301,9 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
       "faucet install",
       "sink faucet",
       "plumbing fixture",
+      "faucet fixture",
+      "faucet fixtures",
+      "faucets fixtures",
     ],
   },
   {
@@ -487,6 +494,7 @@ const PLUMBING_BLUEPRINTS: ServiceBlueprint[] = [
     backlogEligibleByDefault: false,
     aliases: [
       "repipe",
+      "repipes",
       "repiping",
       "whole home repipe",
       "house repipe",
@@ -818,6 +826,9 @@ const SEPTIC_BLUEPRINTS: ServiceBlueprint[] = [
       "septic backup",
       "septic overflow",
       "sewage backup",
+      "24 7 emergency service",
+      "24/7 emergency service",
+      "emergency service",
     ],
   },
   {
@@ -927,6 +938,11 @@ const TREE_SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
       "emergency storm service",
       "fallen tree removal",
       "storm damage tree service",
+      "24 7 emergency service",
+      "24/7 emergency service",
+      "emergency service",
+      "emergency tree service",
+      "storm service",
     ],
   },
   {
@@ -1491,8 +1507,9 @@ export function getServiceFamilyKey(
     ) {
       return "gas-line";
     }
-    if (
+        if (
       normalizedServiceName.includes("repipe") ||
+      normalizedServiceName.includes("repipes") ||
       normalizedServiceName.includes("repiping") ||
       normalizedServiceName.includes("pipe replacement")
     ) {
@@ -1524,9 +1541,11 @@ export function getServiceFamilyKey(
         if (normalizedServiceName.includes("leak")) {
       return "leak-repair";
     }
-    if (
+        if (
       normalizedServiceName.includes("emergency") ||
       normalizedServiceName.includes("24 hour") ||
+      normalizedServiceName.includes("24/7") ||
+      normalizedServiceName.includes("24 7") ||
       normalizedServiceName.includes("after hours")
     ) {
       return "emergency-plumbing";
@@ -1548,7 +1567,10 @@ export function getServiceFamilyKey(
       normalizedServiceName.includes("emergency septic") ||
       normalizedServiceName.includes("septic backup") ||
       normalizedServiceName.includes("septic overflow") ||
-      normalizedServiceName.includes("sewage backup")
+      normalizedServiceName.includes("sewage backup") ||
+      normalizedServiceName.includes("emergency service") ||
+      normalizedServiceName.includes("24/7 emergency service") ||
+      normalizedServiceName.includes("24 7 emergency service")
     ) {
       return "emergency-septic";
     }
@@ -1605,8 +1627,15 @@ export function getServiceFamilyKey(
     }
   }
 
-  if (industry === "TREE_SERVICE") {
-    if (normalizedServiceName.includes("storm")) return "storm-cleanup";
+    if (industry === "TREE_SERVICE") {
+    if (
+      normalizedServiceName.includes("storm") ||
+      (normalizedServiceName.includes("emergency") &&
+        normalizedServiceName.includes("service"))
+    ) {
+      return "storm-cleanup";
+    }
+
     if (normalizedServiceName.includes("stump")) return "stump-grinding";
         if (
       normalizedServiceName.includes("tree cabling") ||
