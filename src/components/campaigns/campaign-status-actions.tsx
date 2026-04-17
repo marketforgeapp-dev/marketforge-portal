@@ -150,7 +150,7 @@ export function CampaignStatusActions({
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {canApprove && (
+                        {canApprove && (
               <button
                 type="button"
                 disabled={isPending}
@@ -160,6 +160,7 @@ export function CampaignStatusActions({
                   startTransition(async () => {
                     try {
                       await approveCampaign(campaignId);
+                      router.push("/dashboard");
                       router.refresh();
                     } catch (error) {
                       console.error(error);
@@ -186,6 +187,7 @@ export function CampaignStatusActions({
                       router.refresh();
                     } catch (error) {
                       console.error(error);
+                    } finally {
                       setShowRefreshingOverlay(false);
                     }
                   });
@@ -209,6 +211,7 @@ export function CampaignStatusActions({
                       router.refresh();
                     } catch (error) {
                       console.error(error);
+                    } finally {
                       setShowRefreshingOverlay(false);
                     }
                   });
@@ -232,6 +235,7 @@ export function CampaignStatusActions({
                       router.refresh();
                     } catch (error) {
                       console.error(error);
+                    } finally {
                       setShowRefreshingOverlay(false);
                     }
                   });
@@ -255,6 +259,7 @@ export function CampaignStatusActions({
                       router.refresh();
                     } catch (error) {
                       console.error(error);
+                    } finally {
                       setShowRefreshingOverlay(false);
                     }
                   });
