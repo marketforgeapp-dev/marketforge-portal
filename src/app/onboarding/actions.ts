@@ -441,6 +441,8 @@ export async function saveOnboarding(input: unknown) {
 
     highestMarginService: toNullableString(values.highestMarginService),
     lowestPriorityService: toNullableString(values.lowestPriorityService),
+    promoteGeneralServiceActions: values.promoteGeneralServiceActions,
+    generalServiceHandledByPartner: values.generalServiceHandledByPartner,
 
     busySeason,
     slowSeason,

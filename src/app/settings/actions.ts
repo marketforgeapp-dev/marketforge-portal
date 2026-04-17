@@ -54,7 +54,7 @@ type RawSettingsInput = {
   promoteGeneralServiceActions?: unknown;
   generalServiceHandledByPartner?: unknown;
 
-    technicians?: unknown;
+  technicians?: unknown;
   jobsPerTechnicianPerDay?: unknown;
   weeklyCapacity?: unknown;
   targetWeeklyRevenue?: unknown;
