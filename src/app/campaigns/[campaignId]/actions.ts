@@ -12,6 +12,7 @@ function revalidateCampaignViews(campaignId: string) {
   revalidatePath(`/campaigns/${campaignId}`);
   revalidatePath("/campaigns");
   revalidatePath("/dashboard");
+  revalidatePath("/opportunities");
   revalidatePath("/execution");
   revalidatePath("/reports");
 }

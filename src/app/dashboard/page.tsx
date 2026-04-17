@@ -2,8 +2,6 @@ import { redirect } from "next/navigation";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { prisma } from "@/lib/prisma";
-import { seedDemoWorkspaceData } from "@/lib/seed-demo-workspace-data";
-import { seedDemoLeads } from "@/lib/seed-demo-leads";
 import { getRevenueCapturedSummary } from "@/lib/revenue-captured-summary";
 import { getOrCreateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
 import { deriveWorkspaceReputationSignal } from "@/lib/reputation-signals";
@@ -22,11 +20,6 @@ export default async function DashboardPage() {
 
   if (workspace.status === "PAST_DUE" || workspace.status === "CANCELED") {
     redirect("/settings");
-  }
-
-  if (workspace.isDemo && !workspace.demoInitializedAt) {
-    await seedDemoWorkspaceData(workspace.id);
-    await seedDemoLeads(workspace.id);
   }
 
   const profile = await prisma.businessProfile.findUnique({

@@ -9,8 +9,12 @@ import { getOrCreateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snaps
 export default async function OpportunitiesPage() {
   const workspace = await getCurrentWorkspace();
 
-  if (!workspace || !workspace.onboardingCompletedAt) {
+  if (!workspace || workspace.status === "PENDING_ACTIVATION") {
     redirect("/onboarding");
+  }
+
+  if (workspace.status === "PAST_DUE" || workspace.status === "CANCELED") {
+    redirect("/settings");
   }
 
   const profile = await prisma.businessProfile.findUnique({
