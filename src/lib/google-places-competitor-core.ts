@@ -478,6 +478,9 @@ function getIndustryConfig(
       ],
       positiveTerms: [
         "plumber",
+        "plumbers",
+        "plumb",
+        "superior",
         "plumbing",
         "drain",
         "water heater",
@@ -497,6 +500,7 @@ function getIndustryConfig(
         "roofing",
         "heating",
         "air",
+        "electric",
       ],
       websiteTerms: [
         "plumbing",
