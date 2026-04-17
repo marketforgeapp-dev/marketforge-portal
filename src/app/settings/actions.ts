@@ -51,6 +51,8 @@ type RawSettingsInput = {
   averageJobValue?: unknown;
   highestMarginService?: unknown;
   lowestPriorityService?: unknown;
+  promoteGeneralServiceActions?: unknown;
+  generalServiceHandledByPartner?: unknown;
 
     technicians?: unknown;
   jobsPerTechnicianPerDay?: unknown;
@@ -273,8 +275,10 @@ function normalizeSettingsInput(input: unknown) {
     averageJobValue: toNumberOrNull(raw.averageJobValue),
     highestMarginService: toNullableString(raw.highestMarginService),
     lowestPriorityService: toNullableString(raw.lowestPriorityService),
+    promoteGeneralServiceActions: toBoolean(raw.promoteGeneralServiceActions),
+    generalServiceHandledByPartner: toBoolean(raw.generalServiceHandledByPartner),
 
-        technicians: toNumberOrNull(raw.technicians),
+    technicians: toNumberOrNull(raw.technicians),
     jobsPerTechnicianPerDay: toNumberOrNull(raw.jobsPerTechnicianPerDay),
     weeklyCapacity: toNumberOrNull(raw.weeklyCapacity),
     targetWeeklyRevenue: toNumberOrNull(raw.targetWeeklyRevenue),
@@ -282,7 +286,7 @@ function normalizeSettingsInput(input: unknown) {
     
     competitors: normalizeCompetitors(raw.competitors),
 
-        hasServicePages: toBoolean(raw.hasServicePages),
+    hasServicePages: toBoolean(raw.hasServicePages),
     hasFaqContent: toBoolean(raw.hasFaqContent),
     hasFaqPage: toBoolean(raw.hasFaqPage),
     hasBlog: toBoolean(raw.hasBlog),
@@ -447,7 +451,7 @@ const selectedGoogleBusiness = normalizeSelectedGoogleBusiness(
     brandTone: values.brandTone,
     industryLabel: values.industryLabel,
 
-        averageJobValue: values.averageJobValue,
+    averageJobValue: values.averageJobValue,
     targetWeeklyRevenue: values.targetWeeklyRevenue,
     monthlyActionBudget: values.monthlyActionBudget,
     technicians: values.technicians,
@@ -459,6 +463,8 @@ const selectedGoogleBusiness = normalizeSelectedGoogleBusiness(
 
     highestMarginService: values.highestMarginService,
     lowestPriorityService: values.lowestPriorityService,
+    promoteGeneralServiceActions: values.promoteGeneralServiceActions,
+    generalServiceHandledByPartner: values.generalServiceHandledByPartner,
     servicePricingJson: values.servicePricing,
 
     busySeason,

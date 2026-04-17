@@ -107,7 +107,7 @@ export function ServicesStep({ formData, setFormData }: Props) {
         </div>
       </div>
 
-      <div>
+  <div>
   <p className="mb-3 text-sm text-slate-400">
     Optional: tell MarketForge which services are highest priority or lowest
     priority for your business. This helps fine-tune recommendation selection,
@@ -159,7 +159,66 @@ export function ServicesStep({ formData, setFormData }: Props) {
           />
         </Field>
       </div>
-          </div>
+      </div>
+            <div className="rounded-2xl border border-slate-700 bg-slate-900/40 p-4">
+        <p className="text-sm font-medium text-white">
+          General Service / Maintenance Controls
+        </p>
+
+        <p className="mt-2 text-xs leading-5 text-slate-400">
+          These controls apply only to broad general-service or maintenance-style
+          actions, not to specific named services like leak repair or water heater
+          replacement.
+        </p>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-950/40 px-4 py-3 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              checked={Boolean(formData.promoteGeneralServiceActions)}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  promoteGeneralServiceActions: e.target.checked,
+                }))
+              }
+              className="mt-1"
+            />
+            <div>
+              <p className="font-medium text-white">
+                Promote general service / maintenance actions
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Turn this on only if you want MarketForge to surface broad
+                general-service or maintenance-style opportunities.
+              </p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-950/40 px-4 py-3 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              checked={Boolean(formData.generalServiceHandledByPartner)}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  generalServiceHandledByPartner: e.target.checked,
+                }))
+              }
+              className="mt-1"
+            />
+            <div>
+              <p className="font-medium text-white">
+                General service / maintenance is handled by a third party
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Turn this on if broad service or maintenance work is handled by
+                an outside partner.
+              </p>
+            </div>
+          </label>
+        </div>
+      </div>
     </div>
   );
 }

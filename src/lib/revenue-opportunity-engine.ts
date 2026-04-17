@@ -457,6 +457,54 @@ function prettyServiceName(service: string): string {
     .join(" ");
 }
 
+function isGeneralServiceFamily(familyKey: string): boolean {
+  return new Set([
+    "general-plumbing",
+    "general-hvac-service",
+    "general-septic-service",
+    "general-tree-service",
+    "maintenance",
+    "hvac-maintenance",
+    "septic-maintenance",
+  ]).has(familyKey);
+}
+
+function shouldSuppressGeneralServiceFamily(params: {
+  profile: BusinessProfile;
+  familyKey: string;
+}): boolean {
+  if (!isGeneralServiceFamily(params.familyKey)) {
+    return false;
+  }
+
+  if (params.profile.generalServiceHandledByPartner) {
+    return true;
+  }
+
+  if (!params.profile.promoteGeneralServiceActions) {
+    return true;
+  }
+
+  return false;
+}
+
+function cleanServiceStyleDisplayLabel(params: {
+  familyKey: string;
+  displayMoveLabel: string;
+}): string {
+  if (isGeneralServiceFamily(params.familyKey)) {
+    return params.displayMoveLabel;
+  }
+
+  return params.displayMoveLabel
+    .replace(/\bRepair Service\b/gi, "Repair")
+    .replace(/\bReplacement Service\b/gi, "Replacement")
+    .replace(/\bInstallation Service\b/gi, "Installation")
+    .replace(/\bService Service\b/gi, "Service")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function buildOpportunityKey(params: {
   serviceName: string;
   opportunityType: OpportunityType;
@@ -1307,6 +1355,14 @@ function buildRevenueVariantCandidates(params: {
     enrichment,
     competitors,
   } = params;
+    if (
+    shouldSuppressGeneralServiceFamily({
+      profile,
+      familyKey: canonicalService.familyKey,
+    })
+  ) {
+    return [];
+  }
 
   const { score: competitorGapScore, narrative: competitorNarrative } =
     inferCompetitorGap(canonicalService.canonicalName, competitors);
@@ -1475,7 +1531,10 @@ function buildRevenueVariantCandidates(params: {
         bestMove,
       }),
       bestMove,
-      displayMoveLabel: displayContract.displayMoveLabel,
+            displayMoveLabel: cleanServiceStyleDisplayLabel({
+        familyKey: canonicalService.familyKey,
+        displayMoveLabel: displayContract.displayMoveLabel,
+      }),
       displaySummary: displayContract.displaySummary,
       imageKey: displayContract.imageKey,
       imageMode: displayContract.imageMode,

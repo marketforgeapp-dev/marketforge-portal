@@ -125,10 +125,12 @@ model BusinessProfile {
   industryLabel          String?
   brandTone              BrandTone?
 
-  averageJobValue       Decimal? @db.Decimal(10, 2)
-  highestMarginService  String?
-  lowestPriorityService String?
-  servicePricingJson    Json?
+  averageJobValue                Decimal? @db.Decimal(10, 2)
+  highestMarginService           String?
+  lowestPriorityService          String?
+  promoteGeneralServiceActions   Boolean  @default(false)
+  generalServiceHandledByPartner Boolean  @default(false)
+  servicePricingJson             Json?
 
   technicians             Int?
   jobsPerTechnicianPerDay Int?

@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { OnboardingFormData } from "@/types/onboarding";
@@ -64,6 +62,8 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   averageJobValue: 450,
   highestMarginService: "",
   lowestPriorityService: "",
+  promoteGeneralServiceActions: false,
+  generalServiceHandledByPartner: false,
 
   technicians: 3,
   jobsPerTechnicianPerDay: 3,

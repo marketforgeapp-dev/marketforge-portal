@@ -231,9 +231,17 @@ function sanitizeOnboardingInput(input: unknown) {
     })
     .filter((competitor) => competitor.name.length > 0);
 
-  return {
+    return {
     ...raw,
     competitors: sanitizedCompetitors,
+    promoteGeneralServiceActions:
+      typeof raw.promoteGeneralServiceActions === "boolean"
+        ? raw.promoteGeneralServiceActions
+        : false,
+    generalServiceHandledByPartner:
+      typeof raw.generalServiceHandledByPartner === "boolean"
+        ? raw.generalServiceHandledByPartner
+        : false,
   };
 }
 

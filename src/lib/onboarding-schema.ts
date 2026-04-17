@@ -69,6 +69,8 @@ export const onboardingSchema = z.object({
 
   highestMarginService: nullableString,
   lowestPriorityService: nullableString,
+  promoteGeneralServiceActions: z.boolean().optional().default(false),
+  generalServiceHandledByPartner: z.boolean().optional().default(false),
 
   busySeason: nullableString,
   slowSeason: nullableString,

@@ -31,6 +31,8 @@ export type OnboardingFormData = {
   }[];
   highestMarginService: string;
   lowestPriorityService: string;
+  promoteGeneralServiceActions: boolean;
+  generalServiceHandledByPartner: boolean;
 
   technicians: number | "";
   jobsPerTechnicianPerDay: number | "";
@@ -48,9 +50,9 @@ export type OnboardingFormData = {
   googleBusinessProfileUrl: string;
   servicePageUrls: string[];
   googlePlaceId: string | "";
-googleRating: number | "";
-googleReviewCount: number | "";
-selectedGoogleBusiness?: {
+  googleRating: number | "";
+  googleReviewCount: number | "";
+  selectedGoogleBusiness?: {
   placeId: string | null;
   name: string | null;
   formattedAddress: string | null;

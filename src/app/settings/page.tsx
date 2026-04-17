@@ -98,8 +98,10 @@ export default async function SettingsPage({
     ),
     highestMarginService: toFormString(profile.highestMarginService),
     lowestPriorityService: toFormString(profile.lowestPriorityService),
+    promoteGeneralServiceActions: profile.promoteGeneralServiceActions ?? false,
+    generalServiceHandledByPartner: profile.generalServiceHandledByPartner ?? false,
 
-        technicians: toFormNumber(profile.technicians),
+    technicians: toFormNumber(profile.technicians),
     jobsPerTechnicianPerDay: toFormNumber(profile.jobsPerTechnicianPerDay),
     weeklyCapacity: toFormNumber(profile.weeklyCapacity),
     targetWeeklyRevenue: toFormNumber(

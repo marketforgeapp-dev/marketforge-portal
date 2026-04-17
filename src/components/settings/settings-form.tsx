@@ -971,7 +971,7 @@ const result = await fetchBusinessCandidates({
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-gray-900">Capacity and Goals</h2>
             <SectionSaveButton onSave={handleSave} isPending={isPending} />
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field
             label="Average Job Value"
             helpText="MarketForge uses this as the default value estimate until service-level pricing is available for a specific opportunity."
@@ -1008,6 +1008,58 @@ const result = await fetchBusinessCandidates({
               }
             />
           </Field>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={Boolean(formData.promoteGeneralServiceActions)}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    promoteGeneralServiceActions: e.target.checked,
+                  }))
+                }
+                className="mt-1"
+              />
+
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Promote general service / maintenance actions
+                </p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  Turn this on only if you want MarketForge to surface broad
+                  general-service or maintenance-style actions.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={Boolean(formData.generalServiceHandledByPartner)}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    generalServiceHandledByPartner: e.target.checked,
+                  }))
+                }
+                className="mt-1"
+              />
+
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  General service / maintenance is handled by a third party
+                </p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  Turn this on if broad service or maintenance work is handled
+                  by an outside partner.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <Field label="Technicians">
             <input
@@ -1064,10 +1116,11 @@ const result = await fetchBusinessCandidates({
               }
             />
           </Field>
+
           <Field
-              label="Monthly Action Budget"
-              helpText="Confirm the amount you can typically invest each month in marketing, promotions, and growth actions. You can adjust it any time."
-              >
+            label="Monthly Action Budget"
+            helpText="Confirm the amount you can typically invest each month in marketing, promotions, and growth actions. You can adjust it any time."
+          >
             <input
               type="number"
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
