@@ -24,6 +24,7 @@ import {
   generateAndStoreCampaignImage,
   shouldGenerateAiImage,
 } from "@/lib/ai-images";
+import { refineTargetingWithAI } from "@/lib/targeting-ai";
 
 type CreateCampaignResult =
   | { success: true; campaignId: string; campaignName: string }
@@ -2227,22 +2228,109 @@ Return a single structured next-best-action plan.
     serviceName: effectiveActionThesis.primaryService,
   });
 
-      const actionSpec = buildActionSpec({
-    actionName: campaignName,
-    targetService: campaignDraft.targetService,
-    rawOffer: campaignDraft.offer,
-    rawAudience:
-      campaignDraft.audience ??
-      effectiveActionThesis.audience ??
-      resolvedOpportunity.actionThesis.audience,
-    cta: campaignDraft.cta,
-    actionSummary: effectiveActionThesis.summary,
-    actionType: effectiveActionType,
-    routedLane: routedIntent.lane,
-    opportunityType: resolvedOpportunity.opportunityType,
-    campaignType: campaignDraft.campaignType,
+  const actionSpec = buildActionSpec({
+  actionName: campaignName,
+  targetService: campaignDraft.targetService,
+  rawOffer: campaignDraft.offer,
+  rawAudience:
+    campaignDraft.audience ??
+    effectiveActionThesis.audience ??
+    resolvedOpportunity.actionThesis.audience,
+  cta: campaignDraft.cta,
+  actionSummary: effectiveActionThesis.summary,
+  actionType: effectiveActionType,
+  routedLane: routedIntent.lane,
+  opportunityType: resolvedOpportunity.opportunityType,
+  campaignType: campaignDraft.campaignType,
+  serviceArea: profile.serviceArea,
+  averageJobValue:
+    profile.averageJobValue != null
+      ? Number(profile.averageJobValue)
+      : null,
+});
+
+let refinedTargeting = null;
+
+try {
+  refinedTargeting = await refineTargetingWithAI({
+    service: actionSpec.targetService,
     serviceArea: profile.serviceArea,
+    demandType: actionSpec.targeting.base.service.demandType,
+    intentLevel: actionSpec.targeting.intent.level,
+    jobValueTier: actionSpec.targeting.economics.jobValueTier,
+    existingKeywordThemes:
+      actionSpec.targeting.platforms.googleAds.keywordThemes,
+    existingNegativeKeywords:
+      actionSpec.targeting.wasteControls.negativeKeywordThemes,
   });
+} catch (e) {
+  console.error("Targeting AI refinement failed", e);
+}
+
+if (refinedTargeting) {
+  if (Array.isArray(refinedTargeting.keywordThemes)) {
+  const baseKeywords =
+  actionSpec.targeting.platforms.googleAds.keywordThemes;
+
+if (Array.isArray(refinedTargeting.keywordThemes)) {
+  const cleaned = refinedTargeting.keywordThemes
+    .map((k: string) => k.toLowerCase().trim())
+    .filter((k: string) => k.length > 0)
+    .filter((k: string) => !k.includes("service service"))
+    .filter((k: string) => k.split(" ").length <= 5);
+
+  const allKeywords = Array.from(new Set([...baseKeywords, ...cleaned]));
+
+  // Intent scoring
+  const scored = allKeywords.map((k) => {
+    let score = 1;
+
+    if (k.includes("near me")) score += 3;
+    if (k.includes("emergency") || k.includes("urgent")) score += 3;
+    if (k.includes("cost") || k.includes("quote")) score += 2;
+    if (k.includes("company") || k.includes("service")) score += 1;
+
+    return { keyword: k, score };
+  });
+
+  // Sort by intent score
+  const sorted = scored
+    .sort((a, b) => b.score - a.score)
+    .map((k) => k.keyword);
+
+  // Keep top 6 highest intent keywords
+  actionSpec.targeting.platforms.googleAds.keywordThemes =
+    sorted.slice(0, 6);
+}
+  }
+
+  if (Array.isArray(refinedTargeting.negativeKeywords)) {
+    if (Array.isArray(refinedTargeting.negativeKeywords)) {
+  actionSpec.targeting.wasteControls.negativeKeywordThemes = Array.from(
+    new Set([
+      ...actionSpec.targeting.wasteControls.negativeKeywordThemes,
+      ...refinedTargeting.negativeKeywords.map((k: string) =>
+        k.toLowerCase().trim()
+      ),
+    ])
+  );
+}
+  }
+
+  if (Array.isArray(refinedTargeting.metaNotes)) {
+    actionSpec.targeting.platforms.meta.notes = [
+      ...actionSpec.targeting.platforms.meta.notes,
+      ...refinedTargeting.metaNotes,
+    ];
+  }
+
+  if (Array.isArray(refinedTargeting.refinementNotes)) {
+    actionSpec.targeting.summary.notes = [
+      ...actionSpec.targeting.summary.notes,
+      ...refinedTargeting.refinementNotes,
+    ];
+  }
+}
 
       const reviewAction = isReviewActionType({
     actionType: effectiveActionType,

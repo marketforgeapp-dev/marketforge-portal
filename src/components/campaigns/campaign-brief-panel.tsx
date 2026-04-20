@@ -54,6 +54,75 @@ type CampaignBriefData = {
       staff_behavior?: string[];
       website_or_landing_readiness?: string[];
     };
+    targeting?: {
+      mode?: string;
+      base?: {
+        geography?: {
+          type?: string;
+          value?: string[];
+        };
+        service?: {
+          primary?: string;
+          demandType?: string;
+        };
+        businessType?: string;
+        constraints?: string[];
+      };
+      intent?: {
+        level?: string;
+        purchaseUrgency?: number;
+        conversionLikelihood?: number;
+        rationale?: string;
+      };
+      economics?: {
+        jobValueTier?: string;
+        estimatedTicket?: number | null;
+        rationale?: string;
+      };
+      wasteControls?: {
+        excludeLowIntent?: boolean;
+        excludeDIY?: boolean;
+        excludeRenters?: boolean;
+        negativeKeywordThemes?: string[];
+        notes?: string[];
+      };
+      platforms?: {
+        googleAds?: {
+          locationTargets?: string[];
+          keywordThemes?: string[];
+          negativeKeywordThemes?: string[];
+          audienceObservationHints?: string[];
+          biddingFocus?: string;
+          notes?: string[];
+        };
+        meta?: {
+          locationTargets?: string[];
+          ageRange?: [number, number] | null;
+          homeownerFocus?: boolean;
+          interestThemes?: string[];
+          exclusions?: string[];
+          notes?: string[];
+        };
+        googleBusinessProfile?: {
+          locationTargets?: string[];
+          localIntentFocus?: string;
+          primaryServiceFocus?: string;
+          postAngle?: string;
+          visibilityGoal?: string;
+          notes?: string[];
+        };
+      };
+      summary?: {
+        audienceDescription?: string;
+        rationale?: string;
+        notes?: string[];
+      };
+      execution?: {
+        googleAds?: string[];
+        meta?: string[];
+        googleBusinessProfile?: string[];
+      };
+    };
   };
   parsedIntent?: {
     serviceCategory?: string;
@@ -159,6 +228,10 @@ export function CampaignBriefPanel({
   const parsed = parseBriefJson(briefJson);
 
   const actionSpec = parsed?.actionSpec;
+  const targeting = actionSpec?.targeting;
+  const googleAdsTargeting = targeting?.platforms?.googleAds;
+  const metaTargeting = targeting?.platforms?.meta;
+  const gbpTargeting = targeting?.platforms?.googleBusinessProfile;
   const parsedIntent = parsed?.parsedIntent;
   const opportunityCheck = parsed?.opportunityCheck;
   const actionThesis = parsed?.actionThesis;
@@ -633,8 +706,116 @@ export function CampaignBriefPanel({
                   </div>
                 </div>
               </div>
-
                             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  Targeting Readout
+                </p>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Targeting Mode
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(targeting?.mode)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Intent Level
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(targeting?.intent?.level)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Demand Type
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(targeting?.base?.service?.demandType)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Job Value Tier
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatLabel(targeting?.economics?.jobValueTier)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Location
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {targeting?.base?.geography?.value?.join(", ") || "Not recorded"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Targeting Rationale
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {targeting?.summary?.rationale || "No targeting rationale stored."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Google Ads Keyword Themes
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {googleAdsTargeting?.keywordThemes?.join(", ") || "Not recorded"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Waste Controls
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {targeting?.wasteControls?.negativeKeywordThemes?.join(", ") ||
+                        "Not recorded"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Meta Age Range
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {metaTargeting?.ageRange
+                        ? `${metaTargeting.ageRange[0]}-${metaTargeting.ageRange[1]}`
+                        : "Broad / not constrained"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Homeowner Focus
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {metaTargeting?.homeownerFocus ? "Yes" : "No"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3 sm:col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                      Google Business Profile Angle
+                    </p>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {gbpTargeting?.postAngle || "Not recorded"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                   Execution Readout
                 </p>
