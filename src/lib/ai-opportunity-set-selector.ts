@@ -4,6 +4,23 @@ import type { BusinessProfile, Competitor } from "@/generated/prisma";
 import type { RankedOpportunity } from "@/lib/revenue-opportunity-engine";
 import { openai } from "@/lib/openai";
 
+function aiSetElapsedMs(startedAt: number) {
+  return Date.now() - startedAt;
+}
+
+function logAiSetTiming(
+  label: string,
+  input: {
+    startedAt: number;
+    extra?: Record<string, unknown>;
+  }
+) {
+  console.log(`[ai-opportunity-set] ${label}`, {
+    elapsedMs: aiSetElapsedMs(input.startedAt),
+    ...(input.extra ?? {}),
+  });
+}
+
 const candidateBriefSchema = z.object({
   briefs: z.array(
     z.object({
@@ -133,6 +150,13 @@ async function buildCandidateBriefsWithAI(params: {
     return [];
   }
 
+  const startedAt = Date.now();
+
+  console.log("[ai-opportunity-set] CANDIDATE BRIEFING START", {
+    candidateCount: params.candidates.length,
+    competitorCount: params.competitors.length,
+  });
+
   try {
     const completion = await openai.chat.completions.parse({
       model: process.env.OPENAI_INTELLIGENCE_MODEL ?? "gpt-4.1-mini",
@@ -203,6 +227,14 @@ async function buildCandidateBriefsWithAI(params: {
       ),
     });
 
+    logAiSetTiming("CANDIDATE BRIEFING COMPLETE", {
+      startedAt,
+      extra: {
+        candidateCount: params.candidates.length,
+        briefCount: completion.choices[0]?.message.parsed?.briefs?.length ?? 0,
+      },
+    });
+
     return completion.choices[0]?.message.parsed?.briefs ?? [];
   } catch (error) {
     console.error("[ai-opportunity-set-selector] candidate briefing failed", error);
@@ -241,12 +273,25 @@ export async function selectOpportunitySetWithAI(params: {
   if (params.candidates.length === 0) {
     return null;
   }
+  const startedAt = Date.now();
 
+  console.log("[ai-opportunity-set] SELECTION START", {
+    candidateCount: params.candidates.length,
+    targetVisibleCount: visibleCount,
+    competitorCount: params.competitors.length,
+  });
   try {
     const briefs = await buildCandidateBriefsWithAI({
       profile: params.profile,
       candidates: params.candidates,
       competitors: params.competitors,
+    });
+
+    logAiSetTiming("AFTER CANDIDATE BRIEFING", {
+      startedAt,
+      extra: {
+        briefCount: briefs.length,
+      },
     });
 
     const completion = await openai.chat.completions.parse({
@@ -328,6 +373,15 @@ export async function selectOpportunitySetWithAI(params: {
         aiOpportunitySetSchema,
         "marketforge_ai_opportunity_set"
       ),
+    });
+
+    logAiSetTiming("SELECTION COMPLETE", {
+      startedAt,
+      extra: {
+        candidateCount: params.candidates.length,
+        visibleKeyCount:
+          completion.choices[0]?.message.parsed?.visibleOpportunityKeys?.length ?? 0,
+      },
     });
 
     return completion.choices[0]?.message.parsed ?? null;

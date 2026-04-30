@@ -5,7 +5,10 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { CampaignStatus } from "@/generated/prisma";
-import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
+import {
+  invalidateWorkspaceOpportunitySnapshot,
+  refreshWorkspaceOpportunitySnapshotFromDecisionCache,
+} from "@/lib/opportunity-snapshot";
 import { sendCampaignApprovalNotification } from "@/lib/email/send-campaign-approval-notification";
 
 function revalidateCampaignViews(campaignId: string) {
@@ -71,7 +74,26 @@ export async function approveCampaign(campaignId: string) {
 
   await notifyCampaignApproved(campaignId);
 
+  const refreshedSnapshot =
+  await refreshWorkspaceOpportunitySnapshotFromDecisionCache(
+    campaign.workspaceId
+  );
+
+if (!refreshedSnapshot) {
+  console.log("[campaign-approval] decision cache unavailable; falling back to full snapshot invalidation", {
+    campaignId,
+    workspaceId: campaign.workspaceId,
+  });
+
   await invalidateWorkspaceOpportunitySnapshot(campaign.workspaceId);
+} else {
+  console.log("[campaign-approval] refreshed visible recommendations from decision cache", {
+    campaignId,
+    workspaceId: campaign.workspaceId,
+    topOpportunityKey: refreshedSnapshot.topOpportunity.opportunityKey,
+    backlogCount: refreshedSnapshot.backlogOpportunities.length,
+  });
+}
 
   revalidateCampaignViews(campaignId);
 }
@@ -93,7 +115,10 @@ export async function queueCampaignForLaunch(campaignId: string) {
     },
   });
 
-  await invalidateWorkspaceOpportunitySnapshot(campaign.workspaceId);
+  console.log("[campaign-status] skipped snapshot invalidation for queue transition", {
+    campaignId,
+    workspaceId: campaign.workspaceId,
+  });
 
   revalidateCampaignViews(campaignId);
 }

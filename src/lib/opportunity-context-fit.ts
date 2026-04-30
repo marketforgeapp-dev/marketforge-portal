@@ -7,6 +7,23 @@ import type {
 } from "@/lib/opportunity-signal-enrichment";
 import { openai } from "@/lib/openai";
 
+function contextElapsedMs(startedAt: number) {
+  return Date.now() - startedAt;
+}
+
+function logContextTiming(
+  label: string,
+  input: {
+    startedAt: number;
+    extra?: Record<string, unknown>;
+  }
+) {
+  console.log(`[opportunity-context-fit] ${label}`, {
+    elapsedMs: contextElapsedMs(input.startedAt),
+    ...(input.extra ?? {}),
+  });
+}
+
 export type OpportunitySurfaceDecision =
   | "hero"
   | "surface"
@@ -456,9 +473,15 @@ export async function getAiContextFitBatch(params: {
 }): Promise<Map<string, AiContextFitResult>> {
   const result = new Map<string, AiContextFitResult>();
 
-  if (params.candidates.length === 0) {
+    if (params.candidates.length === 0) {
     return result;
   }
+
+  const startedAt = Date.now();
+
+  console.log("[opportunity-context-fit] AI CONTEXT FIT START", {
+    candidateCount: params.candidates.length,
+  });
 
   try {
     const completion = await openai.chat.completions.parse({
@@ -500,6 +523,15 @@ export async function getAiContextFitBatch(params: {
         },
       ],
       response_format: zodResponseFormat(aiResultSchema, "marketforge_context_fit"),
+        });
+
+    logContextTiming("AI CONTEXT FIT COMPLETE", {
+      startedAt,
+      extra: {
+        candidateCount: params.candidates.length,
+        evaluationCount:
+          completion.choices[0]?.message?.parsed?.evaluations?.length ?? 0,
+      },
     });
 
     const parsed = completion.choices[0]?.message?.parsed;
@@ -513,7 +545,13 @@ export async function getAiContextFitBatch(params: {
     }
 
     return result;
-  } catch {
+    } catch (error) {
+    console.error("[opportunity-context-fit] AI CONTEXT FIT FAILED", {
+      candidateCount: params.candidates.length,
+      elapsedMs: contextElapsedMs(startedAt),
+      error,
+    });
+
     return result;
   }
 }

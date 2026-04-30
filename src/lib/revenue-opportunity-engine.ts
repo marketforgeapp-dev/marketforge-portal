@@ -38,6 +38,23 @@ import {
   getAiContextFitBatch,
 } from "@/lib/opportunity-context-fit";
 
+function engineElapsedMs(startedAt: number) {
+  return Date.now() - startedAt;
+}
+
+function logEngineTiming(
+  label: string,
+  input: {
+    startedAt: number;
+    extra?: Record<string, unknown>;
+  }
+) {
+  console.log(`[revenue-engine] ${label}`, {
+    elapsedMs: engineElapsedMs(input.startedAt),
+    ...(input.extra ?? {}),
+  });
+}
+
 export type OpportunitySourceTag =
   | "Demand"
   | "Competitor"
@@ -2109,7 +2126,16 @@ export async function buildRevenueOpportunityEngine(params: {
   competitors: Competitor[];
   performanceSignals?: CampaignPerformanceSignalMap;
 }): Promise<RevenueOpportunityEngineResult> {
+   
   const { profile, competitors, performanceSignals } = params;
+
+  const engineStartedAt = Date.now();
+
+    console.log("[revenue-engine] BUILD START", {
+      workspaceId: profile.workspaceId,
+      businessName: profile.businessName,
+      competitorCount: competitors.length,
+    });
 
   const canonicalServices = buildCanonicalServices(profile);
   const industry = getProfileIndustry(profile);
@@ -2135,8 +2161,15 @@ export async function buildRevenueOpportunityEngine(params: {
               isLowestPriority: false,
             } satisfies CanonicalService;
           });
-
+  
+  const canonicalStartedAt = Date.now();
   const servicesForEngine = [...fallbackServices];
+  logEngineTiming("AFTER canonical services", {
+    startedAt: canonicalStartedAt,
+    extra: {
+      serviceCount: servicesForEngine.length,
+    },
+  });
 
   const { availableJobsEstimate, capacityScore, capacityFit } = inferCapacity(profile);
   const baseConfidenceScore = inferConfidence(profile, competitors);
@@ -2146,7 +2179,7 @@ export async function buildRevenueOpportunityEngine(params: {
     ...servicesForEngine.map((service) => service.canonicalName),
     ...servicesForEngine.map((service) => service.familyKey),
   ]);
-
+  const enrichmentStartedAt = Date.now();
   const enrichmentMap = await getOpportunitySignalEnrichment({
     profile: {
       businessName: profile.businessName,
@@ -2165,7 +2198,13 @@ export async function buildRevenueOpportunityEngine(params: {
     },
     serviceNames: enrichmentRequestNames,
   });
-
+  logEngineTiming("AFTER signal enrichment", {
+    startedAt: enrichmentStartedAt,
+    extra: {
+      enrichmentCount: enrichmentMap.size,
+    },
+  });
+  const candidateBuildStartedAt = Date.now();
   const candidateBuckets = servicesForEngine.flatMap((canonicalService) => {
     const enrichment =
       enrichmentMap.get(normalize(canonicalService.canonicalName)) ??
@@ -2187,6 +2226,12 @@ export async function buildRevenueOpportunityEngine(params: {
       competitors,
     });
   });
+  logEngineTiming("AFTER candidate buckets", {
+    startedAt: candidateBuildStartedAt,
+    extra: {
+      candidateBucketCount: candidateBuckets.length,
+    },
+  });
 
   const visibilityCandidate = buildVisibilityCandidate({
     profile,
@@ -2201,15 +2246,23 @@ export async function buildRevenueOpportunityEngine(params: {
 
   const governedCandidates = limitCandidatesPerFamily(rawCandidates);
 
+  const contextFitStartedAt = Date.now();
   const contextFitCandidates = await applyContextAndAiScoring({
     profile,
     candidates: governedCandidates,
     visibilityGapScore,
     competitors,
   });
+  logEngineTiming("AFTER context and AI scoring", {
+    startedAt: contextFitStartedAt,
+    extra: {
+      contextFitCandidateCount: contextFitCandidates.length,
+    },
+  });
 
   const defaultAvgJobValue = Number(profile.averageJobValue ?? 450);
 
+  const rankingStartedAt = Date.now();
   const rankedOpportunities = applyOpportunityScoreIndex(
     contextFitCandidates.map((candidate) =>
       buildRankedOpportunity({
@@ -2226,6 +2279,12 @@ export async function buildRevenueOpportunityEngine(params: {
       })
     )
   );
+  logEngineTiming("AFTER ranking", {
+    startedAt: rankingStartedAt,
+    extra: {
+      rankedOpportunityCount: rankedOpportunities.length,
+    },
+  });
 
   const top =
     rankedOpportunities.find(
@@ -2245,6 +2304,14 @@ export async function buildRevenueOpportunityEngine(params: {
   if (!top) {
     throw new Error("Revenue opportunity engine produced no opportunities.");
   }
+
+  logEngineTiming("BUILD COMPLETE", {
+    startedAt: engineStartedAt,
+    extra: {
+      rankedOpportunityCount: rankedOpportunities.length,
+      topOpportunityKey: top.opportunityKey,
+    },
+  });
 
   return {
     hero: buildRevenueOpportunityHero({

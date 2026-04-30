@@ -242,6 +242,101 @@ function normalizeServicePricing(value: unknown) {
     .filter((item) => item.serviceName.length > 0);
 }
 
+function normalizeComparable(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeOptionalComparable(value: string | null | undefined): string {
+  return normalizeComparable(value);
+}
+
+function arraysEqualIgnoreOrder(a: string[], b: string[]) {
+  const left = [...a].map(normalizeComparable).sort();
+  const right = [...b].map(normalizeComparable).sort();
+
+  if (left.length !== right.length) return false;
+
+  return left.every((value, index) => value === right[index]);
+}
+
+function servicePricingEqual(
+  a: Array<{ serviceName: string; averageRevenue: number | null }>,
+  b: Array<{ serviceName: string; averageRevenue: number | null }>
+) {
+  const normalizeRows = (
+    rows: Array<{ serviceName: string; averageRevenue: number | null }>
+  ) =>
+    rows
+      .map((row) => ({
+        serviceName: normalizeComparable(row.serviceName),
+        averageRevenue: row.averageRevenue ?? null,
+      }))
+      .sort((left, right) => left.serviceName.localeCompare(right.serviceName));
+
+  const left = normalizeRows(a);
+  const right = normalizeRows(b);
+
+  if (left.length !== right.length) return false;
+
+  return left.every((row, index) => {
+    const other = right[index];
+
+    return (
+      row.serviceName === other.serviceName &&
+      row.averageRevenue === other.averageRevenue
+    );
+  });
+}
+
+function existingServicePricingFromProfile(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is Record<string, unknown> => isRecord(item))
+    .map((item) => ({
+      serviceName: toTrimmedString(item.serviceName),
+      averageRevenue: toNumberOrNull(item.averageRevenue),
+    }))
+    .filter((item) => item.serviceName.length > 0);
+}
+
+function toComparableNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const numericValue =
+    typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function competitorInputKey(input: {
+  name: string;
+  websiteUrl: string;
+  googleBusinessUrl: string;
+}) {
+  return [
+    normalizeComparable(input.name),
+    normalizeOptionalComparable(input.websiteUrl),
+    normalizeOptionalComparable(input.googleBusinessUrl),
+  ].join("|");
+}
+
+function existingCompetitorKey(input: {
+  name: string | null;
+  websiteUrl: string | null;
+  googleBusinessUrl: string | null;
+}) {
+  return [
+    normalizeComparable(input.name),
+    normalizeOptionalComparable(input.websiteUrl),
+    normalizeOptionalComparable(input.googleBusinessUrl),
+  ].join("|");
+}
+
 function normalizeSettingsInput(input: unknown) {
   const raw: RawSettingsInput = isRecord(input) ? input : {};
 
@@ -315,24 +410,33 @@ export async function saveSettings(input: unknown) {
   const values = normalizeSettingsInput(input);
 
   const user = await prisma.user.findUnique({
-    where: { clerkUserId },
-    include: {
-      workspaces: {
-        include: {
-          workspace: true,
-        },
-        orderBy: {
-          createdAt: "asc",
+  where: { clerkUserId },
+  include: {
+    workspaces: {
+      include: {
+        workspace: {
+          include: {
+            businessProfile: true,
+            competitors: {
+              orderBy: [{ isPrimaryCompetitor: "desc" }, { createdAt: "asc" }],
+            },
+          },
         },
       },
+      orderBy: {
+        createdAt: "asc",
+      },
     },
-  });
+  },
+});
 
   if (!user || user.workspaces.length === 0) {
     throw new Error("Workspace not found");
   }
 
   const workspace = user.workspaces[0].workspace;
+  const existingProfile = workspace.businessProfile;
+  const existingCompetitors = workspace.competitors;
 
   const preferredServices =
     values.preferredServices.length > 0
@@ -404,29 +508,51 @@ const selectedGoogleBusiness = normalizeSelectedGoogleBusiness(
       rating: toNumberOrNull(values.googleRating),
       reviewCount: toNumberOrNull(values.googleReviewCount),
     };
-  } else {
-    const fallbackCandidates = await lookupBusinessCandidates({
-  companyName: values.businessName,
-  industry: values.industry,
-  city: values.city,
-  state: values.state,
-  website: values.website,
-  phone: values.phone,
-}).catch(() => []);
+  } else if (
+  existingProfile &&
+  (
+    existingProfile.googlePlaceId ||
+    existingProfile.googleRating !== null ||
+    existingProfile.googleReviewCount !== null
+  )
+) {
+  resolvedBusinessGoogleMatch = {
+    placeId: existingProfile.googlePlaceId ?? null,
+    googleBusinessUrl: existingProfile.googleBusinessProfileUrl ?? null,
+    rating: existingProfile.googleRating ?? null,
+    reviewCount: existingProfile.googleReviewCount ?? null,
+  };
+} else {
+  const fallbackStartedAt = Date.now();
 
-    const fallback = fallbackCandidates[0] ?? null;
+  const fallbackCandidates = await lookupBusinessCandidates({
+    companyName: values.businessName,
+    industry: values.industry,
+    city: values.city,
+    state: values.state,
+    website: values.website,
+    phone: values.phone,
+  }).catch(() => []);
 
-    if (fallback) {
-      resolvedBusinessGoogleMatch = {
-        placeId: fallback.placeId,
-        googleBusinessUrl:
-          fallback.googleBusinessUrl ??
-          toNullableString(values.googleBusinessProfileUrl),
-        rating: fallback.rating,
-        reviewCount: fallback.reviewCount,
-      };
-    }
+  console.log("[settings] Google business fallback lookup completed", {
+    workspaceId: workspace.id,
+    candidateCount: fallbackCandidates.length,
+    elapsedMs: Date.now() - fallbackStartedAt,
+  });
+
+  const fallback = fallbackCandidates[0] ?? null;
+
+  if (fallback) {
+    resolvedBusinessGoogleMatch = {
+      placeId: fallback.placeId,
+      googleBusinessUrl:
+        fallback.googleBusinessUrl ??
+        toNullableString(values.googleBusinessProfileUrl),
+      rating: fallback.rating,
+      reviewCount: fallback.reviewCount,
+    };
   }
+}
 
   const aeoReadinessScore = calculateAeoReadinessScore({
     hasServicePages: values.hasServicePages,
@@ -494,6 +620,150 @@ servicePageUrls: values.servicePageUrls,
 aeoReadinessScore,
   };
 
+const existingServicePricing = existingServicePricingFromProfile(
+  existingProfile?.servicePricingJson
+);
+
+const decisionImpactReasons: string[] = [];
+
+if (!existingProfile) {
+  decisionImpactReasons.push("missing_existing_profile");
+} else {
+  const existingAverageJobValue = toComparableNullableNumber(
+    existingProfile.averageJobValue
+  );
+  const nextAverageJobValue = toComparableNullableNumber(values.averageJobValue);
+
+  if (existingAverageJobValue !== nextAverageJobValue) {
+    decisionImpactReasons.push("average_job_value");
+  }
+
+  if (
+    !arraysEqualIgnoreOrder(
+      existingProfile.preferredServices ?? [],
+      preferredServices
+    )
+  ) {
+    decisionImpactReasons.push("preferred_services");
+  }
+
+  if (
+    !arraysEqualIgnoreOrder(
+      existingProfile.deprioritizedServices ?? [],
+      deprioritizedServices
+    )
+  ) {
+    decisionImpactReasons.push("deprioritized_services");
+  }
+
+  if (
+    normalizeComparable(existingProfile.highestMarginService) !==
+    normalizeComparable(values.highestMarginService)
+  ) {
+    decisionImpactReasons.push("highest_margin_service");
+  }
+
+  if (
+    normalizeComparable(existingProfile.lowestPriorityService) !==
+    normalizeComparable(values.lowestPriorityService)
+  ) {
+    decisionImpactReasons.push("lowest_priority_service");
+  }
+
+  if (
+    existingProfile.promoteGeneralServiceActions !==
+    values.promoteGeneralServiceActions
+  ) {
+    decisionImpactReasons.push("promote_general_service_actions");
+  }
+
+  if (
+    existingProfile.generalServiceHandledByPartner !==
+    values.generalServiceHandledByPartner
+  ) {
+    decisionImpactReasons.push("general_service_handled_by_partner");
+  }
+
+  if (
+    toComparableNullableNumber(existingProfile.technicians) !==
+    toComparableNullableNumber(values.technicians)
+  ) {
+    decisionImpactReasons.push("technicians");
+  }
+
+  if (
+    toComparableNullableNumber(existingProfile.jobsPerTechnicianPerDay) !==
+    toComparableNullableNumber(values.jobsPerTechnicianPerDay)
+  ) {
+    decisionImpactReasons.push("jobs_per_technician_per_day");
+  }
+
+  if (
+    toComparableNullableNumber(existingProfile.weeklyCapacity) !==
+    toComparableNullableNumber(values.weeklyCapacity)
+  ) {
+    decisionImpactReasons.push("weekly_capacity");
+  }
+
+  if (!servicePricingEqual(existingServicePricing, values.servicePricing)) {
+    decisionImpactReasons.push("service_pricing");
+  }
+
+  if (existingProfile.hasFaqContent !== values.hasFaqContent) {
+    decisionImpactReasons.push("has_faq_content");
+  }
+
+  if (existingProfile.hasBlog !== values.hasBlog) {
+    decisionImpactReasons.push("has_blog");
+  }
+
+  if (existingProfile.hasGoogleBusinessPage !== values.hasGoogleBusinessPage) {
+    decisionImpactReasons.push("has_google_business_page");
+  }
+
+  if (existingProfile.hasServicePages !== values.hasServicePages) {
+    decisionImpactReasons.push("has_service_pages");
+  }
+
+  if (
+    !arraysEqualIgnoreOrder(
+      existingProfile.servicePageUrls ?? [],
+      values.servicePageUrls
+    )
+  ) {
+    decisionImpactReasons.push("service_page_urls");
+  }
+
+  if (
+    normalizeComparable(existingProfile.googlePlaceId) !==
+    normalizeComparable(resolvedBusinessGoogleMatch?.placeId)
+  ) {
+    decisionImpactReasons.push("google_place_id");
+  }
+
+  if (
+    toComparableNullableNumber(existingProfile.googleRating) !==
+    toComparableNullableNumber(resolvedBusinessGoogleMatch?.rating)
+  ) {
+    decisionImpactReasons.push("google_rating");
+  }
+
+  if (
+    toComparableNullableNumber(existingProfile.googleReviewCount) !==
+    toComparableNullableNumber(resolvedBusinessGoogleMatch?.reviewCount)
+  ) {
+    decisionImpactReasons.push("google_review_count");
+  }
+}
+
+const decisionImpactingSettingsChanged = decisionImpactReasons.length > 0;
+
+console.log("[settings] decision impact check", {
+  workspaceId: workspace.id,
+  decisionImpactingSettingsChanged,
+  decisionImpactReasons,
+});
+
   await prisma.businessProfile.upsert({
     where: { workspaceId: workspace.id },
     update: businessProfileData,
@@ -503,73 +773,155 @@ aeoReadinessScore,
     },
   });
 
-  await prisma.competitor.deleteMany({
-    where: { workspaceId: workspace.id },
-  });
+  const existingCompetitorsByKey = new Map(
+  existingCompetitors.map((competitor) => [
+    existingCompetitorKey({
+      name: competitor.name,
+      websiteUrl: competitor.websiteUrl,
+      googleBusinessUrl: competitor.googleBusinessUrl,
+    }),
+    competitor,
+  ])
+);
 
-  const enrichedCompetitors = await Promise.all(
-    values.competitors.map(async (competitor) => {
-      const trimmedName = competitor.name.trim();
-      const manualWebsiteUrl = toNullableString(competitor.websiteUrl);
-      const manualGoogleBusinessUrl = toNullableString(
-        competitor.googleBusinessUrl
-      );
-      const manualLogoUrl = toNullableString(competitor.logoUrl);
+let competitorSetChanged = existingCompetitors.length !== values.competitors.length;
+let googleCompetitorLookupCount = 0;
 
-      const discoveredMatch =
-        trimmedName.length > 0
-          ? await lookupSingleCompetitor({
-              companyName: trimmedName,
-              industry: values.industry,
-              city: values.city,
-              state: values.state,
-              website: manualWebsiteUrl,
-            })
-          : null;
+await prisma.competitor.deleteMany({
+  where: { workspaceId: workspace.id },
+});
+
+const enrichedCompetitors = await Promise.all(
+  values.competitors.map(async (competitor) => {
+    const trimmedName = competitor.name.trim();
+    const manualWebsiteUrl = toNullableString(competitor.websiteUrl);
+    const manualGoogleBusinessUrl = toNullableString(
+      competitor.googleBusinessUrl
+    );
+    const manualLogoUrl = toNullableString(competitor.logoUrl);
+
+    const existingCompetitor = existingCompetitorsByKey.get(
+      competitorInputKey({
+        name: trimmedName,
+        websiteUrl: competitor.websiteUrl,
+        googleBusinessUrl: competitor.googleBusinessUrl,
+      })
+    );
+
+    if (existingCompetitor) {
+      if (
+        existingCompetitor.isPrimaryCompetitor !== competitor.isPrimaryCompetitor
+      ) {
+        competitorSetChanged = true;
+      }
 
       return {
         workspaceId: workspace.id,
-        name: trimmedName,
-        websiteUrl: manualWebsiteUrl ?? discoveredMatch?.websiteUrl ?? null,
-        googleBusinessUrl:
-          manualGoogleBusinessUrl ?? discoveredMatch?.googleBusinessUrl ?? null,
-        logoUrl: manualLogoUrl ?? discoveredMatch?.logoUrl ?? null,
+        name: existingCompetitor.name,
+        websiteUrl: existingCompetitor.websiteUrl,
+        googleBusinessUrl: existingCompetitor.googleBusinessUrl,
+        logoUrl: manualLogoUrl ?? existingCompetitor.logoUrl,
         isPrimaryCompetitor: competitor.isPrimaryCompetitor,
-        notes: discoveredMatch?.whyItMatters ?? null,
-        serviceFocus: discoveredMatch?.serviceFocus ?? [],
-        googlePlaceId: discoveredMatch?.placeId ?? null,
-
-rating:
-  typeof discoveredMatch?.rating === "number"
-    ? discoveredMatch.rating
-    : null,
-
-reviewCount:
-  typeof discoveredMatch?.reviewCount === "number"
-    ? discoveredMatch.reviewCount
-    : null,
-
-lastEnrichedAt:
-  typeof discoveredMatch?.rating === "number" ||
-  typeof discoveredMatch?.reviewCount === "number"
-    ? new Date()
-    : null,
-        isRunningAds: null,
-        isPostingActively: null,
-        hasActivePromo: null,
-        reviewVelocity: null,
-        signalSummary: discoveredMatch?.whyItMatters ?? null,
+        notes: existingCompetitor.notes,
+        serviceFocus: existingCompetitor.serviceFocus,
+        googlePlaceId: existingCompetitor.googlePlaceId,
+        rating: existingCompetitor.rating,
+        reviewCount: existingCompetitor.reviewCount,
+        lastEnrichedAt: existingCompetitor.lastEnrichedAt,
+        isRunningAds: existingCompetitor.isRunningAds,
+        isPostingActively: existingCompetitor.isPostingActively,
+        hasActivePromo: existingCompetitor.hasActivePromo,
+        reviewVelocity: existingCompetitor.reviewVelocity,
+        signalSummary: existingCompetitor.signalSummary,
       };
-    })
-  );
+    }
 
-  if (enrichedCompetitors.length > 0) {
-    await prisma.competitor.createMany({
-      data: enrichedCompetitors,
+    competitorSetChanged = true;
+
+    const lookupStartedAt = Date.now();
+    googleCompetitorLookupCount += 1;
+
+    const discoveredMatch =
+      trimmedName.length > 0
+        ? await lookupSingleCompetitor({
+            companyName: trimmedName,
+            industry: values.industry,
+            city: values.city,
+            state: values.state,
+            website: manualWebsiteUrl,
+          })
+        : null;
+
+    console.log("[settings] Google competitor lookup completed", {
+      workspaceId: workspace.id,
+      competitorName: trimmedName,
+      foundMatch: Boolean(discoveredMatch),
+      elapsedMs: Date.now() - lookupStartedAt,
     });
-  }
 
+    return {
+      workspaceId: workspace.id,
+      name: trimmedName,
+      websiteUrl: manualWebsiteUrl ?? discoveredMatch?.websiteUrl ?? null,
+      googleBusinessUrl:
+        manualGoogleBusinessUrl ?? discoveredMatch?.googleBusinessUrl ?? null,
+      logoUrl: manualLogoUrl ?? discoveredMatch?.logoUrl ?? null,
+      isPrimaryCompetitor: competitor.isPrimaryCompetitor,
+      notes: discoveredMatch?.whyItMatters ?? null,
+      serviceFocus: discoveredMatch?.serviceFocus ?? [],
+      googlePlaceId: discoveredMatch?.placeId ?? null,
+
+      rating:
+        typeof discoveredMatch?.rating === "number"
+          ? discoveredMatch.rating
+          : null,
+
+      reviewCount:
+        typeof discoveredMatch?.reviewCount === "number"
+          ? discoveredMatch.reviewCount
+          : null,
+
+      lastEnrichedAt:
+        typeof discoveredMatch?.rating === "number" ||
+        typeof discoveredMatch?.reviewCount === "number"
+          ? new Date()
+          : null,
+      isRunningAds: null,
+      isPostingActively: null,
+      hasActivePromo: null,
+      reviewVelocity: null,
+      signalSummary: discoveredMatch?.whyItMatters ?? null,
+    };
+  })
+);
+
+if (enrichedCompetitors.length > 0) {
+  await prisma.competitor.createMany({
+    data: enrichedCompetitors,
+  });
+}
+
+console.log("[settings] competitor save summary", {
+  workspaceId: workspace.id,
+  submittedCompetitorCount: values.competitors.length,
+  existingCompetitorCount: existingCompetitors.length,
+  googleCompetitorLookupCount,
+  competitorSetChanged,
+});
+
+if (decisionImpactingSettingsChanged || competitorSetChanged) {
   await invalidateWorkspaceOpportunitySnapshot(workspace.id);
+
+  console.log("[settings] invalidated opportunity snapshot", {
+    workspaceId: workspace.id,
+    decisionImpactingSettingsChanged,
+    competitorSetChanged,
+  });
+} else {
+  console.log("[settings] skipped opportunity snapshot invalidation", {
+    workspaceId: workspace.id,
+  });
+}
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");

@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { ensureWorkspaceReputationFreshForWeek } from "@/lib/reputation-refresh";
+import { Prisma } from "@/generated/prisma";
+import {
+  ensureWorkspaceReputationFreshForWeek,
+  type ReputationRefreshResult,
+} from "@/lib/reputation-refresh";
 import {
   type RevenueOpportunityHero,
   buildRevenueOpportunityHero,
@@ -10,7 +14,9 @@ import { selectRevenueOpportunities } from "@/lib/select-revenue-opportunities";
 import { selectOpportunitySetWithAI } from "@/lib/ai-opportunity-set-selector";
 import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
 
-const SNAPSHOT_TTL_HOURS = 4;
+const SNAPSHOT_COMPATIBILITY_EXPIRY_YEARS = 10;
+const REQUIRED_VISIBLE_OPPORTUNITY_COUNT = 6;
+const REQUIRED_BACKLOG_OPPORTUNITY_COUNT = 5;
 
 export type WorkspaceOpportunitySnapshotPayload = {
   hero: RevenueOpportunityHero;
@@ -20,6 +26,14 @@ export type WorkspaceOpportunitySnapshotPayload = {
   fromCache: boolean;
 };
 
+export type WeeklyWorkspaceSignalRefreshResult = {
+  workspaceId: string;
+  elapsedMs: number;
+  reputationRefresh: ReputationRefreshResult;
+  snapshotInvalidated: boolean;
+  invalidationReason: string | null;
+};
+
 const inFlightSnapshotBuilds = new Map<
   string,
   Promise<WorkspaceOpportunitySnapshotPayload>
@@ -27,16 +41,35 @@ const inFlightSnapshotBuilds = new Map<
 
 function getExpiryDate() {
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + SNAPSHOT_TTL_HOURS);
+  expiresAt.setFullYear(
+    expiresAt.getFullYear() + SNAPSHOT_COMPATIBILITY_EXPIRY_YEARS
+  );
   return expiresAt;
 }
 
 function isSnapshotUsable(snapshot: {
   invalidatedAt: Date | null;
-  expiresAt: Date;
 }) {
-  if (snapshot.invalidatedAt) return false;
-  return snapshot.expiresAt.getTime() > Date.now();
+  return !snapshot.invalidatedAt;
+}
+
+function elapsedMs(startedAt: number) {
+  return Date.now() - startedAt;
+}
+
+function logSnapshotTiming(
+  label: string,
+  input: {
+    workspaceId: string;
+    startedAt: number;
+    extra?: Record<string, unknown>;
+  }
+) {
+  console.log(`[snapshot] ${label}`, {
+    workspaceId: input.workspaceId,
+    elapsedMs: elapsedMs(input.startedAt),
+    ...(input.extra ?? {}),
+  });
 }
 
 function parseHero(value: unknown): RevenueOpportunityHero {
@@ -50,6 +83,13 @@ function parseTopOpportunity(value: unknown): SelectedOpportunity {
 function parseBacklog(value: unknown): SelectedOpportunity[] {
   if (!Array.isArray(value)) return [];
   return value as SelectedOpportunity[];
+}
+
+function parseDecisionSpace(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value as Awaited<
+    ReturnType<typeof buildRevenueOpportunityEngine>
+  >["rankedOpportunities"];
 }
 
 function uniqueByOpportunityKey(
@@ -68,6 +108,62 @@ function uniqueByOpportunityKey(
   }
 
   return output;
+}
+
+function buildFastVisibleSetFromCachedDecisionSpace(params: {
+  previousVisibleSet: SelectedOpportunity[];
+  rankedSelection: SelectedOpportunity[];
+  aiCandidatePool: SelectedOpportunity[];
+}): SelectedOpportunity[] {
+  const rankedByKey = new Map(
+    params.rankedSelection.map((opportunity) => [
+      opportunity.opportunityKey,
+      opportunity,
+    ])
+  );
+
+  const output: SelectedOpportunity[] = [];
+  const usedKeys = new Set<string>();
+  const usedFamilies = new Set<string>();
+
+  function canUse(opportunity: SelectedOpportunity) {
+    if (usedKeys.has(opportunity.opportunityKey)) return false;
+    if (usedFamilies.has(opportunity.familyKey)) return false;
+    if (opportunity.isInExecution) return false;
+    if (opportunity.isDeprioritized) return false;
+    if (opportunity.finalSurface === "suppress") return false;
+    return true;
+  }
+
+  function push(opportunity: SelectedOpportunity) {
+    if (!canUse(opportunity)) return;
+
+    output.push(opportunity);
+    usedKeys.add(opportunity.opportunityKey);
+    usedFamilies.add(opportunity.familyKey);
+  }
+
+  for (const previousOpportunity of params.previousVisibleSet) {
+    const refreshed = rankedByKey.get(previousOpportunity.opportunityKey);
+
+    if (refreshed) {
+      push(refreshed);
+    }
+  }
+
+  for (const candidate of params.aiCandidatePool) {
+    if (output.length >= REQUIRED_VISIBLE_OPPORTUNITY_COUNT) break;
+
+    const refreshed = rankedByKey.get(candidate.opportunityKey) ?? candidate;
+    push(refreshed);
+  }
+
+  for (const candidate of params.rankedSelection) {
+    if (output.length >= REQUIRED_VISIBLE_OPPORTUNITY_COUNT) break;
+    push(candidate);
+  }
+
+  return output.slice(0, REQUIRED_VISIBLE_OPPORTUNITY_COUNT);
 }
 
 function uniqueByFamilyKey(
@@ -389,6 +485,205 @@ function repairAiVisibleSet(params: {
   return deduped.slice(0, 6);
 }
 
+export async function refreshWorkspaceOpportunitySnapshotFromDecisionCache(
+  workspaceId: string
+): Promise<WorkspaceOpportunitySnapshotPayload | null> {
+  const startedAt = Date.now();
+
+  const existing = await prisma.workspaceOpportunitySnapshot.findUnique({
+    where: { workspaceId },
+  });
+
+  if (!existing?.decisionSpaceJson) {
+    console.log("[snapshot] DECISION CACHE MISS", {
+      workspaceId,
+    });
+
+    return null;
+  }
+
+  const decisionSpace = parseDecisionSpace(existing.decisionSpaceJson);
+
+  if (decisionSpace.length === 0) {
+    console.log("[snapshot] DECISION CACHE EMPTY", {
+      workspaceId,
+    });
+
+    return null;
+  }
+
+  const [competitors, campaigns] = await Promise.all([
+    prisma.competitor.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.campaign.findMany({
+      where: { workspaceId },
+      select: {
+        id: true,
+        campaignType: true,
+        status: true,
+        targetService: true,
+        briefJson: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
+
+  const availableJobsEstimate =
+    typeof existing.availableJobsEstimate === "number"
+      ? existing.availableJobsEstimate
+      : 0;
+
+  const selection = selectRevenueOpportunities({
+    opportunities: decisionSpace,
+    campaigns,
+    availableJobsEstimate,
+    competitors,
+  });
+
+  const aiCandidatePool = buildAiCandidatePool({
+    engineOpportunities: decisionSpace,
+    rankedSelection: selection.rankedSelection,
+  });
+
+  const previousVisibleSet = [
+    parseTopOpportunity(existing.topOpportunityJson),
+    ...parseBacklog(existing.backlogJson),
+  ].filter(Boolean);
+
+  const visibleSet = buildFastVisibleSetFromCachedDecisionSpace({
+    previousVisibleSet,
+    rankedSelection: selection.rankedSelection,
+    aiCandidatePool,
+  });
+
+  if (visibleSet.length < REQUIRED_VISIBLE_OPPORTUNITY_COUNT) {
+    console.warn("[snapshot] DECISION CACHE REFRESH UNDERPOPULATED", {
+      workspaceId,
+      visibleSetCount: visibleSet.length,
+      requiredVisibleCount: REQUIRED_VISIBLE_OPPORTUNITY_COUNT,
+      decisionSpaceCount: decisionSpace.length,
+      rankedSelectionCount: selection.rankedSelection.length,
+      aiCandidatePoolCount: aiCandidatePool.length,
+    });
+
+    return null;
+  }
+
+  const finalTopOpportunity = visibleSet[0];
+  const finalBacklogOpportunities = visibleSet.slice(
+    1,
+    REQUIRED_VISIBLE_OPPORTUNITY_COUNT
+  );
+
+  const finalHero = buildRevenueOpportunityHero({
+    opportunity: finalTopOpportunity,
+    availableJobsEstimate,
+    competitors,
+  });
+
+  const generatedAt = new Date();
+
+  const payload: WorkspaceOpportunitySnapshotPayload = {
+    hero: finalHero,
+    topOpportunity: finalTopOpportunity,
+    backlogOpportunities: finalBacklogOpportunities,
+    generatedAt,
+    fromCache: false,
+  };
+
+  if (
+    finalBacklogOpportunities.length < REQUIRED_BACKLOG_OPPORTUNITY_COUNT
+  ) {
+    console.warn("[snapshot] DECISION CACHE REFRESH BACKLOG SHORTFALL", {
+      workspaceId,
+      backlogCount: finalBacklogOpportunities.length,
+      requiredBacklogCount: REQUIRED_BACKLOG_OPPORTUNITY_COUNT,
+      topOpportunityKey: finalTopOpportunity.opportunityKey,
+    });
+
+    return null;
+  }
+
+  await prisma.workspaceOpportunitySnapshot.update({
+    where: { workspaceId },
+    data: {
+      snapshotVersion: { increment: 1 },
+      heroJson: payload.hero,
+      topOpportunityJson: payload.topOpportunity,
+      backlogJson: payload.backlogOpportunities,
+      aiCandidatePoolJson:
+        aiCandidatePool as unknown as Prisma.InputJsonValue,
+      generatedAt: payload.generatedAt,
+      expiresAt: getExpiryDate(),
+      invalidatedAt: null,
+    },
+  });
+
+  console.log("[snapshot] DECISION CACHE REFRESH COMPLETE", {
+    workspaceId,
+    elapsedMs: Date.now() - startedAt,
+    topOpportunityKey: payload.topOpportunity.opportunityKey,
+    backlogCount: payload.backlogOpportunities.length,
+    visibleSetCount: 1 + payload.backlogOpportunities.length,
+    requiredVisibleCount: REQUIRED_VISIBLE_OPPORTUNITY_COUNT,
+    decisionSpaceCount: decisionSpace.length,
+    rankedSelectionCount: selection.rankedSelection.length,
+    aiCandidatePoolCount: aiCandidatePool.length,
+  });
+
+  return payload;
+}
+
+export async function refreshWeeklyWorkspaceSignals(
+  workspaceId: string
+): Promise<WeeklyWorkspaceSignalRefreshResult> {
+  const startedAt = Date.now();
+
+  const reputationRefresh = await ensureWorkspaceReputationFreshForWeek(
+    workspaceId
+  );
+
+  let snapshotInvalidated = false;
+  let invalidationReason: string | null = null;
+
+  if (
+    reputationRefresh.status === "completed" &&
+    reputationRefresh.materialChangeLikely
+  ) {
+    await invalidateWorkspaceOpportunitySnapshot(workspaceId);
+
+    snapshotInvalidated = true;
+    invalidationReason = "material_reputation_change";
+  }
+
+  const result: WeeklyWorkspaceSignalRefreshResult = {
+    workspaceId,
+    elapsedMs: Date.now() - startedAt,
+    reputationRefresh,
+    snapshotInvalidated,
+    invalidationReason,
+  };
+
+  console.log("[snapshot] WEEKLY SIGNAL REFRESH COMPLETE", {
+    workspaceId,
+    elapsedMs: result.elapsedMs,
+    reputationRefreshStatus: reputationRefresh.status,
+    googleMetricsFetchCount: reputationRefresh.googleMetricsFetchCount,
+    businessMetricsChanged: reputationRefresh.businessMetricsChanged,
+    competitorMetricsChangedCount:
+      reputationRefresh.competitorMetricsChangedCount,
+    competitorMetricsCheckedCount:
+      reputationRefresh.competitorMetricsCheckedCount,
+    materialChangeLikely: reputationRefresh.materialChangeLikely,
+    snapshotInvalidated,
+    invalidationReason,
+  });
+
+  return result;
+}
+
 export async function invalidateWorkspaceOpportunitySnapshot(
   workspaceId: string
 ) {
@@ -409,11 +704,14 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
 
   const snapshotIsFresh = !!existing && isSnapshotUsable(existing);
 
-  if (snapshotIsFresh && existing) {
-    console.log("[snapshot] USING CACHE", {
-      workspaceId,
-      generatedAt: existing.generatedAt,
-    });
+if (snapshotIsFresh && existing) {
+  console.log("[snapshot] USING STORED SNAPSHOT", {
+    workspaceId,
+    generatedAt: existing.generatedAt,
+    snapshotVersion: existing.snapshotVersion,
+    expiresAt: existing.expiresAt,
+    ttlIgnored: true,
+  });
 
     return {
       hero: parseHero(existing.heroJson),
@@ -432,21 +730,54 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
   }
 
   const buildPromise: Promise<WorkspaceOpportunitySnapshotPayload> =
-    (async () => {
-      try {
+  (async () => {
+    const buildStartedAt = Date.now();
+
+    try {
+      console.log("[snapshot] BUILD START", {
+        workspaceId,
+        hasExistingSnapshot: Boolean(existing),
+        invalidatedAt: existing?.invalidatedAt ?? null,
+        generatedAt: existing?.generatedAt ?? null,
+      });
         try {
-          console.log("[snapshot] BEFORE reputation refresh", { workspaceId });
+        const reputationStartedAt = Date.now();
+
+        console.log("[snapshot] BEFORE reputation refresh", { workspaceId });
+
+        const reputationRefreshResult =
           await ensureWorkspaceReputationFreshForWeek(workspaceId);
-          console.log("[snapshot] AFTER reputation refresh", { workspaceId });
-        } catch (error) {
+
+        logSnapshotTiming("AFTER reputation refresh", {
+          workspaceId,
+          startedAt: reputationStartedAt,
+          extra: {
+            reputationRefreshStatus: reputationRefreshResult.status,
+            googleMetricsFetchCount: reputationRefreshResult.googleMetricsFetchCount,
+            businessMetricsChanged: reputationRefreshResult.businessMetricsChanged,
+            competitorMetricsChangedCount:
+              reputationRefreshResult.competitorMetricsChangedCount,
+            competitorMetricsCheckedCount:
+              reputationRefreshResult.competitorMetricsCheckedCount,
+            materialChangeLikely: reputationRefreshResult.materialChangeLikely,
+          },
+        });
+      } catch (error) {
           console.error("Weekly workspace reputation refresh failed", {
             workspaceId,
             error,
           });
         }
 
+        const profileStartedAt = Date.now();
+
         const profile = await prisma.businessProfile.findUnique({
           where: { workspaceId },
+        });
+
+        logSnapshotTiming("AFTER profile load", {
+          workspaceId,
+          startedAt: profileStartedAt,
         });
 
         if (!profile) {
@@ -454,7 +785,7 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
             "Business profile not found for opportunity snapshot."
           );
         }
-
+        const dependencyLoadStartedAt = Date.now();
         const [competitors, campaigns, performanceSignals] = await Promise.all([
           prisma.competitor.findMany({
             where: { workspaceId },
@@ -473,6 +804,16 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
           }),
           getCampaignPerformanceSignals(workspaceId),
         ]);
+        logSnapshotTiming("AFTER dependency load", {
+        workspaceId,
+        startedAt: dependencyLoadStartedAt,
+        extra: {
+          competitorCount: competitors.length,
+          campaignCount: campaigns.length,
+        },
+      });
+
+        const engineStartedAt = Date.now();
 
         const engine = await buildRevenueOpportunityEngine({
           profile,
@@ -480,6 +821,14 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
           performanceSignals,
         });
 
+        logSnapshotTiming("AFTER engine build", {
+          workspaceId,
+          startedAt: engineStartedAt,
+          extra: {
+            rankedOpportunityCount: engine.rankedOpportunities.length,
+          },
+        });
+        const selectionStartedAt = Date.now();
         const selection = selectRevenueOpportunities({
           opportunities: engine.rankedOpportunities,
           campaigns,
@@ -504,7 +853,7 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
             actionFraming: opportunity.actionFraming,
           })),
         });
-
+        const aiSelectionStartedAt = Date.now();
         const aiSelection = await selectOpportunitySetWithAI({
           profile: {
             businessName: profile.businessName,
@@ -530,7 +879,13 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
           competitors,
           targetVisibleCount: 6,
         });
-
+        logSnapshotTiming("AFTER AI selection", {
+        workspaceId,
+        startedAt: aiSelectionStartedAt,
+        extra: {
+          aiSelectionReturned: Boolean(aiSelection),
+        },
+      });
         let finalTopOpportunity = selection.topOpportunity;
         let finalBacklogOpportunities = selection.backlogOpportunities;
         let finalHero = selection.hero;
@@ -583,7 +938,13 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
 
         const generatedAt = new Date();
 
-                const payload: WorkspaceOpportunitySnapshotPayload = {
+        const decisionSpaceJson =
+          engine.rankedOpportunities as unknown as Prisma.InputJsonValue;
+
+        const aiCandidatePoolJson =
+          aiCandidatePool as unknown as Prisma.InputJsonValue;
+
+        const payload: WorkspaceOpportunitySnapshotPayload = {
           hero: finalHero,
           topOpportunity: finalTopOpportunity,
           backlogOpportunities: finalBacklogOpportunities,
@@ -608,7 +969,7 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
             finalSurface: opportunity.finalSurface,
           })),
         });
-
+        const persistStartedAt = Date.now();
         await prisma.workspaceOpportunitySnapshot.upsert({
           where: { workspaceId },
           update: {
@@ -616,6 +977,10 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
             heroJson: payload.hero,
             topOpportunityJson: payload.topOpportunity,
             backlogJson: payload.backlogOpportunities,
+            decisionSpaceJson,
+            aiCandidatePoolJson,
+            availableJobsEstimate: engine.availableJobsEstimate,
+            decisionSpaceGeneratedAt: payload.generatedAt,
             generatedAt: payload.generatedAt,
             expiresAt: getExpiryDate(),
             invalidatedAt: null,
@@ -625,11 +990,31 @@ export async function getOrCreateWorkspaceOpportunitySnapshot(
             heroJson: payload.hero,
             topOpportunityJson: payload.topOpportunity,
             backlogJson: payload.backlogOpportunities,
+            decisionSpaceJson,
+            aiCandidatePoolJson,
+            availableJobsEstimate: engine.availableJobsEstimate,
+            decisionSpaceGeneratedAt: payload.generatedAt,
             generatedAt: payload.generatedAt,
             expiresAt: getExpiryDate(),
             invalidatedAt: null,
           },
         });
+        logSnapshotTiming("AFTER snapshot persist", {
+        workspaceId,
+        startedAt: persistStartedAt,
+      });
+
+      logSnapshotTiming("BUILD COMPLETE", {
+        workspaceId,
+        startedAt: buildStartedAt,
+        extra: {
+          topOpportunityKey: payload.topOpportunity.opportunityKey,
+          backlogCount: payload.backlogOpportunities.length,
+          decisionSpaceCached: true,
+          decisionSpaceCount: engine.rankedOpportunities.length,
+          aiCandidatePoolCount: aiCandidatePool.length,
+        },
+      });
 
         return payload;
       } finally {

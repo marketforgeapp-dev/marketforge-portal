@@ -4,6 +4,7 @@ import { CommandCenterKpis } from "@/components/dashboard/command-center-kpis";
 import { TopCommandBand } from "@/components/dashboard/top-command-band";
 import { CompetitivePositionCard } from "@/components/dashboard/competitive-position-card";
 import { RevenueOpportunityHero } from "@/lib/revenue-opportunity-engine";
+import { WeeklySignalRefresh } from "@/components/dashboard/weekly-signal-refresh";
 
 type HeroCampaignData = {
   id: string;
@@ -159,7 +160,9 @@ export function DashboardShell({
   );
 
   return (
+  <>
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
+      <WeeklySignalRefresh />
       <div className="mx-auto flex max-w-[1600px] flex-col gap-5 lg:flex-row">
         <DashboardSidebar />
 
@@ -279,6 +282,7 @@ export function DashboardShell({
           </div>
         </main>
       </div>
-    </div>
+        </div>
+  </>
   );
 }
