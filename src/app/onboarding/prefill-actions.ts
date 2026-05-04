@@ -1,6 +1,7 @@
 "use server";
 
 import { zodResponseFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import { openai } from "@/lib/openai";
 import {
   onboardingPrefillSchema,
@@ -104,6 +105,160 @@ function normalizeDomain(url: string | null | undefined): string | null {
   }
 }
 
+const marketAnchorSchema = z.object({
+  city: z.string().nullable(),
+  state: z.string().nullable(),
+  serviceArea: z.string().nullable(),
+  confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
+  source: z.enum([
+    "explicit_service_area",
+    "website_address",
+    "website_city",
+    "uncertain",
+  ]),
+  rationale: z.string(),
+});
+
+type MarketAnchor = z.infer<typeof marketAnchorSchema>;
+
+function cleanMarketAnchor(anchor: MarketAnchor): MarketAnchor {
+  const city = sanitizeLocationValue(anchor.city, "city");
+  const state = sanitizeLocationValue(anchor.state, "state");
+
+  if (!city || !state) {
+    return {
+      city: null,
+      state: null,
+      serviceArea: null,
+      confidence: "LOW",
+      source: "uncertain",
+      rationale:
+        "Market anchor was rejected because it did not include a valid city and state.",
+    };
+  }
+
+  return {
+    ...anchor,
+    city,
+    state,
+    serviceArea: cleanString(anchor.serviceArea),
+  };
+}
+
+async function resolveCompetitorMarketAnchor(params: {
+  companyName: string;
+  website: string;
+  industry: SupportedIndustry;
+  websiteContext: Awaited<ReturnType<typeof getWebsitePrefillContext>>;
+  resolvedLocation: Awaited<ReturnType<typeof resolveBusinessLocation>>;
+}): Promise<MarketAnchor> {
+  const websiteContext = params.websiteContext;
+  const resolvedLocation = params.resolvedLocation;
+
+  const fallbackCity =
+    resolvedLocation.resolvedCity ?? websiteContext?.city ?? null;
+  const fallbackState =
+    resolvedLocation.resolvedState ?? websiteContext?.state ?? null;
+
+  const fallbackAnchor = cleanMarketAnchor({
+    city: fallbackCity,
+    state: fallbackState,
+    serviceArea: null,
+    confidence: fallbackCity && fallbackState ? "LOW" : "LOW",
+    source: fallbackCity && fallbackState ? "website_city" : "uncertain",
+    rationale:
+      "Fallback anchor from existing location resolution. This should only be used when no explicit service-area market can be determined.",
+  });
+
+  try {
+    const completion = await openai.chat.completions.parse({
+      model: "gpt-4o-2024-08-06",
+      messages: [
+        {
+          role: "system",
+          content: `
+You resolve the best local market anchor for Google competitor discovery.
+
+Return one concrete city and state that should anchor local competitor search.
+
+Rules:
+- Prefer explicit service area pages, "areas served", counties, and city lists from the website.
+- For service-area businesses, do NOT default to a broad metro city if the website points to a more specific served market.
+- Do NOT return navigation labels like About Us, Blog, Testimonials, Residential HVAC, Commercial HVAC, or service names.
+- Do NOT return a county as the city.
+- If the website references Cherokee County, prefer a concrete city inside that service area such as Canton or Woodstock when supported.
+- If the only available city is a broad metro fallback like Atlanta, return it only with LOW confidence.
+- If uncertain, return null city/state and LOW confidence.
+- Return structured output only.
+          `.trim(),
+        },
+        {
+          role: "user",
+          content: JSON.stringify(
+            {
+              companyName: params.companyName,
+              website: params.website,
+              industry: params.industry,
+              resolvedLocation: {
+                resolvedAddress: resolvedLocation.resolvedAddress,
+                resolvedCity: resolvedLocation.resolvedCity,
+                resolvedState: resolvedLocation.resolvedState,
+                citySource: resolvedLocation.citySource,
+                stateSource: resolvedLocation.stateSource,
+                addressSource: resolvedLocation.addressSource,
+              },
+              websiteContext: {
+                title: websiteContext?.title ?? null,
+                metaDescription: websiteContext?.metaDescription ?? null,
+                detectedAddress: websiteContext?.address ?? null,
+                detectedCity: websiteContext?.city ?? null,
+                detectedState: websiteContext?.state ?? null,
+                googleBusinessProfileUrl:
+                  websiteContext?.googleBusinessProfileUrl ?? null,
+                internalLinks:
+                  websiteContext?.internalLinks.map((link) => ({
+                    text: link.text,
+                    href: link.href,
+                  })) ?? [],
+                homepageText: websiteContext?.visibleTextExcerpt ?? null,
+                fetchedPages: websiteContext?.fetchedPages ?? [],
+              },
+            },
+            null,
+            2
+          ),
+        },
+      ],
+      response_format: zodResponseFormat(
+        marketAnchorSchema,
+        "marketforge_competitor_market_anchor"
+      ),
+    });
+
+    const parsed = completion.choices[0]?.message.parsed;
+
+    if (!parsed) {
+      return fallbackAnchor;
+    }
+
+    const cleaned = cleanMarketAnchor(parsed);
+
+    if (cleaned.confidence === "LOW" || !cleaned.city || !cleaned.state) {
+      return fallbackAnchor;
+    }
+
+    return cleaned;
+  } catch (error) {
+    console.warn("[onboarding] market anchor resolver failed", {
+      companyName: params.companyName,
+      website: params.website,
+      error,
+    });
+
+    return fallbackAnchor;
+  }
+}
+
 export async function generateOnboardingPrefill(input: {
   companyName: string;
   website: string;
@@ -121,7 +276,7 @@ export async function generateOnboardingPrefill(input: {
   try {
     const websiteContext = await getWebsitePrefillContext(website);
 
-        const resolvedLocation = await resolveBusinessLocation({
+    const resolvedLocation = await resolveBusinessLocation({
       companyName,
       website,
       websiteContext,
@@ -161,39 +316,61 @@ export async function generateOnboardingPrefill(input: {
       linkTexts: websiteContext?.internalLinks ?? [],
     });
 
-        const resolvedCity = sanitizeLocationValue(websiteContext?.city ?? null, "city");
-    const resolvedState = sanitizeLocationValue(websiteContext?.state ?? null, "state");
+        const marketAnchor = await resolveCompetitorMarketAnchor({
+      companyName,
+      website,
+      industry: inferredIndustry,
+      websiteContext,
+      resolvedLocation,
+    });
 
-        console.info("Resolved competitor discovery inputs", {
+    const competitorDiscoveryCity = marketAnchor.city;
+    const competitorDiscoveryState = marketAnchor.state;
+    const competitorDiscoveryServiceArea =
+      marketAnchor.source === "explicit_service_area"
+        ? marketAnchor.city
+        : marketAnchor.serviceArea;
+
+    console.info("Resolved competitor discovery inputs", {
       companyName,
       inferredIndustry,
-      city: resolvedLocation.resolvedCity,
-      state: resolvedLocation.resolvedState,
-      serviceArea: null,
+      city: competitorDiscoveryCity,
+      state: competitorDiscoveryState,
+      serviceArea: competitorDiscoveryServiceArea,
       website,
       resolvedAddress: resolvedLocation.resolvedAddress,
       googlePlaceLocation: resolvedLocation.googlePlaceLocation,
       citySource: resolvedLocation.citySource,
       stateSource: resolvedLocation.stateSource,
       addressSource: resolvedLocation.addressSource,
+      websiteCity: websiteContext?.city ?? null,
+      websiteState: websiteContext?.state ?? null,
+      googleBusinessProfileUrl: websiteContext?.googleBusinessProfileUrl ?? null,
+      marketAnchor,
     });
 
-    const competitorCandidates = await discoverLocalCompetitors({
-      companyName,
-      industry: inferredIndustry,
-      city: resolvedLocation.resolvedCity,
-      state: resolvedLocation.resolvedState,
-      serviceArea: null,
-      website,
-    });
+    const competitorCandidates =
+      competitorDiscoveryCity && competitorDiscoveryState
+        ? await discoverLocalCompetitors({
+            companyName,
+            industry: inferredIndustry,
+            city: competitorDiscoveryCity,
+            state: competitorDiscoveryState,
+            serviceArea: competitorDiscoveryServiceArea,
+            website,
+          })
+        : [];
 
-    const businessGoogleCandidate = await lookupSingleCompetitor({
-  companyName,
-  industry: inferredIndustry,
-  city: resolvedLocation.resolvedCity,
-  state: resolvedLocation.resolvedState,
-  website,
-});
+    const businessGoogleCandidate = websiteContext?.googleBusinessProfileUrl
+      ? null
+      : await lookupSingleCompetitor({
+          companyName,
+          industry: inferredIndustry,
+          city: competitorDiscoveryCity ?? resolvedLocation.resolvedCity,
+          state: competitorDiscoveryState ?? resolvedLocation.resolvedState,
+          website,
+          phone: websiteContext?.phone ?? null,
+        });
 
     console.info("Onboarding competitor discovery", {
       companyName,
@@ -203,9 +380,9 @@ export async function generateOnboardingPrefill(input: {
       rawState: websiteContext?.state ?? null,
       rawAddress: websiteContext?.address ?? null,
       resolvedAddress: resolvedLocation.resolvedAddress,
-      city: resolvedLocation.resolvedCity,
-      state: resolvedLocation.resolvedState,
-      serviceArea: null,
+      city: competitorDiscoveryCity,
+      state: competitorDiscoveryState,
+      serviceArea: competitorDiscoveryServiceArea,
       googlePlaceLocation: resolvedLocation.googlePlaceLocation,
       competitors: competitorCandidates.map((candidate) => ({
         name: candidate.name,
@@ -417,11 +594,12 @@ Return best-effort onboarding suggestions for MarketForge.
             logoUrl: websiteContext?.logoCandidates?.[0] ?? cleanString(parsed.logoUrl) ?? null,
       phone: cleanString(parsed.phone) ?? websiteContext?.phone ?? null,
                   googleBusinessProfileUrl:
-        businessGoogleCandidate?.googleBusinessUrl ??
-        cleanString(parsed.googleBusinessProfileUrl) ??
-        cleanString(parsed.googleBusinessUrl) ??
-        resolvedLocation.googleBusinessProfileUrl ??
-        null,
+                    businessGoogleCandidate?.googleBusinessUrl ??
+                    cleanString(parsed.googleBusinessProfileUrl) ??
+                    cleanString(parsed.googleBusinessUrl) ??
+                    resolvedLocation.googleBusinessProfileUrl ??
+                    websiteContext?.googleBusinessProfileUrl ??
+                    null,
               googlePlaceId:
         businessGoogleCandidate?.placeId ??
         cleanString(parsed.googlePlaceId) ??
@@ -434,17 +612,24 @@ Return best-effort onboarding suggestions for MarketForge.
         typeof businessGoogleCandidate?.reviewCount === "number"
           ? businessGoogleCandidate.reviewCount
           : parsed.googleReviewCount ?? null,
-      city:
-        cleanString(parsed.city) ??
-        resolvedLocation.resolvedCity ??
-        websiteContext?.city ??
-        null,
+            city:
+        marketAnchor.confidence !== "LOW" && marketAnchor.city
+          ? marketAnchor.city
+          : cleanString(parsed.city) ??
+            resolvedLocation.resolvedCity ??
+            websiteContext?.city ??
+            null,
       state:
-        cleanString(parsed.state) ??
-        resolvedLocation.resolvedState ??
-        websiteContext?.state ??
-        null,
-      serviceArea: cleanString(parsed.serviceArea),
+        marketAnchor.confidence !== "LOW" && marketAnchor.state
+          ? marketAnchor.state
+          : cleanString(parsed.state) ??
+            resolvedLocation.resolvedState ??
+            websiteContext?.state ??
+            null,
+      serviceArea:
+        marketAnchor.confidence !== "LOW"
+          ? cleanString(parsed.serviceArea) ?? marketAnchor.city
+          : cleanString(parsed.serviceArea),
       industry: inferredIndustry,
       preferredServices: finalPreferredServices,
       servicePageUrls: mergedServicePageUrls,
@@ -455,7 +640,8 @@ Return best-effort onboarding suggestions for MarketForge.
         Boolean(
           cleanString(parsed.googleBusinessProfileUrl) ||
             cleanString(parsed.googleBusinessUrl) ||
-            resolvedLocation.googleBusinessProfileUrl
+            resolvedLocation.googleBusinessProfileUrl ||
+            websiteContext?.googleBusinessProfileUrl
         ),
       hasServicePages:
         visibilitySignals.hasServicePages || mergedServicePageUrls.length > 0,

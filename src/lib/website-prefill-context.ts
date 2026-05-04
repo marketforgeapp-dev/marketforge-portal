@@ -15,6 +15,8 @@ export type WebsitePrefillContext = {
   logoCandidates: string[];
   internalLinks: ExtractedLink[];
   visibleTextExcerpt: string;
+  googleBusinessProfileUrl: string | null;
+  serviceAreaCities: string[];
   fetchedPages: Array<{
     url: string;
     title: string | null;
@@ -61,6 +63,41 @@ function stripHtml(html: string): string {
         .replace(/<[^>]+>/g, " ")
     )
   );
+}
+
+const CITY_BLACKLIST = [
+  "county",
+  "counties",
+  "service area",
+  "service areas",
+  "metro",
+  "area",
+  "areas",
+  "location",
+];
+
+function extractServiceAreaCities(html: string): string[] {
+  const items = extractListItems(html);
+
+  const cleaned: string[] = [];
+
+  for (const item of items) {
+    const lower = item.toLowerCase();
+
+    if (CITY_BLACKLIST.some((term) => lower.includes(term))) {
+      continue;
+    }
+
+    if (lower.length < 3 || lower.length > 30) {
+      continue;
+    }
+
+    if (lower.includes("→")) continue;
+
+    cleaned.push(lower);
+  }
+
+  return Array.from(new Set(cleaned));
 }
 
 function truncate(value: string, maxLength: number): string {
@@ -207,6 +244,36 @@ function scoreLogoCandidate(url: string, isStrongTagMatch: boolean): number {
   return score;
 }
 
+function extractGoogleBusinessProfileUrl(html: string): string | null {
+  const matches = [
+    ...html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi),
+  ];
+
+  for (const match of matches) {
+    const href = decodeHtmlEntities(match[1] ?? "");
+    const text = stripHtml(match[2] ?? "").toLowerCase();
+
+    const lowerHref = href.toLowerCase();
+
+    const looksLikeGoogleMaps =
+      lowerHref.includes("maps.app.goo.gl") ||
+      lowerHref.includes("google.com/maps") ||
+      lowerHref.includes("g.page/");
+
+    const looksLikeReviewOrProfile =
+      text.includes("review") ||
+      text.includes("google business") ||
+      lowerHref.includes("review") ||
+      lowerHref.includes("place");
+
+    if (looksLikeGoogleMaps && looksLikeReviewOrProfile) {
+      return href;
+    }
+  }
+
+  return null;
+}
+
 function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
   const matches = [
     ...html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi),
@@ -250,6 +317,16 @@ function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
     seen.add(link.href);
     return true;
   });
+}
+
+function extractListItems(html: string): string[] {
+  const matches = [
+    ...html.matchAll(/<li[^>]*>(.*?)<\/li>/gi),
+  ];
+
+  return matches
+    .map((m) => stripHtml(m[1] ?? "").trim())
+    .filter((text) => text.length > 2 && text.length < 40);
 }
 
 function extractLogoCandidates(html: string, baseUrl: string): string[] {
@@ -456,24 +533,30 @@ function scoreLink(link: ExtractedLink): number {
 
   let score = 0;
 
+  if (combined.includes("service-area")) score += 20;
+  if (combined.includes("service area")) score += 20;
+  if (combined.includes("areas-we-serve")) score += 20;
+  if (combined.includes("areas we serve")) score += 20;
+  if (combined.includes("locations")) score += 12;
+  if (combined.includes("location")) score += 12;
+  if (combined.includes("contact")) score += 10;
+  if (combined.includes("review")) score += 8;
+  if (combined.includes("testimonial")) score += 8;
+
   if (combined.includes("service")) score += 4;
   if (combined.includes("about")) score += 3;
-  if (combined.includes("contact")) score += 3;
-  if (combined.includes("location")) score += 3;
-  if (combined.includes("areas")) score += 3;
-  if (combined.includes("service-area")) score += 4;
-  if (combined.includes("faq")) score += 4;
-  if (combined.includes("blog")) score += 3;
-  if (combined.includes("drain")) score += 2;
-  if (combined.includes("heater")) score += 2;
-  if (combined.includes("plumb")) score += 2;
-  if (combined.includes("septic")) score += 2;
-  if (combined.includes("tree")) score += 2;
-  if (combined.includes("stump")) score += 2;
-  if (combined.includes("storm")) score += 2;
+  if (combined.includes("faq")) score += 3;
+  if (combined.includes("blog")) score += 2;
+
   if (combined.includes("hvac")) score += 2;
   if (combined.includes("furnace")) score += 2;
   if (combined.includes("cooling")) score += 2;
+  if (combined.includes("heating")) score += 2;
+  if (combined.includes("air conditioning")) score += 2;
+
+  if (combined.includes("plumb")) score += 2;
+  if (combined.includes("septic")) score += 2;
+  if (combined.includes("tree")) score += 2;
 
   return score;
 }
@@ -513,6 +596,7 @@ export async function getWebsitePrefillContext(
   const metaDescription = extractMetaDescription(homepageHtml);
   const visibleText = stripHtml(homepageHtml);
   const internalLinks = extractLinks(homepageHtml, normalizedWebsite);
+    let googleBusinessProfileUrl = extractGoogleBusinessProfileUrl(homepageHtml);
   const logoCandidates = extractLogoCandidates(homepageHtml, normalizedWebsite);
   const phone = extractPhone(visibleText);
   const email = extractEmail(visibleText);
@@ -521,16 +605,22 @@ export async function getWebsitePrefillContext(
 
   const topLinks = [...internalLinks]
     .sort((a, b) => scoreLink(b) - scoreLink(a))
-    .slice(0, 8);
+    .slice(0, 12);
 
   const fetchedPages: WebsitePrefillContext["fetchedPages"] = [];
   let mergedExtraText = "";
 
-  for (const link of topLinks) {
+    for (const link of topLinks) {
     const html = await fetchHtml(link.href);
     if (!html) continue;
 
-    const pageText = truncate(stripHtml(html), 2500);
+    const pageGoogleBusinessProfileUrl = extractGoogleBusinessProfileUrl(html);
+
+    if (!googleBusinessProfileUrl && pageGoogleBusinessProfileUrl) {
+      googleBusinessProfileUrl = pageGoogleBusinessProfileUrl;
+    }
+
+    const pageText = truncate(stripHtml(html), 3500);
     mergedExtraText += ` ${pageText}`;
 
     fetchedPages.push({
@@ -541,6 +631,9 @@ export async function getWebsitePrefillContext(
   }
 
   const secondaryCityState = extractCityState(mergedExtraText);
+  const serviceAreaCities = extractServiceAreaCities(
+  homepageHtml + mergedExtraText
+  );
 
   return {
     normalizedWebsite,
@@ -553,6 +646,8 @@ export async function getWebsitePrefillContext(
     state: cityState.state ?? secondaryCityState.state,
     logoCandidates,
     internalLinks: internalLinks.slice(0, 20),
+    googleBusinessProfileUrl,
+    serviceAreaCities,
     visibleTextExcerpt: truncate(visibleText, 6000),
     fetchedPages,
   };

@@ -1,3 +1,4 @@
+
 type LatLng = {
   latitude: number;
   longitude: number;
@@ -24,6 +25,7 @@ export type DiscoverCompetitorsInput = {
   state?: string | null;
   serviceArea?: string | null;
   website?: string | null;
+  origin?: LatLng | null;
 };
 
 export type LookupBusinessInput = {
@@ -46,6 +48,8 @@ type GooglePlacesTextSearchResponse = {
     types?: string[];
     primaryType?: string;
     location?: LatLng;
+    rating?: number;
+    userRatingCount?: number;
   }>;
 };
 
@@ -171,6 +175,24 @@ function cleanWhitespace(value: string | null | undefined): string {
 
 function slugifyComparable(value: string | null | undefined): string {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizePhoneDigits(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D/g, "");
+}
+
+function formatPhoneForQuery(value: string | null | undefined): string | null {
+  const digits = normalizePhoneDigits(value);
+
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+
+  return digits.length >= 7 ? digits : null;
 }
 
 function normalizeDomain(url: string | null | undefined): string | null {
@@ -1240,13 +1262,14 @@ async function searchText(
       "Content-Type": "application/json",
       "X-Goog-Api-Key": apiKey,
       "X-Goog-FieldMask":
-        "places.id,places.displayName,places.formattedAddress,places.websiteUri,places.googleMapsUri,places.nationalPhoneNumber,places.types,places.primaryType,places.location",
+        "places.id,places.displayName,places.formattedAddress,places.websiteUri,places.googleMapsUri,places.nationalPhoneNumber,places.types,places.primaryType,places.location,places.rating,places.userRatingCount"
     },
     body: JSON.stringify({
       textQuery: params.textQuery,
       pageSize: TEXT_SEARCH_PAGE_SIZE,
       languageCode: "en",
       regionCode: "US",
+      includePureServiceAreaBusinesses: true,
       ...(params.locationBias ? { locationBias: params.locationBias } : {}),
     }),
     cache: "no-store",
@@ -1509,22 +1532,53 @@ export async function lookupBusinessCandidatesCore(
 
   const location = [input.city, input.state].filter(Boolean).join(" ").trim();
   const websiteDomain = normalizeDomain(input.website ?? null);
-  const normalizedPhone = (input.phone ?? "").replace(/\D/g, "");
+  const normalizedPhone = normalizePhoneDigits(input.phone);
+  const formattedPhone = formatPhoneForQuery(input.phone);
+
+  const domainWithoutTld = websiteDomain?.split(".")[0] ?? null;
 
   const textQueries = [
     location ? `${input.companyName} ${location}` : input.companyName,
+    formattedPhone ? `${input.companyName} ${formattedPhone}` : null,
     normalizedPhone.length >= 7 ? `${input.companyName} ${normalizedPhone}` : null,
+    formattedPhone,
+    normalizedPhone.length >= 7 ? normalizedPhone : null,
     websiteDomain ? `${input.companyName} ${websiteDomain}` : null,
+    websiteDomain,
+    domainWithoutTld,
+    `${input.companyName} reviews`,
   ].filter((value): value is string => Boolean(value && value.trim().length > 0));
+
+  console.log("[competitor-discovery] business lookup queries", {
+    companyName: input.companyName,
+    websiteDomain,
+    normalizedPhone,
+    queryCount: textQueries.length,
+    textQueries,
+  });
 
   const allPlaces: NonNullable<GooglePlacesTextSearchResponse["places"]> = [];
 
   for (const textQuery of textQueries) {
-    try {
-      const places = await searchText(apiKey, { textQuery });
-      if (places?.length) {
-        allPlaces.push(...places);
-      }
+  try {
+    const places = await searchText(apiKey, { textQuery });
+
+    console.log("[competitor-discovery] business lookup query result", {
+      companyName: input.companyName,
+      textQuery,
+      placeCount: places?.length ?? 0,
+      places: (places ?? []).map((place) => ({
+        name: place.displayName?.text ?? null,
+        websiteUri: place.websiteUri ?? null,
+        phone: place.nationalPhoneNumber ?? null,
+        formattedAddress: place.formattedAddress ?? null,
+        googleMapsUri: place.googleMapsUri ?? null,
+      })),
+    });
+
+    if (places?.length) {
+      allPlaces.push(...places);
+    }
     } catch (error) {
       console.error("Business candidate lookup failed for query", {
         textQuery,
@@ -1535,6 +1589,15 @@ export async function lookupBusinessCandidatesCore(
   }
 
   if (allPlaces.length === 0) {
+    console.warn("[competitor-discovery] business lookup returned no raw places", {
+      companyName: input.companyName,
+      website: input.website,
+      phone: input.phone,
+      city: input.city,
+      state: input.state,
+      textQueries,
+    });
+
     return [];
   }
 
@@ -1597,7 +1660,9 @@ export async function lookupBusinessCandidatesCore(
       const reviewCount =
         typeof details?.userRatingCount === "number"
           ? details.userRatingCount
-          : null;
+          : typeof place.userRatingCount === "number"
+            ? place.userRatingCount
+            : null;
 
       const candidate: CompetitorCandidate = {
         name,
@@ -1615,7 +1680,12 @@ export async function lookupBusinessCandidatesCore(
         formattedAddress,
         phone,
         placeId: placeId ?? null,
-        rating: typeof details?.rating === "number" ? details.rating : null,
+        rating:
+          typeof details?.rating === "number"
+            ? details.rating
+            : typeof place.rating === "number"
+              ? place.rating
+              : null,
         reviewCount,
       };
 
@@ -1636,22 +1706,65 @@ export async function lookupBusinessCandidatesCore(
     })
   );
 
-  return dedupeBusinessCandidates(
-    enriched
-      .filter((item) => {
-        const candidate = item.candidate;
-        const hasStrongIdentity =
-          normalizeDomain(candidate.websiteUrl) === normalizeDomain(input.website ?? null) ||
-          ((candidate.phone ?? "").replace(/\D/g, "") !== "" &&
-            (candidate.phone ?? "").replace(/\D/g, "") ===
-              (input.phone ?? "").replace(/\D/g, "")) ||
-          isStrongBusinessNameCandidate(candidate.name, input.companyName);
+    const evaluatedBusinessCandidates = enriched.map((item) => {
+    const candidate = item.candidate;
+    const candidateDomain = normalizeDomain(candidate.websiteUrl);
+    const inputDomain = normalizeDomain(input.website ?? null);
+    const candidatePhone = normalizePhoneDigits(candidate.phone);
+    const inputPhone = normalizePhoneDigits(input.phone);
 
-        return (
-          (candidate.placeId || candidate.googleBusinessUrl) &&
-          hasStrongIdentity
-        );
-      })
+    const domainMatch =
+      Boolean(candidateDomain && inputDomain && candidateDomain === inputDomain);
+
+    const phoneMatch =
+      Boolean(
+        candidatePhone.length >= 7 &&
+          inputPhone.length >= 7 &&
+          candidatePhone === inputPhone
+      );
+
+    const strongNameMatch = isStrongBusinessNameCandidate(
+      candidate.name,
+      input.companyName
+    );
+
+    const hasStrongIdentity = domainMatch || phoneMatch || strongNameMatch;
+
+    const hasGoogleIdentity = Boolean(candidate.placeId || candidate.googleBusinessUrl);
+
+    return {
+      ...item,
+      domainMatch,
+      phoneMatch,
+      strongNameMatch,
+      hasStrongIdentity,
+      hasGoogleIdentity,
+      accepted: hasGoogleIdentity && hasStrongIdentity,
+    };
+  });
+
+  console.log("[competitor-discovery] business lookup candidate evaluation", {
+    companyName: input.companyName,
+    candidateCount: evaluatedBusinessCandidates.length,
+    candidates: evaluatedBusinessCandidates.map((item) => ({
+      name: item.candidate.name,
+      websiteUrl: item.candidate.websiteUrl,
+      phone: item.candidate.phone,
+      formattedAddress: item.candidate.formattedAddress,
+      rating: item.candidate.rating,
+      reviewCount: item.candidate.reviewCount,
+      matchScore: item.matchScore,
+      domainMatch: item.domainMatch,
+      phoneMatch: item.phoneMatch,
+      strongNameMatch: item.strongNameMatch,
+      hasGoogleIdentity: item.hasGoogleIdentity,
+      accepted: item.accepted,
+    })),
+  });
+
+  return dedupeBusinessCandidates(
+    evaluatedBusinessCandidates
+      .filter((item) => item.accepted)
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 5)
       .map((item) => item.candidate)
@@ -1688,7 +1801,9 @@ export async function discoverLocalCompetitorsCore(
     return [];
   }
 
-  const origin = await resolveSearchOrigin(apiKey, input);
+  const origin = isFiniteLatLng(input.origin)
+  ? input.origin
+  : await resolveSearchOrigin(apiKey, input);
   const passes = buildSearchPasses(input);
   console.info("Competitor engine fignerprint", {
       version: "2026-03-23-local-bias-radis-50000",

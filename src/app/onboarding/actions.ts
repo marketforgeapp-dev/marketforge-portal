@@ -99,7 +99,7 @@ function getFounderOfferByEmail(
     return {
       type: "FOUNDER_2",
       title: "Founding customer pricing applied",
-      description: "$500 off for your first 3 months.",
+      description: "First month free, then 50% off for 2 months.",
     };
   }
 
@@ -107,7 +107,7 @@ function getFounderOfferByEmail(
     return {
       type: "FOUNDER_3",
       title: "Founding customer pricing applied",
-      description: "$500 off for your first 3 months.",
+      description: "First month free, then 50% off for 2 months.",
     };
   }
 
@@ -115,22 +115,12 @@ function getFounderOfferByEmail(
 }
 
 function getFounderCouponId(
-  offerType: "FOUNDER_1" | "FOUNDER_2" | "FOUNDER_3"
+  _offerType: "FOUNDER_1" | "FOUNDER_2" | "FOUNDER_3"
 ): string {
-  if (offerType === "FOUNDER_1") {
-    const couponId = process.env.STRIPE_50_OFF_2_MONTH_COUPON_ID;
-
-    if (!couponId) {
-      throw new Error("Missing STRIPE_50_OFF_2_MONTH_COUPON_ID");
-    }
-
-    return couponId;
-  }
-
-  const couponId = process.env.STRIPE_500_OFF_3_MONTH_COUPON_ID;
+  const couponId = process.env.STRIPE_50_OFF_2_MONTH_COUPON_ID;
 
   if (!couponId) {
-    throw new Error("Missing STRIPE_500_OFF_3_MONTH_COUPON_ID");
+    throw new Error("Missing STRIPE_50_OFF_2_MONTH_COUPON_ID");
   }
 
   return couponId;
@@ -171,7 +161,7 @@ async function resolveActivationOffer(
   };
 }
 
-export async function getActivationOfferPreview() {
+export async function getActivationBillingPreview() {
   const { userId: clerkUserId } = await auth();
 
   if (!clerkUserId) {
@@ -182,13 +172,14 @@ export async function getActivationOfferPreview() {
   const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? null;
   const founderOffer = getFounderOfferByEmail(email);
 
-  if (!founderOffer) {
-    return null;
-  }
-
   return {
-    title: founderOffer.title,
-    description: founderOffer.description,
+    isDemoMode: isDemoEmail(email),
+    offerPreview: founderOffer
+      ? {
+          title: founderOffer.title,
+          description: founderOffer.description,
+        }
+      : null,
   };
 }
 
@@ -757,8 +748,12 @@ export async function activateWorkspace(input: {
     },
   });
 
-  if (resolvedOffer.type === "FOUNDER_1") {
-    const founder1CouponId = getFounderCouponId("FOUNDER_1");
+    if (
+    resolvedOffer.type === "FOUNDER_1" ||
+    resolvedOffer.type === "FOUNDER_2" ||
+    resolvedOffer.type === "FOUNDER_3"
+  ) {
+    const founderCouponId = getFounderCouponId(resolvedOffer.type);
 
     const schedule = await stripe.subscriptionSchedules.create({
       customer: customerId,
@@ -769,7 +764,7 @@ export async function activateWorkspace(input: {
       },
       metadata: {
         workspaceId: workspace.id,
-        appliedOfferType: "FOUNDER_1",
+        appliedOfferType: resolvedOffer.type,
       },
       phases: [
         {
@@ -781,7 +776,7 @@ export async function activateWorkspace(input: {
           trial: true,
           metadata: {
             workspaceId: workspace.id,
-            appliedOfferType: "FOUNDER_1",
+            appliedOfferType: resolvedOffer.type,
             phase: "trial",
           },
         },
@@ -791,10 +786,10 @@ export async function activateWorkspace(input: {
             interval: "month",
             interval_count: 2,
           },
-          discounts: [{ coupon: founder1CouponId }],
+        discounts: [{ coupon: founderCouponId }],
           metadata: {
             workspaceId: workspace.id,
-            appliedOfferType: "FOUNDER_1",
+            appliedOfferType: resolvedOffer.type,
             phase: "discount",
           },
         },
@@ -802,7 +797,7 @@ export async function activateWorkspace(input: {
           items: [{ price: priceId, quantity: 1 }],
           metadata: {
             workspaceId: workspace.id,
-            appliedOfferType: "FOUNDER_1",
+            appliedOfferType: resolvedOffer.type,
             phase: "standard",
           },
         },
@@ -836,7 +831,7 @@ export async function activateWorkspace(input: {
         stripeSubscriptionId: scheduleSubscriptionId,
         stripeSubscriptionScheduleId: schedule.id,
         stripePriceId: priceId,
-        appliedOfferType: "FOUNDER_1",
+        appliedOfferType: resolvedOffer.type,
         appliedPromotionCode: null,
         cancelAtPeriodEnd: false,
         currentPeriodEnd,
@@ -870,14 +865,6 @@ export async function activateWorkspace(input: {
           : "",
     },
   };
-
-  if (resolvedOffer.type === "FOUNDER_2" || resolvedOffer.type === "FOUNDER_3") {
-    subscriptionCreateParams.discounts = [
-      {
-        coupon: getFounderCouponId(resolvedOffer.type),
-      },
-    ];
-  }
 
   if (resolvedOffer.type === "PROMO_CODE") {
     subscriptionCreateParams.discounts = [

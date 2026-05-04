@@ -64,10 +64,23 @@ export default async function SettingsPage({
 
   const profile = fullWorkspace.businessProfile;
 
-    const currentBusinessMatch =
-    profile.googlePlaceId
-      ? await getGooglePlaceSummary(profile.googlePlaceId).catch(() => null)
-      : null;
+    const currentBusinessMatch = profile.googlePlaceId
+  ? await getGooglePlaceSummary(profile.googlePlaceId).catch(() => null)
+  : profile.googleBusinessProfileUrl
+    ? {
+        name: profile.businessName,
+        formattedAddress: null,
+        googleBusinessUrl: profile.googleBusinessProfileUrl,
+        rating:
+          typeof profile.googleRating === "number"
+            ? profile.googleRating
+            : null,
+        reviewCount:
+          typeof profile.googleReviewCount === "number"
+            ? profile.googleReviewCount
+            : null,
+      }
+    : null;
 
   const initialData: OnboardingFormData = {
     businessName: profile.businessName ?? "",

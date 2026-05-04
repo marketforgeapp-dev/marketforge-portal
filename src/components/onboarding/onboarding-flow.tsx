@@ -14,7 +14,7 @@ import { OnboardingAiPrefill } from "@/components/onboarding/onboarding-ai-prefi
 import type { OnboardingPrefillResult } from "@/lib/onboarding-prefill-schema";
 import {
   activateWorkspace,
-  getActivationOfferPreview,
+  getActivationBillingPreview,
   saveOnboarding,
 } from "@/app/onboarding/actions";
 import { OnboardingTopbar } from "@/components/onboarding/onboarding-topbar";
@@ -87,8 +87,6 @@ const INITIAL_FORM_DATA: OnboardingFormData = {
   slowMonths: [],
   seasonalityNotes: "",
 };
-const IS_DEMO_ACTIVATION_MODE =
-  process.env.NEXT_PUBLIC_ENABLE_DEMO_ACTIVATION === "true";
 
 function resolveSupportedIndustry(
   industry: OnboardingFormData["industry"]
@@ -120,31 +118,34 @@ export function OnboardingFlow({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSavingOverlay, setShowSavingOverlay] = useState(false);
   const [isSavingForActivation, setIsSavingForActivation] = useState(false);
-  const [activationOfferPreview, setActivationOfferPreview] = useState<{
+    const [activationOfferPreview, setActivationOfferPreview] = useState<{
     title: string;
     description: string;
   } | null>(null);
+  const [activationIsDemoMode, setActivationIsDemoMode] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const totalSteps = STEP_LABELS.length;
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === totalSteps - 1;
 
-    useEffect(() => {
+      useEffect(() => {
     if (currentStep !== 6) {
       return;
     }
 
     let isMounted = true;
 
-    void getActivationOfferPreview()
+    void getActivationBillingPreview()
       .then((result) => {
         if (!isMounted) return;
-        setActivationOfferPreview(result);
+        setActivationIsDemoMode(result.isDemoMode);
+        setActivationOfferPreview(result.offerPreview);
       })
       .catch((error) => {
         console.error(error);
         if (!isMounted) return;
+        setActivationIsDemoMode(false);
         setActivationOfferPreview(null);
       });
 
@@ -176,6 +177,12 @@ export function OnboardingFlow({
         serviceArea: prefill.serviceArea || current.serviceArea,
         googleBusinessProfileUrl:
           prefill.googleBusinessProfileUrl || current.googleBusinessProfileUrl,
+        googlePlaceId:
+          prefill.googlePlaceId || current.googlePlaceId,
+        googleRating:
+          prefill.googleRating ?? current.googleRating,
+        googleReviewCount:
+          prefill.googleReviewCount ?? current.googleReviewCount,
         industry: prefill.industry || current.industry,
         industryLabel: getIndustryLabel(prefill.industry || current.industry),
 
@@ -361,7 +368,7 @@ export function OnboardingFlow({
           onActivate={handleFinish}
           isPending={isPending}
           submitError={submitError}
-          isDemoMode={IS_DEMO_ACTIVATION_MODE}
+          isDemoMode={activationIsDemoMode}
           offerPreview={activationOfferPreview}
         />
       );
