@@ -1128,6 +1128,34 @@ const TREE_SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
 const HVAC_BLUEPRINTS: ServiceBlueprint[] = [
   {
     industry: "HVAC",
+    familyKey: "general-hvac",
+    serviceName: "General HVAC",
+    title: "General HVAC Revenue Opportunity",
+    defaultOpportunityType: "CAPACITY_GAP",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote General HVAC Services",
+    defaultActionFraming: "MIXED",
+    demandBias: 4,
+    valueBias: 3,
+    everydayBias: 5,
+    capacityBias: 4,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: false,
+    aliases: [
+      "general hvac",
+      "hvac services",
+      "hvac service",
+      "heating and cooling",
+      "residential hvac",
+      "commercial hvac",
+      "new construction hvac",
+      "home comfort solutions",
+      "home comfort",
+    ],
+  },
+  {
+    industry: "HVAC",
     familyKey: "ac-repair",
     serviceName: "AC repair",
     title: "AC Repair Revenue Opportunity",
@@ -1146,21 +1174,123 @@ const HVAC_BLUEPRINTS: ServiceBlueprint[] = [
   },
   {
     industry: "HVAC",
-    familyKey: "heating-repair",
-    serviceName: "Heating repair",
-    title: "Heating Repair Revenue Opportunity",
+    familyKey: "ac-replacement",
+    serviceName: "AC replacement",
+    title: "AC Replacement Revenue Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote AC Replacement",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 10,
+    valueBias: 16,
+    everydayBias: 3,
+    capacityBias: 3,
+    aeoBias: 0,
+    nicheLongCycle: true,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "ac replacement",
+      "air conditioner replacement",
+      "air conditioning replacement",
+      "ac install",
+      "ac installation",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "furnace-repair",
+    serviceName: "Furnace repair",
+    title: "Furnace Repair Revenue Opportunity",
     defaultOpportunityType: "SEASONAL_DEMAND",
     defaultCampaignType: "CUSTOM",
-    defaultBestMove: "Promote Heating Repair Service",
+    defaultBestMove: "Promote Furnace Repair Service",
     defaultActionFraming: "PAID_CAMPAIGN",
-    demandBias: 16,
+    demandBias: 15,
     valueBias: 6,
-    everydayBias: 10,
+    everydayBias: 9,
     capacityBias: 5,
     aeoBias: 0,
     nicheLongCycle: false,
     backlogEligibleByDefault: true,
-    aliases: ["heating repair", "furnace repair", "heat pump repair"],
+    aliases: [
+      "furnace repair",
+      "heating repair",
+      "heater repair",
+      "heat repair",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "furnace-installation",
+    serviceName: "Furnace installation",
+    title: "Furnace Installation Revenue Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Furnace Installation",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 9,
+    valueBias: 15,
+    everydayBias: 2,
+    capacityBias: 3,
+    aeoBias: 0,
+    nicheLongCycle: true,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "furnace installation",
+      "furnace install",
+      "furnace replacement",
+      "heater installation",
+      "heater replacement",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "hvac-repair",
+    serviceName: "HVAC repair",
+    title: "HVAC Repair Revenue Opportunity",
+    defaultOpportunityType: "LOCAL_SEARCH_SPIKE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote HVAC Repair Service",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 12,
+    valueBias: 6,
+    everydayBias: 9,
+    capacityBias: 5,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "hvac repair",
+      "hvac repairs",
+      "hvac service repair",
+      "hvac service repairs",
+      "repair hvac",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "hvac-installation",
+    serviceName: "HVAC installation",
+    title: "HVAC Installation Revenue Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote HVAC Installation",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 8,
+    valueBias: 12,
+    everydayBias: 4,
+    capacityBias: 4,
+    aeoBias: 2,
+    nicheLongCycle: true,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "hvac installation",
+      "hvac installations",
+      "hvac install",
+      "hvac installs",
+      "hvac installation service",
+      "hvac installation services",
+    ],
   },
   {
     industry: "HVAC",
@@ -1169,43 +1299,266 @@ const HVAC_BLUEPRINTS: ServiceBlueprint[] = [
     title: "HVAC Maintenance Revenue Opportunity",
     defaultOpportunityType: "CAPACITY_GAP",
     defaultCampaignType: "MAINTENANCE_PUSH",
-    defaultBestMove: "Fill Schedule with HVAC Checkups",
+    defaultBestMove: "Promote HVAC Maintenance",
     defaultActionFraming: "SCHEDULE_FILL",
     demandBias: 9,
-    valueBias: 3,
-    everydayBias: 12,
-    capacityBias: 17,
+    valueBias: 4,
+    everydayBias: 10,
+    capacityBias: 13,
     aeoBias: 0,
     nicheLongCycle: false,
     backlogEligibleByDefault: true,
     aliases: [
       "hvac maintenance",
-      "ac tune up",
-      "furnace tune up",
-      "seasonal maintenance",
+      "hvac maintenance service",
+      "hvac maintenance services",
+      "furnace and air conditioning maintenance",
+      "heating and cooling maintenance",
+      "preventative maintenance",
+      "preventive maintenance",
+      "routine maintenance",
     ],
   },
   {
     industry: "HVAC",
-    familyKey: "system-replacement",
-    serviceName: "System replacement",
-    title: "System Replacement Revenue Opportunity",
-    defaultOpportunityType: "HIGH_VALUE_SERVICE",
-    defaultCampaignType: "CUSTOM",
-    defaultBestMove: "Promote HVAC System Replacement",
+    familyKey: "emergency-hvac",
+    serviceName: "Emergency HVAC",
+    title: "Emergency HVAC Revenue Opportunity",
+    defaultOpportunityType: "COMPETITOR_INACTIVE",
+    defaultCampaignType: "EMERGENCY_SERVICE",
+    defaultBestMove: "Promote Emergency HVAC Response",
     defaultActionFraming: "PAID_CAMPAIGN",
-    demandBias: 7,
-    valueBias: 17,
-    everydayBias: 1,
+    demandBias: 18,
+    valueBias: 8,
+    everydayBias: 11,
+    capacityBias: 2,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "emergency hvac",
+      "emergency hvac service",
+      "emergency hvac services",
+      "emergency heating and cooling",
+      "emergency repair",
+      "emergency repairs",
+      "24 hour hvac",
+      "24/7 hvac",
+      "24 7 hvac",
+      "after hours hvac",
+      "emergency service",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "no-heat-no-ac",
+    serviceName: "No heat / no AC",
+    title: "No Heat / No AC Revenue Opportunity",
+    defaultOpportunityType: "LOCAL_SEARCH_SPIKE",
+    defaultCampaignType: "EMERGENCY_SERVICE",
+    defaultBestMove: "Capture No Heat / No AC Demand",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 18,
+    valueBias: 7,
+    everydayBias: 10,
     capacityBias: 3,
     aeoBias: 0,
-    nicheLongCycle: true,
-    backlogEligibleByDefault: false,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
     aliases: [
-      "system replacement",
-      "hvac replacement",
-      "ac replacement",
-      "furnace replacement",
+      "no heat",
+      "no ac",
+      "no cooling",
+      "ac not working",
+      "heat not working",
+      "furnace not working",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "seasonal-tune-ups",
+    serviceName: "Seasonal tune-ups",
+    title: "Seasonal HVAC Tune-Up Opportunity",
+    defaultOpportunityType: "CAPACITY_GAP",
+    defaultCampaignType: "MAINTENANCE_PUSH",
+    defaultBestMove: "Fill Schedule with Seasonal Tune-Ups",
+    defaultActionFraming: "SCHEDULE_FILL",
+    demandBias: 12,
+    valueBias: 3,
+    everydayBias: 12,
+    capacityBias: 16,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "seasonal tune up",
+      "seasonal tune ups",
+      "ac tune up",
+      "furnace tune up",
+      "hvac tune up",
+      "system tune up",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "maintenance-plans",
+    serviceName: "Maintenance plans",
+    title: "HVAC Maintenance Plan Opportunity",
+    defaultOpportunityType: "CAPACITY_GAP",
+    defaultCampaignType: "MAINTENANCE_PUSH",
+    defaultBestMove: "Promote HVAC Maintenance Plans",
+    defaultActionFraming: "SCHEDULE_FILL",
+    demandBias: 8,
+    valueBias: 7,
+    everydayBias: 10,
+    capacityBias: 14,
+    aeoBias: 0,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "maintenance plan",
+      "maintenance plans",
+      "maintenance agreement",
+      "maintenance agreements",
+      "service agreement",
+      "service agreements",
+      "hvac maintenance plan",
+      "hvac service plan",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "indoor-air-quality",
+    serviceName: "Indoor air quality",
+    title: "Indoor Air Quality Revenue Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Indoor Air Quality Solutions",
+    defaultActionFraming: "MIXED",
+    demandBias: 7,
+    valueBias: 9,
+    everydayBias: 5,
+    capacityBias: 6,
+    aeoBias: 6,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "indoor air quality",
+      "indoor air quality improvement",
+      "indoor air quality improvements",
+      "indoor air quality solution",
+      "indoor air quality solutions",
+      "air quality",
+      "air quality improvement",
+      "air quality improvements",
+      "air quality service",
+      "air quality services",
+      "iaq",
+      "iaq service",
+      "iaq services",
+      "air purifier",
+      "air purification",
+      "whole home air purifier",
+      "humidity control",
+      "dehumidifier",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "duct-cleaning-sealing",
+    serviceName: "Duct cleaning & sealing",
+    title: "Duct Cleaning & Sealing Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Duct Cleaning & Sealing",
+    defaultActionFraming: "MIXED",
+    demandBias: 7,
+    valueBias: 7,
+    everydayBias: 6,
+    capacityBias: 8,
+    aeoBias: 5,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "duct cleaning",
+      "duct sealing",
+      "duct cleaning and sealing",
+      "ductwork cleaning",
+      "ductwork sealing",
+      "ductwork cleaning and care",
+      "duct cleaning and care",
+      "air duct cleaning",
+      "duct care",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "heat-pump-service",
+    serviceName: "Heat pump service",
+    title: "Heat Pump Service Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Heat Pump Service",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 10,
+    valueBias: 10,
+    everydayBias: 6,
+    capacityBias: 5,
+    aeoBias: 2,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "heat pump",
+      "heat pump repair",
+      "heat pump installation",
+      "heat pump replacement",
+      "heat pump service",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "ductless-mini-split-service",
+    serviceName: "Ductless mini-split service",
+    title: "Ductless Mini-Split Service Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Ductless Mini-Split Service",
+    defaultActionFraming: "MIXED",
+    demandBias: 8,
+    valueBias: 9,
+    everydayBias: 5,
+    capacityBias: 5,
+    aeoBias: 3,
+    nicheLongCycle: false,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "ductless mini split service",
+      "ductless mini split repair",
+      "mini split service",
+      "mini split repair",
+    ],
+  },
+  {
+    industry: "HVAC",
+    familyKey: "ductless-mini-split-installation",
+    serviceName: "Ductless mini-split installation",
+    title: "Ductless Mini-Split Installation Opportunity",
+    defaultOpportunityType: "HIGH_VALUE_SERVICE",
+    defaultCampaignType: "CUSTOM",
+    defaultBestMove: "Promote Ductless Mini-Split Installation",
+    defaultActionFraming: "PAID_CAMPAIGN",
+    demandBias: 8,
+    valueBias: 13,
+    everydayBias: 4,
+    capacityBias: 4,
+    aeoBias: 3,
+    nicheLongCycle: true,
+    backlogEligibleByDefault: true,
+    aliases: [
+      "ductless mini split installation",
+      "ductless mini split install",
+      "mini split installation",
+      "mini split install",
     ],
   },
   {
@@ -1281,10 +1634,23 @@ const GUARANTEED_FAMILIES_BY_INDUSTRY: Record<SupportedIndustry, string[]> = {
     "brush-removal",
   ],
   HVAC: [
+    "general-hvac",
     "ac-repair",
-    "heating-repair",
+    "ac-replacement",
+    "furnace-repair",
+    "furnace-installation",
+    "hvac-repair",
+    "hvac-installation",
     "hvac-maintenance",
-    "system-replacement",
+    "emergency-hvac",
+    "no-heat-no-ac",
+    "seasonal-tune-ups",
+    "maintenance-plans",
+    "indoor-air-quality",
+    "duct-cleaning-sealing",
+    "heat-pump-service",
+    "ductless-mini-split-service",
+    "ductless-mini-split-installation",
   ],
 };
 
@@ -1707,30 +2073,164 @@ export function getServiceFamilyKey(
 
   if (industry === "HVAC") {
     if (
-      normalizedServiceName.includes("maintenance") ||
-      normalizedServiceName.includes("tune up")
+      normalizedServiceName.includes("ductless mini split installation") ||
+      normalizedServiceName.includes("ductless mini split install") ||
+      normalizedServiceName.includes("mini split installation") ||
+      normalizedServiceName.includes("mini split install")
+    ) {
+      return "ductless-mini-split-installation";
+    }
+
+    if (
+      normalizedServiceName.includes("ductless mini split") ||
+      normalizedServiceName.includes("mini split")
+    ) {
+      return "ductless-mini-split-service";
+    }
+
+    if (
+      normalizedServiceName.includes("no heat") ||
+      normalizedServiceName.includes("no ac") ||
+      normalizedServiceName.includes("no cooling") ||
+      normalizedServiceName.includes("ac not working") ||
+      normalizedServiceName.includes("heat not working") ||
+      normalizedServiceName.includes("furnace not working")
+    ) {
+      return "no-heat-no-ac";
+    }
+
+    if (
+      normalizedServiceName.includes("emergency") ||
+      normalizedServiceName.includes("24 hour") ||
+      normalizedServiceName.includes("24/7") ||
+      normalizedServiceName.includes("24 7") ||
+      normalizedServiceName.includes("after hours")
+    ) {
+      return "emergency-hvac";
+    }
+
+    if (
+      normalizedServiceName.includes("maintenance plan") ||
+      normalizedServiceName.includes("maintenance agreement") ||
+      normalizedServiceName.includes("service agreement") ||
+      normalizedServiceName.includes("service plan")
+    ) {
+      return "maintenance-plans";
+    }
+
+    if (
+      normalizedServiceName.includes("hvac maintenance") ||
+      normalizedServiceName.includes("heating and cooling maintenance") ||
+      normalizedServiceName.includes("furnace and air conditioning maintenance") ||
+      normalizedServiceName.includes("preventative maintenance") ||
+      normalizedServiceName.includes("preventive maintenance") ||
+      normalizedServiceName.includes("routine maintenance")
     ) {
       return "hvac-maintenance";
     }
+
     if (
-      normalizedServiceName.includes("replacement") ||
-      normalizedServiceName.includes("system install")
+      normalizedServiceName.includes("tune up") ||
+      normalizedServiceName.includes("checkup") ||
+      normalizedServiceName.includes("seasonal maintenance")
     ) {
-      return "system-replacement";
+      return "seasonal-tune-ups";
     }
+
     if (
-      normalizedServiceName.includes("heating") ||
+      normalizedServiceName.includes("indoor air quality") ||
+      normalizedServiceName.includes("air quality") ||
+      normalizedServiceName.includes("iaq") ||
+      normalizedServiceName.includes("air purifier") ||
+      normalizedServiceName.includes("air purification") ||
+      normalizedServiceName.includes("humidity") ||
+      normalizedServiceName.includes("dehumidifier")
+    ) {
+      return "indoor-air-quality";
+    }
+
+    if (
+      normalizedServiceName.includes("duct cleaning") ||
+      normalizedServiceName.includes("duct sealing") ||
+      normalizedServiceName.includes("ductwork") ||
+      normalizedServiceName.includes("air duct") ||
+      normalizedServiceName.includes("duct care")
+    ) {
+      return "duct-cleaning-sealing";
+    }
+
+    if (normalizedServiceName.includes("heat pump")) {
+      return "heat-pump-service";
+    }
+
+    if (
+      normalizedServiceName.includes("furnace install") ||
+      normalizedServiceName.includes("furnace installation") ||
+      normalizedServiceName.includes("furnace replacement") ||
+      normalizedServiceName.includes("heater replacement") ||
+      normalizedServiceName.includes("heater installation")
+    ) {
+      return "furnace-installation";
+    }
+
+    if (
+      normalizedServiceName.includes("ac replacement") ||
+      normalizedServiceName.includes("air conditioning replacement") ||
+      normalizedServiceName.includes("air conditioner replacement") ||
+      normalizedServiceName.includes("ac install") ||
+      normalizedServiceName.includes("ac installation")
+    ) {
+      return "ac-replacement";
+    }
+
+    if (
+      normalizedServiceName.includes("hvac installation") ||
+      normalizedServiceName.includes("hvac installations") ||
+      normalizedServiceName.includes("hvac install") ||
+      normalizedServiceName.includes("hvac installs") ||
+      normalizedServiceName.includes("installation and maintenance")
+    ) {
+      return "hvac-installation";
+    }
+
+    if (
+      normalizedServiceName.includes("hvac repair") ||
+      normalizedServiceName.includes("hvac repairs") ||
+      normalizedServiceName.includes("repair hvac") ||
+      normalizedServiceName.includes("part updates") ||
+      normalizedServiceName.includes("repairs to address hvac") ||
+      normalizedServiceName.includes("hvac issues")
+    ) {
+      return "hvac-repair";
+    }
+
+    if (
       normalizedServiceName.includes("furnace") ||
-      normalizedServiceName.includes("heat pump")
+      normalizedServiceName.includes("heating") ||
+      normalizedServiceName.includes("heater")
     ) {
-      return "heating-repair";
+      return "furnace-repair";
     }
+
     if (
       normalizedServiceName.includes("ac") ||
       normalizedServiceName.includes("air conditioning") ||
       normalizedServiceName.includes("cooling")
     ) {
       return "ac-repair";
+    }
+
+    if (
+      normalizedServiceName.includes("residential hvac") ||
+      normalizedServiceName.includes("commercial hvac") ||
+      normalizedServiceName.includes("new construction hvac") ||
+      normalizedServiceName === "hvac" ||
+      normalizedServiceName === "hvac service" ||
+      normalizedServiceName === "hvac services" ||
+      normalizedServiceName.includes("heating and cooling") ||
+      normalizedServiceName.includes("home comfort")
+    ) {
+      return "general-hvac";
     }
   }
 

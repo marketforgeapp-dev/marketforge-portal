@@ -232,25 +232,165 @@ const INDUSTRY_ALIAS_MAP: Record<SupportedIndustry, CanonicalAliasMap> = {
   },
 
   HVAC: {
+    "residential hvac": "General HVAC",
+    "residential hvac service": "General HVAC",
+    "residential hvac services": "General HVAC",
+    "residential hvac repair": "General HVAC",
+    "residential hvac repairs": "General HVAC",
+    "residential hvac installation": "HVAC installation",
+    "residential hvac installation and repair": "HVAC repair",
+    "residential hvac installation and repairs": "HVAC repair",
+
+    "commercial hvac": "General HVAC",
+    "commercial hvac service": "General HVAC",
+    "commercial hvac services": "General HVAC",
+    "commercial hvac solutions": "General HVAC",
+    "commercial heating and cooling": "General HVAC",
+
+    "new construction hvac": "General HVAC",
+    "new construction hvac service": "General HVAC",
+    "new construction hvac services": "General HVAC",
+    "new construction heating and cooling": "General HVAC",
+
+    "heating and cooling": "General HVAC",
+    "heating cooling": "General HVAC",
+    "home comfort": "General HVAC",
+    "home comfort solutions": "General HVAC",
+    "hvac services": "General HVAC",
+    "hvac service": "General HVAC",
+
     "ac repair": "AC repair",
     "air conditioning repair": "AC repair",
     "cooling repair": "AC repair",
 
-    "heating repair": "Heating repair",
-    "furnace repair": "Heating repair",
-    "heat pump repair": "Heating repair",
+    "ac replacement": "AC replacement",
+    "air conditioner replacement": "AC replacement",
+    "air conditioning replacement": "AC replacement",
+    "ac install": "AC replacement",
+    "ac installation": "AC replacement",
+
+    "furnace repair": "Furnace repair",
+    "heating repair": "Furnace repair",
+    "heater repair": "Furnace repair",
+    "heat repair": "Furnace repair",
+
+    "furnace installation": "Furnace installation",
+    "furnace install": "Furnace installation",
+    "furnace replacement": "Furnace installation",
+    "heater installation": "Furnace installation",
+    "heater replacement": "Furnace installation",
+
+    "hvac repair": "HVAC repair",
+    "hvac repairs": "HVAC repair",
+    "hvac service repair": "HVAC repair",
+    "hvac service repairs": "HVAC repair",
+    "repair hvac": "HVAC repair",
+    "prompt dependable part updates and repairs to address hvac issues": "HVAC repair",
+    "prompt dependaple part updates and repairs to address hvac issues": "HVAC repair",
+
+    "hvac installation": "HVAC installation",
+    "hvac installations": "HVAC installation",
+    "hvac install": "HVAC installation",
+    "hvac installs": "HVAC installation",
+    "hvac installation service": "HVAC installation",
+    "hvac installation services": "HVAC installation",
+    "installation and maintenance": "HVAC installation",
+    "installation and maintenance to repair and air quality improvements": "HVAC installation",
+    "installation maintenance repair and air quality improvements": "HVAC installation",
 
     "hvac maintenance": "HVAC maintenance",
-    "ac tune up": "HVAC maintenance",
-    "furnace tune up": "HVAC maintenance",
-    "seasonal maintenance": "HVAC maintenance",
+    "hvac maintenance service": "HVAC maintenance",
+    "hvac maintenance services": "HVAC maintenance",
+    "heating and cooling maintenance": "HVAC maintenance",
+    "furnace and air conditioning maintenance": "HVAC maintenance",
+    "preventative maintenance": "HVAC maintenance",
+    "preventive maintenance": "HVAC maintenance",
+    "routine maintenance": "HVAC maintenance",
 
-    "system replacement": "System replacement",
-    "hvac replacement": "System replacement",
-    "ac replacement": "System replacement",
-    "furnace replacement": "System replacement",
-  },
-};
+    "emergency hvac": "Emergency HVAC",
+    "emergency hvac service": "Emergency HVAC",
+    "emergency hvac services": "Emergency HVAC",
+    "emergency heating and cooling": "Emergency HVAC",
+    "emergency repair": "Emergency HVAC",
+    "emergency repairs": "Emergency HVAC",
+    "24 7 hvac": "Emergency HVAC",
+    "24 hour hvac": "Emergency HVAC",
+    "after hours hvac": "Emergency HVAC",
+    "emergency service": "Emergency HVAC",
+
+    "no heat": "No heat / no AC",
+    "no ac": "No heat / no AC",
+    "no cooling": "No heat / no AC",
+    "ac not working": "No heat / no AC",
+    "heat not working": "No heat / no AC",
+    "furnace not working": "No heat / no AC",
+
+    "seasonal tune up": "Seasonal tune-ups",
+    "seasonal tune ups": "Seasonal tune-ups",
+    "ac tune up": "Seasonal tune-ups",
+    "furnace tune up": "Seasonal tune-ups",
+    "hvac tune up": "Seasonal tune-ups",
+    "system tune up": "Seasonal tune-ups",
+    "seasonal maintenance": "Seasonal tune-ups",
+
+    "maintenance plan": "Maintenance plans",
+    "maintenance plans": "Maintenance plans",
+    "maintenance agreement": "Maintenance plans",
+    "maintenance agreements": "Maintenance plans",
+    "service agreement": "Maintenance plans",
+    "service agreements": "Maintenance plans",
+    "hvac maintenance plan": "Maintenance plans",
+    "hvac service plan": "Maintenance plans",
+
+    "indoor air quality": "Indoor air quality",
+    "indoor air quality improvement": "Indoor air quality",
+    "indoor air quality improvements": "Indoor air quality",
+    "indoor air quality service": "Indoor air quality",
+    "indoor air quality services": "Indoor air quality",
+    "indoor air quality solution": "Indoor air quality",
+    "indoor air quality solutions": "Indoor air quality",
+    "air quality": "Indoor air quality",
+    "air quality improvement": "Indoor air quality",
+    "air quality improvements": "Indoor air quality",
+    "air quality service": "Indoor air quality",
+    "air quality services": "Indoor air quality",
+    "iaq": "Indoor air quality",
+    "iaq service": "Indoor air quality",
+    "iaq services": "Indoor air quality",
+    "iaq solution": "Indoor air quality",
+    "iaq solutions": "Indoor air quality",
+    "air purifier": "Indoor air quality",
+    "air purification": "Indoor air quality",
+    "whole home air purifier": "Indoor air quality",
+    "humidity control": "Indoor air quality",
+    "dehumidifier": "Indoor air quality",
+
+    "duct cleaning": "Duct cleaning & sealing",
+    "duct sealing": "Duct cleaning & sealing",
+    "duct cleaning and sealing": "Duct cleaning & sealing",
+    "ductwork cleaning": "Duct cleaning & sealing",
+    "ductwork sealing": "Duct cleaning & sealing",
+    "ductwork cleaning and care": "Duct cleaning & sealing",
+    "duct cleaning and care": "Duct cleaning & sealing",
+    "air duct cleaning": "Duct cleaning & sealing",
+    "duct care": "Duct cleaning & sealing",
+
+    "heat pump": "Heat pump service",
+    "heat pump repair": "Heat pump service",
+    "heat pump installation": "Heat pump service",
+    "heat pump replacement": "Heat pump service",
+    "heat pump service": "Heat pump service",
+
+    "ductless mini split service": "Ductless mini-split service",
+    "ductless mini split repair": "Ductless mini-split service",
+    "mini split service": "Ductless mini-split service",
+    "mini split repair": "Ductless mini-split service",
+
+    "ductless mini split installation": "Ductless mini-split installation",
+    "ductless mini split install": "Ductless mini-split installation",
+    "mini split installation": "Ductless mini-split installation",
+    "mini split install": "Ductless mini-split installation",
+  }};
 
 function titleCase(value: string): string {
   return value
@@ -270,14 +410,125 @@ export function normalizeServiceNameForIndustry(
   return aliasMap[comparable] ?? titleCase(comparable);
 }
 
+function expandServicesForIndustry(
+  services: string[],
+  industry: SupportedIndustry
+): string[] {
+  if (industry !== "HVAC") {
+    return services;
+  }
+
+  const expanded: string[] = [];
+
+  for (const service of services) {
+    const comparable = normalizeComparable(service);
+    if (!comparable) continue;
+
+    const additions = new Set<string>();
+
+    additions.add(service);
+
+    const mentionsHvac =
+      comparable.includes("hvac") ||
+      comparable.includes("heating and cooling") ||
+      comparable.includes("home comfort");
+
+    if (
+      comparable.includes("residential hvac") ||
+      comparable.includes("commercial hvac") ||
+      comparable.includes("new construction hvac") ||
+      comparable.includes("heating and cooling") ||
+      comparable.includes("home comfort") ||
+      comparable === "hvac" ||
+      comparable === "hvac service" ||
+      comparable === "hvac services"
+    ) {
+      additions.add("General HVAC");
+    }
+
+    if (
+      comparable.includes("hvac installation") ||
+      comparable.includes("hvac installations") ||
+      comparable.includes("hvac install") ||
+      comparable.includes("installation and repair") ||
+      comparable.includes("installation and repairs") ||
+      (mentionsHvac && comparable.includes("installation services"))
+    ) {
+      additions.add("HVAC installation");
+    }
+
+    if (
+      comparable.includes("hvac repair") ||
+      comparable.includes("hvac repairs") ||
+      comparable.includes("installation and repair") ||
+      comparable.includes("installation and repairs") ||
+      comparable.includes("repairs to address hvac") ||
+      comparable.includes("hvac issues")
+    ) {
+      additions.add("HVAC repair");
+    }
+
+    if (
+      comparable.includes("hvac maintenance") ||
+      comparable.includes("preventative maintenance") ||
+      comparable.includes("routine maintenance") ||
+      comparable.includes("furnace and air conditioning maintenance") ||
+      comparable.includes("heating and cooling maintenance")
+    ) {
+      additions.add("HVAC maintenance");
+    }
+
+    if (
+      comparable.includes("indoor air quality") ||
+      comparable.includes("air quality") ||
+      comparable.includes("iaq")
+    ) {
+      additions.add("Indoor air quality");
+    }
+
+    if (
+      comparable.includes("duct cleaning") ||
+      comparable.includes("duct sealing") ||
+      comparable.includes("ductwork cleaning") ||
+      comparable.includes("ductwork sealing") ||
+      comparable.includes("ductwork cleaning and care") ||
+      comparable.includes("ductwork care") ||
+      comparable.includes("duct care") ||
+      comparable.includes("air duct")
+    ) {
+      additions.add("Duct cleaning & sealing");
+    }
+
+    if (
+      comparable.includes("emergency hvac") ||
+      comparable.includes("emergency service") ||
+      comparable.includes("emergency services") ||
+      comparable.includes("emergency repair") ||
+      comparable.includes("emergency repairs") ||
+      comparable.includes("emergency response") ||
+      comparable.includes("24 7") ||
+      comparable.includes("24/7") ||
+      comparable.includes("24 hour") ||
+      comparable.includes("after hours")
+    ) {
+      additions.add("Emergency HVAC");
+    }
+
+    expanded.push(...additions);
+  }
+
+  return expanded;
+}
+
 export function dedupeServicesForIndustry(
   services: string[],
   industry: SupportedIndustry
 ): string[] {
+  const expandedServices = expandServicesForIndustry(services, industry);
   const seen = new Set<string>();
   const output: string[] = [];
 
-  for (const service of services) {
+  for (const service of expandedServices) {
     const normalizedService = normalizeServiceNameForIndustry(service, industry);
     const key = normalizeComparable(normalizedService);
 
@@ -306,3 +557,125 @@ export function mergeAndDedupeServicesForIndustry(params: {
 
   return deduped;
 }
+
+const INDUSTRY_SERVICE_SUGGESTIONS: Record<SupportedIndustry, string[]> = {
+  PLUMBING: [
+    "Drain cleaning",
+    "Water heater repair & replacement",
+    "Tankless water heater",
+    "Leak repair",
+    "Slab leak repair",
+    "Sewer line service",
+    "Gas line service",
+    "Emergency plumbing",
+  ],
+  SEPTIC: [
+    "Septic tank pumping",
+    "Septic system inspection",
+    "Septic system installation",
+    "Drain field repair",
+    "Lift pump service",
+    "Septic repair",
+    "Septic maintenance",
+    "Emergency septic service",
+  ],
+  TREE_SERVICE: [
+    "Tree removal",
+    "Pruning & trimming",
+    "Stump grinding",
+    "Emergency storm service",
+    "Plant health care",
+    "Disease & pest management",
+    "Lot clearing",
+    "Brush removal & debris hauling",
+  ],
+  HVAC: [
+    "AC repair",
+    "AC replacement",
+    "Furnace repair",
+    "Furnace installation",
+    "HVAC repair",
+    "HVAC installation",
+    "HVAC maintenance",
+    "Emergency HVAC",
+    "No heat / no AC",
+    "Seasonal tune-ups",
+    "Maintenance plans",
+    "Indoor air quality",
+    "Duct cleaning & sealing",
+    "Heat pump service",
+    "Ductless mini-split service",
+    "Ductless mini-split installation",
+  ],
+};
+
+const BROAD_SERVICE_TERMS: Record<SupportedIndustry, string[]> = {
+  PLUMBING: ["plumbing", "plumber", "general plumbing"],
+  SEPTIC: ["septic", "septic service", "septic services"],
+  TREE_SERVICE: ["tree service", "tree services", "tree care"],
+  HVAC: [
+    "general hvac",
+    "hvac",
+    "hvac service",
+    "hvac services",
+    "heating and cooling",
+    "heating cooling",
+    "residential hvac",
+    "commercial hvac",
+    "new construction hvac",
+    "home comfort",
+  ],
+};
+
+export function getSuggestedServicesForIndustry(params: {
+  industry: SupportedIndustry;
+  currentServices: string[];
+  max?: number;
+}): string[] {
+  const current = dedupeServicesForIndustry(
+    params.currentServices,
+    params.industry
+  );
+
+  const currentKeys = new Set(
+    current.flatMap((service) => {
+      const comparable = normalizeComparable(service);
+      const alias = INDUSTRY_ALIAS_MAP[params.industry]?.[comparable];
+
+      return [comparable, normalizeComparable(alias ?? "")].filter(Boolean);
+    })
+  );
+
+  const suggestions = INDUSTRY_SERVICE_SUGGESTIONS[params.industry].filter(
+    (service) => !currentKeys.has(normalizeComparable(service))
+  );
+
+  return suggestions.slice(0, params.max ?? 10);
+}
+
+export function shouldShowSuggestedServicesForIndustry(params: {
+  industry: SupportedIndustry;
+  currentServices: string[];
+}): boolean {
+  const current = dedupeServicesForIndustry(
+    params.currentServices,
+    params.industry
+  );
+
+  if (current.length === 0) return true;
+
+  const broadTerms = BROAD_SERVICE_TERMS[params.industry] ?? [];
+
+  const hasBroadService = current.some((service) => {
+    const comparable = normalizeComparable(service);
+
+    return broadTerms.some(
+      (term) =>
+        comparable === normalizeComparable(term) ||
+        comparable.includes(normalizeComparable(term))
+    );
+  });
+
+  return current.length < 6 || hasBroadService;
+}
+

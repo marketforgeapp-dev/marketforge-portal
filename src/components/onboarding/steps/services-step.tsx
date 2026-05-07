@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import { OnboardingFormData } from "@/types/onboarding";
-import { mergeAndDedupeServicesForIndustry } from "@/lib/service-normalization";
 import type { SupportedIndustry } from "@/lib/industry-service-map";
+import {
+  getSuggestedServicesForIndustry,
+  mergeAndDedupeServicesForIndustry,
+  shouldShowSuggestedServicesForIndustry,
+} from "@/lib/service-normalization";
 
 function resolveSupportedIndustry(
   industry: OnboardingFormData["industry"]
@@ -22,6 +26,19 @@ type Props = {
 export function ServicesStep({ formData, setFormData }: Props) {
   const [serviceInput, setServiceInput] = useState("");
 
+  const supportedIndustry = resolveSupportedIndustry(formData.industry);
+
+  const showSuggestedServices = shouldShowSuggestedServicesForIndustry({
+    industry: supportedIndustry,
+    currentServices: formData.primaryServices,
+  });
+
+  const suggestedServices = getSuggestedServicesForIndustry({
+    industry: supportedIndustry,
+    currentServices: formData.primaryServices,
+    max: 10,
+  });
+
   const addService = () => {
     const parsedServices = serviceInput
       .split(",")
@@ -31,7 +48,7 @@ export function ServicesStep({ formData, setFormData }: Props) {
     if (parsedServices.length === 0) return;
 
     setFormData((prev) => {
-            const mergedServices = mergeAndDedupeServicesForIndustry({
+      const mergedServices = mergeAndDedupeServicesForIndustry({
         industry: resolveSupportedIndustry(prev.industry),
         groups: [prev.primaryServices, parsedServices],
         max: 20,
@@ -47,10 +64,28 @@ export function ServicesStep({ formData, setFormData }: Props) {
     setServiceInput("");
   };
 
+  const addSuggestedService = (service: string) => {
+    setFormData((prev) => {
+      const mergedServices = mergeAndDedupeServicesForIndustry({
+        industry: resolveSupportedIndustry(prev.industry),
+        groups: [prev.primaryServices, [service]],
+        max: 20,
+      });
+
+      return {
+        ...prev,
+        primaryServices: mergedServices,
+        preferredServices: mergedServices,
+      };
+    });
+  };
+
   const removeService = (service: string) => {
     setFormData((prev) => {
       const nextPrimary = prev.primaryServices.filter((item) => item !== service);
-      const nextPreferred = prev.preferredServices.filter((item) => item !== service);
+      const nextPreferred = prev.preferredServices.filter(
+        (item) => item !== service
+      );
 
       return {
         ...prev,
@@ -84,8 +119,8 @@ export function ServicesStep({ formData, setFormData }: Props) {
         </div>
 
         <p className="mb-3 text-xs text-slate-400">
-          MarketForge normalizes and deduplicates services automatically so variant
-          spelling and capitalization do not create duplicates.
+          MarketForge normalizes and deduplicates services automatically so
+          variant spelling and capitalization do not create duplicates.
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -105,70 +140,98 @@ export function ServicesStep({ formData, setFormData }: Props) {
             </span>
           ))}
         </div>
+
+        {showSuggestedServices && suggestedServices.length > 0 ? (
+          <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-900/50 p-4">
+            <p className="text-sm font-semibold text-white">
+              Common specialized services
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-400">
+              More specific services help MarketForge generate more targeted
+              recommendations and opportunities. Select any additional services
+              your business offers. You can refine pricing later in Settings.
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {suggestedServices.map((service) => (
+                <button
+                  key={service}
+                  type="button"
+                  onClick={() => addSuggestedService(service)}
+                  className="rounded-full border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm font-medium text-slate-200 hover:border-blue-400 hover:text-white"
+                >
+                  + {service}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-  <div>
-  <p className="mb-3 text-sm text-slate-400">
-    Optional: tell MarketForge which services are highest priority or lowest
-    priority for your business. This helps fine-tune recommendation selection,
-    but you can skip it and let the system decide.
-  </p>
+      <div>
+        <p className="mb-3 text-sm text-slate-400">
+          Optional: tell MarketForge which services are highest priority or
+          lowest priority for your business. This helps fine-tune recommendation
+          selection, but you can skip it and let the system decide.
+        </p>
 
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Field label="Average Job Value">
-          <input
-            type="number"
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
-            value={formData.averageJobValue}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                averageJobValue: e.target.value === "" ? "" : Number(e.target.value),
-              }))
-            }
-          />
-          <p className="mt-2 text-xs text-slate-400">
-            Detailed service-level pricing can be added later in Settings to improve
-            revenue projections and opportunity scoring.
-          </p>
-        </Field>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Field label="Average Job Value">
+            <input
+              type="number"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
+              value={formData.averageJobValue}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  averageJobValue:
+                    e.target.value === "" ? "" : Number(e.target.value),
+                }))
+              }
+            />
+            <p className="mt-2 text-xs text-slate-400">
+              Detailed service-level pricing can be added later in Settings to
+              improve revenue projections and opportunity scoring.
+            </p>
+          </Field>
 
-        <Field label="Highest Priority Service">
-          <input
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
-            value={formData.highestMarginService}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                highestMarginService: e.target.value,
-              }))
-            }
-          />
-        </Field>
+          <Field label="Highest Priority Service">
+            <input
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
+              value={formData.highestMarginService}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  highestMarginService: e.target.value,
+                }))
+              }
+            />
+          </Field>
 
-        <Field label="Lowest Priority Service">
-          <input
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
-            value={formData.lowestPriorityService}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                lowestPriorityService: e.target.value,
-              }))
-            }
-          />
-        </Field>
+          <Field label="Lowest Priority Service">
+            <input
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-white"
+              value={formData.lowestPriorityService}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  lowestPriorityService: e.target.value,
+                }))
+              }
+            />
+          </Field>
+        </div>
       </div>
-      </div>
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/40 p-4">
+
+      <div className="rounded-2xl border border-slate-700 bg-slate-900/40 p-4">
         <p className="text-sm font-medium text-white">
           General Service / Maintenance Controls
         </p>
 
         <p className="mt-2 text-xs leading-5 text-slate-400">
-          These controls apply only to broad general-service or maintenance-style
-          actions, not to specific named services like leak repair or water heater
-          replacement.
+          These controls apply only to broad general-service or
+          maintenance-style actions, not to specific named services like leak
+          repair or water heater replacement.
         </p>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -232,7 +295,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
+      <span className="mb-2 block text-sm font-medium text-gray-700">
+        {label}
+      </span>
       {children}
     </label>
   );
