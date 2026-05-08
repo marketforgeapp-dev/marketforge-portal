@@ -8,6 +8,7 @@ export async function refineTargetingWithAI(params: {
   jobValueTier: string;
   existingKeywordThemes: string[];
   existingNegativeKeywords: string[];
+  promotionalContext?: unknown;
 }) {
   const prompt = `
 You are a senior paid media strategist.
@@ -26,6 +27,9 @@ STRICT RULES:
 - Do NOT mix unrelated concepts
 - Keep keywords SHORT (2–4 words max when possible)
 - Maintain CLEAN structure
+- If promotional context includes a verified or user-requested brand/product, you may include 1–2 clean keyword themes using that brand/product.
+- Do NOT invent rebate values, financing terms, APRs, eligibility rules, or expiration dates.
+- If promotional context is unverified, keep targeting aligned to the brand/product/service but avoid exact incentive claims.
 
 ---
 
@@ -41,6 +45,9 @@ ${params.existingKeywordThemes.join(", ")}
 
 Existing Negative Keywords:
 ${params.existingNegativeKeywords.join(", ")}
+
+Promotional Context:
+${JSON.stringify(params.promotionalContext ?? null, null, 2)}
 
 ---
 

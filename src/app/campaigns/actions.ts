@@ -12,7 +12,7 @@ import {
 import { buildActionSpec } from "@/lib/action-spec";
 import { getCampaignPerformanceSignals } from "@/lib/campaign-performance-signals";
 import { invalidateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snapshot";
-import type { BusinessProfile } from "@/generated/prisma";
+import type { BusinessProfile, Prisma } from "@/generated/prisma";
 import { resolveServiceJobValue } from "@/lib/service-pricing";
 import type {
   AssetType,
@@ -29,6 +29,10 @@ import { refineTargetingWithAI } from "@/lib/targeting-ai";
 type CreateCampaignResult =
   | { success: true; campaignId: string; campaignName: string }
   | { success: false; error: string };
+
+function toPrismaJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 type CreateCampaignFromPromptOptions = {
   linkedOpportunity?: ResolvedOpportunity | null;
@@ -62,6 +66,231 @@ type RoutedIntent = {
     | "CUSTOM";
   label: string;
 };
+
+type PromotionalVerificationStatus =
+  | "none"
+  | "user_verified"
+  | "search_verified"
+  | "user_claimed_unverified"
+  | "unverified";
+
+type PromotionalContext = {
+  promotedBrand: string | null;
+  promotedProduct: string | null;
+  promotedService: string | null;
+  incentiveType:
+    | "rebate"
+    | "financing"
+    | "discount"
+    | "supplier_incentive"
+    | "inventory_push"
+    | "seasonal_promotion"
+    | "premium_product_push"
+    | "other"
+    | "none"
+    | null;
+  incentiveDetails: string | null;
+  incentiveValue: string | null;
+  timeConstraint: string | null;
+  verificationStatus: PromotionalVerificationStatus;
+  sourceType:
+    | "user_provided"
+    | "manufacturer_official"
+    | "distributor_official"
+    | "utility_or_government"
+    | "search_result"
+    | "none"
+    | null;
+  sourceSummary: string | null;
+  customerFacingOffer: string | null;
+  usageRule: string;
+  enrichmentNotes: string[];
+};
+
+function normalizePromotionalContext(
+  context?: Partial<PromotionalContext> | null
+): PromotionalContext {
+  return {
+    promotedBrand: context?.promotedBrand ?? null,
+    promotedProduct: context?.promotedProduct ?? null,
+    promotedService: context?.promotedService ?? null,
+    incentiveType: context?.incentiveType ?? "none",
+    incentiveDetails: context?.incentiveDetails ?? null,
+    incentiveValue: context?.incentiveValue ?? null,
+    timeConstraint: context?.timeConstraint ?? null,
+    verificationStatus: context?.verificationStatus ?? "none",
+    sourceType: context?.sourceType ?? "none",
+    sourceSummary: context?.sourceSummary ?? null,
+    customerFacingOffer: context?.customerFacingOffer ?? null,
+    usageRule:
+      context?.usageRule ??
+      "Do not invent rebate values, financing terms, expiration dates, eligibility rules, or manufacturer relationship claims.",
+    enrichmentNotes: context?.enrichmentNotes ?? [],
+  };
+}
+
+function shouldAttemptPromotionalEnrichment(context: PromotionalContext) {
+  if (context.verificationStatus === "user_verified") return false;
+
+  const hasBrandOrProduct = Boolean(
+    context.promotedBrand || context.promotedProduct || context.promotedService
+  );
+
+  const hasIncentiveIntent =
+    context.incentiveType != null && context.incentiveType !== "none";
+
+  const missingSpecificTerms =
+    !context.incentiveValue || !context.timeConstraint || !context.incentiveDetails;
+
+  return hasBrandOrProduct && hasIncentiveIntent && missingSpecificTerms;
+}
+
+function safeParsePromotionalContext(value: string): Partial<PromotionalContext> | null {
+  try {
+    return JSON.parse(value) as Partial<PromotionalContext>;
+  } catch {
+    return null;
+  }
+}
+
+async function enrichPromotionalContext(params: {
+  initialContext: PromotionalContext;
+  userPrompt: string;
+  businessName: string;
+  serviceArea: string;
+  city: string | null;
+  state: string | null;
+}) {
+  const initialContext = normalizePromotionalContext(params.initialContext);
+
+  if (!shouldAttemptPromotionalEnrichment(initialContext)) {
+    return initialContext;
+  }
+
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-4.1",
+      tools: [{ type: "web_search" }],
+      input: `
+You are verifying promotional context for a local service business campaign.
+
+Business: ${params.businessName}
+Service Area: ${params.serviceArea}
+City: ${params.city ?? "unknown"}
+State: ${params.state ?? "unknown"}
+
+User request:
+${params.userPrompt}
+
+Initial promotional context:
+${JSON.stringify(initialContext, null, 2)}
+
+Task:
+Search for official, currently relevant promotional information related to the brand/product/service/incentive above.
+
+Use ONLY reliable sources such as:
+- manufacturer official websites
+- official rebate centers
+- distributor official websites
+- utility or government rebate pages
+
+Return JSON ONLY with this shape:
+{
+  "promotedBrand": string | null,
+  "promotedProduct": string | null,
+  "promotedService": string | null,
+  "incentiveType": "rebate" | "financing" | "discount" | "supplier_incentive" | "inventory_push" | "seasonal_promotion" | "premium_product_push" | "other" | "none" | null,
+  "incentiveDetails": string | null,
+  "incentiveValue": string | null,
+  "timeConstraint": string | null,
+  "verificationStatus": "search_verified" | "user_claimed_unverified" | "unverified",
+  "sourceType": "manufacturer_official" | "distributor_official" | "utility_or_government" | "search_result" | "none" | null,
+  "sourceSummary": string | null,
+  "customerFacingOffer": string | null,
+  "usageRule": string,
+  "enrichmentNotes": string[]
+}
+
+Critical rules:
+- Do not invent values.
+- Do not invent expiration dates.
+- Do not invent APR, monthly payment, or financing terms.
+- Do not claim the business is an authorized dealer unless the user explicitly said so.
+- If exact terms are not verified, set verificationStatus to "user_claimed_unverified".
+- If using a verified value, customerFacingOffer must use cautious wording such as "up to", "qualifying systems", "ask about", or "available offers".
+- If not verified, customerFacingOffer must avoid exact values and deadlines.
+`,
+    });
+
+    const outputText =
+      typeof response.output_text === "string" ? response.output_text : "";
+
+    const enriched = safeParsePromotionalContext(outputText);
+
+    if (!enriched) {
+      return {
+        ...initialContext,
+        verificationStatus: "user_claimed_unverified" as const,
+        customerFacingOffer:
+          initialContext.customerFacingOffer ??
+          buildFallbackPromotionalOffer(initialContext),
+        usageRule:
+          "The user mentioned a promotion or incentive, but exact terms were not verified. Use cautious language and do not include specific values, deadlines, APRs, or eligibility claims.",
+        enrichmentNotes: [
+          ...initialContext.enrichmentNotes,
+          "Promotional enrichment ran, but the response could not be parsed safely.",
+        ],
+      };
+    }
+
+    return normalizePromotionalContext({
+      ...initialContext,
+      ...enriched,
+      enrichmentNotes: [
+        ...initialContext.enrichmentNotes,
+        ...(enriched.enrichmentNotes ?? []),
+      ],
+    });
+  } catch (error) {
+    console.error("[promotional-context] enrichment failed", error);
+
+    return {
+      ...initialContext,
+      verificationStatus: "user_claimed_unverified" as const,
+      customerFacingOffer:
+        initialContext.customerFacingOffer ??
+        buildFallbackPromotionalOffer(initialContext),
+      usageRule:
+        "The user mentioned a promotion or incentive, but enrichment failed. Use cautious language and do not include specific values, deadlines, APRs, or eligibility claims.",
+      enrichmentNotes: [
+        ...initialContext.enrichmentNotes,
+        "Promotional enrichment failed; falling back to user-claimed unverified language.",
+      ],
+    };
+  }
+}
+
+function buildFallbackPromotionalOffer(context: PromotionalContext) {
+  const brandOrProduct =
+    context.promotedBrand ??
+    context.promotedProduct ??
+    context.promotedService ??
+    "this service";
+
+  if (context.incentiveType === "financing") {
+    return `Ask about available financing options for ${brandOrProduct}`;
+  }
+
+  if (context.incentiveType === "rebate") {
+    return `Ask about available rebates for ${brandOrProduct}`;
+  }
+
+    if (context.incentiveType && context.incentiveType !== "none") {
+    return `Ask about current offers for ${brandOrProduct}`;
+  }
+
+  return null;
+}
 
 type ResolvedOpportunity = {
   opportunityKey: string;
@@ -2086,6 +2315,15 @@ Critical rules:
 - Keep the language direct, commercial, and trustworthy.
 - Avoid generic agency language.
 - Avoid fake certainty.
+- Extract manufacturer, brand, promoted product, supplier incentive, rebate, financing, inventory push, or seasonal promotion context when the user provides it.
+- Do not hardcode or limit manufacturers, brands, or promoted products.
+- Separate the core service objective from the promotional enhancer.
+- The core service objective is the actual job demand being created, such as AC replacement, furnace installation, drain cleaning, tree removal, septic pumping, or generator installation.
+- The promotional enhancer is supporting context, such as a manufacturer, rebate, financing option, supplier incentive, inventory push, premium product, or seasonal timing.
+- Campaign titles, summaries, CTAs, targeting, and assets should stay service-first.
+- Use promotional enhancers to strengthen the offer, trust, urgency, or positioning, not to replace the service objective.
+- Do not invent rebate values, financing terms, APRs, payment amounts, expiration dates, eligibility rules, or manufacturer partnership claims.
+- If the user mentions an incentive but does not provide exact terms, preserve the context but use cautious wording.
 
 Output rules:
 - Always populate nextBestAction.
@@ -2097,7 +2335,7 @@ Output rules:
 - actionThesis.whyThisActionBullets must explain the chosen move, not just the broad family.
 `.trim();
 
-  const userPrompt = `
+const userPrompt = `
 Business:
 ${profile.businessName}
 Website: ${profile.website ?? "unknown"}
@@ -2144,6 +2382,26 @@ Image Key: ${refinedActionThesis.imageKey}
 Image Mode: ${refinedActionThesis.imageMode}
 Why This Action Bullets: ${refinedActionThesis.whyThisActionBullets.join(" | ")}
 
+Promotional context instructions:
+- If the user requested a manufacturer, brand, product, rebate, financing offer, supplier incentive, inventory push, or seasonal promotion, extract it into promotionalContext.
+- If the user provided exact incentive value and timing, mark it user_verified.
+- If the user only said an incentive exists but did not provide terms, mark it user_claimed_unverified.
+- Do not invent specific rebate values, APRs, expiration dates, or eligibility terms.
+- customerFacingOffer must be safe to show to homeowners.
+- If no promotional context exists, set verificationStatus to "none" and incentiveType to "none".
+
+Campaign framing model:
+- Core Service Objective: identify the actual service demand this campaign should create.
+- Promotional Enhancer: identify any brand, manufacturer, rebate, financing, supplier incentive, inventory push, premium product, or seasonal angle that supports the campaign.
+- The campaign title should usually lead with the Core Service Objective and include the Promotional Enhancer only when it improves clarity or conversion.
+- Avoid weak title phrasing such as "general service", "general HVAC", "general plumbing", or "general replacement".
+- Prefer commercially realistic service framing such as "HVAC Replacement", "AC Installation", "Drain Cleaning", "Tree Removal", "Furnace Upgrade", or "Generator Installation".
+- Good title pattern: "[Service Objective] with [Promotional Enhancer]"
+- Good title pattern: "[Seasonal/urgent service need] featuring [brand/product/offer]"
+- Avoid title pattern: "Promote [brand] units" unless the user explicitly wants a brand-awareness campaign.
+- The CTA should convert the service objective, not just mention the promotion.
+- The targeting should prioritize homeowners with service intent first, then layer in brand/product/promotion relevance.
+
 Return a single structured next-best-action plan.
 `.trim();
 
@@ -2167,6 +2425,15 @@ Return a single structured next-best-action plan.
       error: "The AI response could not be parsed into an action plan.",
     };
   }
+
+  const promotionalContext = await enrichPromotionalContext({
+    initialContext: normalizePromotionalContext(parsed.promotionalContext),
+    userPrompt: cleanedPrompt,
+    businessName: profile.businessName,
+    serviceArea: profile.serviceArea,
+    city: profile.city ?? null,
+    state: profile.state ?? null,
+  });
 
   const effectiveExecutionMode =
     routedIntent.mode === "CAMPAIGN"
@@ -2217,6 +2484,8 @@ Return a single structured next-best-action plan.
       : null;
 
   const campaignName = campaignDraft.title || effectiveActionThesis.title;
+  const effectiveCampaignOffer =
+    promotionalContext.customerFacingOffer ?? campaignDraft.offer;
 
   const campaignOrigin = options.campaignOrigin ?? "nl_custom";
   const consumesRecommendationSlot =
@@ -2231,7 +2500,8 @@ Return a single structured next-best-action plan.
   const actionSpec = buildActionSpec({
   actionName: campaignName,
   targetService: campaignDraft.targetService,
-  rawOffer: campaignDraft.offer,
+  rawOffer: effectiveCampaignOffer,
+  promotionalContext: promotionalContext as Record<string, unknown>,
   rawAudience:
     campaignDraft.audience ??
     effectiveActionThesis.audience ??
@@ -2262,6 +2532,7 @@ try {
       actionSpec.targeting.platforms.googleAds.keywordThemes,
     existingNegativeKeywords:
       actionSpec.targeting.wasteControls.negativeKeywordThemes,
+    promotionalContext,
   });
 } catch (e) {
   console.error("Targeting AI refinement failed", e);
@@ -2362,7 +2633,7 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
     actionTitle: effectiveActionThesis.title,
     actionSummary: effectiveActionThesis.summary,
     targetAudience: actionSpec.targetAudience,
-    offer: campaignDraft.offer,
+    offer: actionSpec.offerLabel,
     cta: effectiveActionThesis.ctaHint,
     isReviewAction: reviewAction,
     isVisibilityAction: visibilityAction,
@@ -2389,6 +2660,7 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
       briefJson: {
         userPrompt: cleanedPrompt,
         parsedIntent: parsed.parsedIntent,
+        promotionalContext: toPrismaJsonValue(promotionalContext),
         campaignOrigin,
         consumesRecommendationSlot,
         opportunityCheck: {
@@ -2409,7 +2681,7 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
           summary: effectiveActionThesis.summary,
         },
         actionPack: parsed.actionPack,
-        actionSpec,
+        actionSpec: toPrismaJsonValue(actionSpec),
         campaignDraft: {
           ...campaignDraft,
           offer: actionSpec.offerLabel,
@@ -2462,7 +2734,7 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         actionTitle: effectiveActionThesis.title,
         actionSummary: effectiveActionThesis.summary,
         audience: actionSpec.targetAudience,
-        offer: campaignDraft.offer,
+        offer: actionSpec.offerLabel,
         cta: actionSpec.cta,
       })
     : {
@@ -2487,7 +2759,7 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         actionTitle: effectiveActionThesis.title,
         actionSummary: effectiveActionThesis.summary,
         audience: actionSpec.targetAudience,
-        offer: campaignDraft.offer,
+        offer: actionSpec.offerLabel,
         cta: actionSpec.cta,
       })
     : {
@@ -2512,7 +2784,7 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         actionTitle: effectiveActionThesis.title,
         actionSummary: effectiveActionThesis.summary,
         audience: actionSpec.targetAudience,
-        offer: campaignDraft.offer,
+        offer: actionSpec.offerLabel,
         cta: actionSpec.cta,
       })
     : {
@@ -2549,13 +2821,13 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
             actionSummary: effectiveActionThesis.summary,
             serviceArea: profile.serviceArea,
             cta: effectiveActionThesis.ctaHint,
-            offer: campaignDraft.offer,
+            offer: actionSpec.offerLabel,
             isReviewAction: reviewAction,
             isVisibilityAction: visibilityAction,
             targetService: effectiveActionThesis.primaryService,
           }),
         cta: generatedAdCopy?.googleBusiness?.cta ?? effectiveActionThesis.ctaHint,
-        offer: sanitizeCustomerFacingOffer(campaignDraft.offer),
+        offer: sanitizeCustomerFacingOffer(actionSpec.offerLabel),
         imageKey: effectiveActionThesis.imageKey,
         imageMode: effectiveActionThesis.imageMode,
         industry: structuredIndustry,
@@ -2591,13 +2863,13 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
             actionSummary: effectiveActionThesis.summary,
             serviceArea: profile.serviceArea,
             cta: effectiveActionThesis.ctaHint,
-            offer: campaignDraft.offer,
+            offer: actionSpec.offerLabel,
             isReviewAction: reviewAction,
             isVisibilityAction: visibilityAction,
             targetService: effectiveActionThesis.primaryService,
           }),
         cta: generatedAdCopy?.meta?.cta ?? effectiveActionThesis.ctaHint,
-        offer: sanitizeCustomerFacingOffer(campaignDraft.offer),
+        offer: sanitizeCustomerFacingOffer(actionSpec.offerLabel),
         imageKey: effectiveActionThesis.imageKey,
         imageMode: effectiveActionThesis.imageMode,
         industry: structuredIndustry,

@@ -43,6 +43,51 @@ const actionTypeSchema = z.enum([
 
 const imageModeSchema = z.enum(["SERVICE_IMAGE", "LOGO"]);
 
+const promotionalVerificationStatusSchema = z.enum([
+  "none",
+  "user_verified",
+  "search_verified",
+  "user_claimed_unverified",
+  "unverified",
+]);
+
+const promotionalContextSchema = z.object({
+  promotedBrand: z.string().nullable(),
+  promotedProduct: z.string().nullable(),
+  promotedService: z.string().nullable(),
+  incentiveType: z
+    .enum([
+      "rebate",
+      "financing",
+      "discount",
+      "supplier_incentive",
+      "inventory_push",
+      "seasonal_promotion",
+      "premium_product_push",
+      "other",
+      "none",
+    ])
+    .nullable(),
+  incentiveDetails: z.string().nullable(),
+  incentiveValue: z.string().nullable(),
+  timeConstraint: z.string().nullable(),
+  verificationStatus: promotionalVerificationStatusSchema,
+  sourceType: z
+    .enum([
+      "user_provided",
+      "manufacturer_official",
+      "distributor_official",
+      "utility_or_government",
+      "search_result",
+      "none",
+    ])
+    .nullable(),
+  sourceSummary: z.string().nullable(),
+  customerFacingOffer: z.string().nullable(),
+  usageRule: z.string(),
+  enrichmentNotes: z.array(z.string()).default([]),
+});
+
 export const nlCampaignSchema = z.object({
   parsedIntent: z.object({
     serviceCategory: z.string(),
@@ -59,6 +104,7 @@ export const nlCampaignSchema = z.object({
     timeframe: z.string(),
     promotionType: z.string(),
   }),
+    promotionalContext: promotionalContextSchema,
 
   opportunityCheck: z.object({
     matchedOpportunityTitle: z.string().nullable(),

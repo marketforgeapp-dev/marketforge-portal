@@ -184,6 +184,7 @@ export type ActionSpec = {
   coreMessageAngle: string;
   cta: string;
   proofOrDifferentiator: string | null;
+  promotionalContext?: Record<string, unknown> | null;
   messageGuardrails: string[];
   whatHappensWhenLaunched: string;
   operationalDependencies: ActionOperationalDependencies;
@@ -1290,6 +1291,7 @@ export function buildActionSpec(params: {
   actionName: string;
   targetService: string;
   rawOffer?: string | null;
+  promotionalContext?: Record<string, unknown> | null;
   rawAudience?: string | null;
   cta?: string | null;
   actionSummary?: string | null;
@@ -1374,11 +1376,14 @@ export function buildActionSpec(params: {
       `Promote ${params.targetService.toLowerCase()} clearly and credibly.`,
     cta: normalizeText(params.cta) || "Book now",
     proofOrDifferentiator: null,
+    promotionalContext: params.promotionalContext ?? null,
     messageGuardrails: [
       "Do not imply an offer unless a real offer exists.",
       "Do not use vague marketing language.",
       "Keep the service and audience explicit.",
       "Keep the CTA operationally realistic.",
+      "Do not invent rebate values, financing terms, APRs, payment amounts, expiration dates, eligibility rules, or manufacturer relationship claims.",
+      "If promotional details are unverified, use cautious language such as 'ask about available offers' instead of exact consumer claims.",
     ],
     whatHappensWhenLaunched: executionMechanism.operatorActionSummary,
     operationalDependencies,

@@ -10,8 +10,9 @@ const SUGGESTIONS = [
   "Slow week, help fill the schedule",
   "Should we focus on AEO / FAQ improvements first?",
   "Promote drain cleaning this week",
-  "We need more water heater installs",
-  "Promote emergency plumbing services",
+  "Promote tree trimming and pruning",
+  "We need more riser installs",
+  "Promote HVAC system installation with Trane rebates",
 ];
 
 export function NlCampaignPanel() {
