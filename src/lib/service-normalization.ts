@@ -18,6 +18,43 @@ function normalizeComparable(value: string): string {
   return normalized;
 }
 
+function normalizeServiceComparisonKey(value: string): string {
+  let normalized = normalizeComparable(value);
+
+  normalized = normalized.replace(/\brepairs\b/g, "repair");
+  normalized = normalized.replace(/\breplacements\b/g, "replacement");
+  normalized = normalized.replace(/\binstallations\b/g, "installation");
+  normalized = normalized.replace(/\binstalls\b/g, "install");
+  normalized = normalized.replace(/\bservices\b/g, "service");
+  normalized = normalized.replace(/\bsolutions\b/g, "solution");
+  normalized = normalized.replace(/\binspections\b/g, "inspection");
+  normalized = normalized.replace(/\bcleanings\b/g, "cleaning");
+  normalized = normalized.replace(/\bremovals\b/g, "removal");
+  normalized = normalized.replace(/\btrimmings\b/g, "trimming");
+  normalized = normalized.replace(/\bpumpings\b/g, "pumping");
+  normalized = normalized.replace(/\bplans\b/g, "plan");
+  normalized = normalized.replace(/\bagreements\b/g, "agreement");
+  normalized = normalized.replace(/\s+/g, " ").trim();
+
+  return normalized;
+}
+
+function getCanonicalServiceComparisonKey(
+  value: string,
+  industry: SupportedIndustry
+): string {
+  const comparable = normalizeComparable(value);
+  const comparisonKey = normalizeServiceComparisonKey(value);
+  const aliasMap = INDUSTRY_ALIAS_MAP[industry] ?? {};
+
+  const canonical =
+    aliasMap[comparable] ??
+    aliasMap[comparisonKey] ??
+    value;
+
+  return normalizeServiceComparisonKey(canonical);
+}
+
 type CanonicalAliasMap = Record<string, string>;
 
 const INDUSTRY_ALIAS_MAP: Record<SupportedIndustry, CanonicalAliasMap> = {
@@ -638,16 +675,16 @@ export function getSuggestedServicesForIndustry(params: {
   );
 
   const currentKeys = new Set(
-    current.flatMap((service) => {
-      const comparable = normalizeComparable(service);
-      const alias = INDUSTRY_ALIAS_MAP[params.industry]?.[comparable];
-
-      return [comparable, normalizeComparable(alias ?? "")].filter(Boolean);
-    })
+    current.map((service) =>
+      getCanonicalServiceComparisonKey(service, params.industry)
+    )
   );
 
   const suggestions = INDUSTRY_SERVICE_SUGGESTIONS[params.industry].filter(
-    (service) => !currentKeys.has(normalizeComparable(service))
+    (service) =>
+      !currentKeys.has(
+        getCanonicalServiceComparisonKey(service, params.industry)
+      )
   );
 
   return suggestions.slice(0, params.max ?? 10);

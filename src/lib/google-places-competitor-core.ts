@@ -212,6 +212,104 @@ function normalizeDomain(url: string | null | undefined): string | null {
   }
 }
 
+function normalizeDomainStem(url: string | null | undefined): string | null {
+  const domain = normalizeDomain(url);
+  if (!domain) return null;
+
+  return domain
+    .replace(/\.(com|net|org|biz|pro|co|io|ai)$/i, "")
+    .trim();
+}
+
+function normalizeCompetitorAddress(value: string | null | undefined): string {
+  return slugifyComparable(value);
+}
+
+function getCompetitorProminenceBoost(candidate: {
+  rating: number | null;
+  reviewCount: number | null;
+}): number {
+  const reviewCount = candidate.reviewCount ?? 0;
+  const rating = candidate.rating ?? 0;
+
+  return Math.min(reviewCount, 500) * 0.12 + rating * 8;
+}
+
+function getCompetitorReplacementScore(candidate: {
+  rating: number | null;
+  reviewCount: number | null;
+  websiteUrl: string | null;
+  formattedAddress: string | null;
+  phone: string | null;
+  googleBusinessUrl: string | null;
+  logoUrl?: string | null;
+}): number {
+  let score = getCompetitorProminenceBoost(candidate);
+
+  if (candidate.websiteUrl) score += 10;
+  if (candidate.formattedAddress) score += 8;
+  if (candidate.phone) score += 4;
+  if (candidate.googleBusinessUrl) score += 3;
+  if (candidate.logoUrl) score += 3;
+
+  return score;
+}
+
+function areLikelyDuplicateCompetitors(
+  left: CompetitorCandidate,
+  right: CompetitorCandidate
+): boolean {
+  const leftName = slugifyComparable(left.name);
+  const rightName = slugifyComparable(right.name);
+
+  const namesMatch =
+    Boolean(leftName && rightName && leftName === rightName) ||
+    hasStrongBrandOverlap(left.name, right.name);
+
+  if (!namesMatch) {
+    return false;
+  }
+
+  if (left.placeId && right.placeId && left.placeId === right.placeId) {
+    return true;
+  }
+
+  if (
+    left.googleBusinessUrl &&
+    right.googleBusinessUrl &&
+    left.googleBusinessUrl === right.googleBusinessUrl
+  ) {
+    return true;
+  }
+
+  const leftDomainStem = normalizeDomainStem(left.websiteUrl);
+  const rightDomainStem = normalizeDomainStem(right.websiteUrl);
+
+  if (leftDomainStem && rightDomainStem && leftDomainStem === rightDomainStem) {
+    return true;
+  }
+
+  const leftPhone = normalizePhoneDigits(left.phone);
+  const rightPhone = normalizePhoneDigits(right.phone);
+
+  if (
+    leftPhone.length >= 7 &&
+    rightPhone.length >= 7 &&
+    leftPhone === rightPhone
+  ) {
+    return true;
+  }
+
+  const leftAddress = normalizeCompetitorAddress(left.formattedAddress);
+  const rightAddress = normalizeCompetitorAddress(right.formattedAddress);
+
+  if (leftAddress && rightAddress && leftAddress === rightAddress) {
+    return true;
+  }
+
+  return false;
+}
+
 function tokenizeBusinessName(value: string | null | undefined): string[] {
   return (value ?? "")
     .toLowerCase()
@@ -2016,7 +2114,7 @@ export async function discoverLocalCompetitorsCore(
     })
   );
 
-  const deduped = new Map<string, EnrichedCandidate>();
+  const deduped: EnrichedCandidate[] = [];
 
   for (const candidate of enriched) {
     if (
@@ -2030,42 +2128,55 @@ export async function discoverLocalCompetitorsCore(
       continue;
     }
 
-    const key = dedupeKeyForCandidate(candidate);
-    const existing = deduped.get(key);
+    const exactKey = dedupeKeyForCandidate(candidate);
 
-    if (!existing) {
-      deduped.set(key, candidate);
+    const existingIndex = deduped.findIndex((existing) => {
+      const existingKey = dedupeKeyForCandidate(existing);
+
+      return (
+        existingKey === exactKey ||
+        areLikelyDuplicateCompetitors(existing, candidate)
+      );
+    });
+
+    if (existingIndex === -1) {
+      deduped.push(candidate);
       continue;
     }
 
-    const existingScore = scoreEnrichedCandidate({
-      candidate: existing,
-      input,
-      origin,
-      websiteText: null,
-    });
+    const existing = deduped[existingIndex];
 
-    const nextScore = scoreEnrichedCandidate({
-      candidate,
-      input,
-      origin,
-      websiteText: null,
-    });
+    const existingScore =
+      scoreEnrichedCandidate({
+        candidate: existing,
+        input,
+        origin,
+        websiteText: null,
+      }) + getCompetitorReplacementScore(existing);
 
-    if (nextScore > existingScore) {
-      deduped.set(key, candidate);
-    }
-  }
-
-  const finalCandidates = Array.from(deduped.values())
-    .map((candidate) => ({
-      candidate,
-      score: scoreEnrichedCandidate({
+    const nextScore =
+      scoreEnrichedCandidate({
         candidate,
         input,
         origin,
         websiteText: null,
-      }),
+      }) + getCompetitorReplacementScore(candidate);
+
+    if (nextScore > existingScore) {
+      deduped[existingIndex] = candidate;
+    }
+  }
+
+  const finalCandidates = deduped
+    .map((candidate) => ({
+      candidate,
+      score:
+        scoreEnrichedCandidate({
+          candidate,
+          input,
+          origin,
+          websiteText: null,
+        }) + getCompetitorProminenceBoost(candidate),
     }))
     .sort((a, b) => b.score - a.score)
     .map(({ candidate }) => candidate)
