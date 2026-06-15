@@ -505,6 +505,65 @@ function shouldSuppressGeneralServiceFamily(params: {
   return false;
 }
 
+function isScheduleFillEligibleFamily(familyKey: string): boolean {
+  return (
+    isGeneralServiceFamily(familyKey) ||
+    new Set([
+      "maintenance",
+      "hvac-maintenance",
+      "septic-maintenance",
+      "septic-pumping",
+      "septic-inspection",
+      "tree-trimming",
+      "pruning-trimming",
+      "stump-grinding",
+      "brush-removal",
+      "plant-health-care",
+    ]).has(familyKey)
+  );
+}
+
+function shouldAllowCapacityVariant(params: {
+  profile: BusinessProfile;
+  canonicalService: CanonicalService;
+  capacityFit: CapacityFit;
+}): boolean {
+  const familyKey = params.canonicalService.familyKey;
+
+  if (params.capacityFit === "LOW") {
+    return false;
+  }
+
+  if (
+    shouldSuppressGeneralServiceFamily({
+      profile: params.profile,
+      familyKey,
+    })
+  ) {
+    return false;
+  }
+
+  if (!isScheduleFillEligibleFamily(familyKey)) {
+    return false;
+  }
+
+  const contextType = getServiceContextProfile(familyKey).contextType;
+
+  if (
+    contextType === "emergency" ||
+    contextType === "event-driven" ||
+    contextType === "low-frequency-high-value"
+  ) {
+    return false;
+  }
+
+  if (params.canonicalService.blueprint.nicheLongCycle) {
+    return false;
+  }
+
+  return true;
+}
+
 function cleanServiceStyleDisplayLabel(params: {
   familyKey: string;
   displayMoveLabel: string;
@@ -959,7 +1018,10 @@ function inferBaseOpportunityType(params: {
     return "AI_SEARCH_VISIBILITY";
   }
 
-  if (canonicalService.blueprint.defaultActionFraming === "SCHEDULE_FILL") {
+  if (
+    canonicalService.blueprint.defaultActionFraming === "SCHEDULE_FILL" &&
+    isScheduleFillEligibleFamily(familyKey)
+  ) {
     return "CAPACITY_GAP";
   }
 
@@ -1475,7 +1537,13 @@ function buildRevenueVariantCandidates(params: {
     enabledVariantKinds.add("urgent");
   }
 
-  if (capacityFit !== "LOW" && !canonicalService.blueprint.nicheLongCycle) {
+  if (
+    shouldAllowCapacityVariant({
+      profile,
+      canonicalService,
+      capacityFit,
+    })
+  ) {
     enabledVariantKinds.add("capacity");
   }
 
