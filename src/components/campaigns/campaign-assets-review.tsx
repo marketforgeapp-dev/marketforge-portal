@@ -312,8 +312,8 @@ const image = getAssetDisplayImage({
           <div className="h-10 w-10 rounded-full bg-[#1877F2]" />
           <div>
             <p className="text-sm font-semibold text-gray-900">
-  {businessName ?? "Business Name"}
-</p>
+              {businessName ?? "Business Name"}
+            </p>
             <p className="text-xs text-gray-500">Sponsored • Facebook</p>
           </div>
         </div>
@@ -341,15 +341,15 @@ const image = getAssetDisplayImage({
             </div>
           ) : null}
 
-                    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
             <p className="text-[11px] uppercase tracking-wide text-gray-500">
               Sponsored Link
             </p>
             <div className="mt-2 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs text-gray-500">
-  {websiteUrl ?? "business.com"}
-</p>
+                  {websiteUrl ?? "business.com"}
+                </p>
                 <p className="text-sm font-semibold text-gray-900">
                   {payload.headline}
                 </p>
