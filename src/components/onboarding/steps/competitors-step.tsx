@@ -1,27 +1,49 @@
-import { OnboardingFormData } from "@/types/onboarding";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
+import type { OnboardingFormData } from "@/types/onboarding";
 
 type Props = {
   formData: OnboardingFormData;
-  setFormData: React.Dispatch<React.SetStateAction<OnboardingFormData>>;
+  setFormData: Dispatch<SetStateAction<OnboardingFormData>>;
 };
 
 export function CompetitorsStep({ formData, setFormData }: Props) {
   const updateCompetitor = (
     index: number,
-    field:
-      | "name"
-      | "websiteUrl"
-      | "googleBusinessUrl"
-      | "logoUrl"
-      | "isPrimaryCompetitor",
+    field: keyof OnboardingFormData["competitors"][number],
     value: string | boolean
   ) => {
     setFormData((prev) => {
       const updated = [...prev.competitors];
-      updated[index] = {
-        ...updated[index],
+      const current = updated[index];
+
+      if (!current) {
+        return prev;
+      }
+
+      const nextCompetitor = {
+        ...current,
         [field]: value,
       };
+
+      // If identity fields change, clear stale enrichment so we do not save
+      // the old competitor's Google Place ID, rating, reviews, or service lanes.
+      if (
+        field === "name" ||
+        field === "websiteUrl" ||
+        field === "googleBusinessUrl"
+      ) {
+        nextCompetitor.placeId = null;
+        nextCompetitor.rating = null;
+        nextCompetitor.reviewCount = null;
+        nextCompetitor.serviceFocus = [];
+
+        if (field === "name" || field === "websiteUrl") {
+          nextCompetitor.logoUrl = "";
+        }
+      }
+
+      updated[index] = nextCompetitor;
+
       return { ...prev, competitors: updated };
     });
   };
@@ -34,17 +56,18 @@ export function CompetitorsStep({ formData, setFormData }: Props) {
   };
 
   return (
-  <div className="space-y-4">
-    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-      <p className="text-sm font-medium text-gray-900">
-        Review competitor suggestions
-      </p>
-      <p className="mt-2 text-sm leading-6 text-gray-600">
-        MarketForge can suggest nearby competitors automatically during
-        onboarding. You can refine or replace competitors later in Settings, so
-        this list does not need to be perfect right now.
-      </p>
-    </div>
+    <div className="space-y-4">
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <p className="text-sm font-medium text-gray-900">
+          Review competitor suggestions
+        </p>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          MarketForge suggests local and regional businesses customers are
+          likely to compare you against. You can remove anything that does not
+          feel relevant or add missing competitors later in Settings.
+        </p>
+      </div>
+
       {formData.competitors.map((competitor, index) => (
         <div
           key={index}
@@ -103,7 +126,7 @@ function Field({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <label className="block">

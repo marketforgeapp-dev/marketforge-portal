@@ -56,6 +56,81 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
   );
 }
 
+function splitCommaSeparatedValues(
+  values: Array<string | null | undefined>
+): string[] {
+  return values.flatMap((value) => {
+    const cleaned = cleanString(value);
+
+    if (!cleaned) {
+      return [];
+    }
+
+    return cleaned
+      .split(/[,;|]+/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+  });
+}
+
+function isServiceAreaNoise(value: string): boolean {
+  const lower = value.toLowerCase().trim();
+
+  if (!lower) return true;
+  if (lower.length < 2) return true;
+  if (lower.length > 70) return true;
+
+  const noisyValues = new Set([
+    "about",
+    "about us",
+    "blog",
+    "careers",
+    "commercial",
+    "commercial hvac",
+    "contact",
+    "contact us",
+    "coupons",
+    "emergency",
+    "financing",
+    "home",
+    "new construction",
+    "new construction hvac",
+    "privacy",
+    "residential",
+    "residential hvac",
+    "reviews",
+    "schedule",
+    "service",
+    "services",
+    "specials",
+    "terms",
+    "testimonials",
+  ]);
+
+  return noisyValues.has(lower);
+}
+
+function cleanServiceAreaParts(
+  values: Array<string | null | undefined>
+): string[] {
+  const seen = new Set<string>();
+  const cleanedParts: string[] = [];
+
+  for (const part of splitCommaSeparatedValues(values)) {
+    const cleaned = part.trim();
+    const key = cleaned.toLowerCase();
+
+    if (!cleaned || isServiceAreaNoise(cleaned) || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    cleanedParts.push(cleaned);
+  }
+
+  return cleanedParts;
+}
+
 function sanitizeLocationValue(
   value: string | null | undefined,
   kind: "city" | "state"
@@ -326,10 +401,41 @@ export async function generateOnboardingPrefill(input: {
 
     const competitorDiscoveryCity = marketAnchor.city;
     const competitorDiscoveryState = marketAnchor.state;
+
+    const websiteServiceAreaText = [
+      websiteContext?.visibleTextExcerpt ?? "",
+      ...(websiteContext?.fetchedPages?.map((page) => page.visibleTextExcerpt) ?? []),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    const regionalServiceAreaSignals = [
+      websiteServiceAreaText.includes("metro atlanta") ? "Metro Atlanta" : null,
+      websiteServiceAreaText.includes("greater atlanta") ? "Greater Atlanta" : null,
+      websiteServiceAreaText.includes("north atlanta") ? "North Atlanta" : null,
+      websiteServiceAreaText.includes("north georgia") ? "North Georgia" : null,
+      websiteServiceAreaText.includes("cherokee county") ? "Cherokee County" : null,
+      websiteServiceAreaText.includes("cobb county") ? "Cobb County" : null,
+      websiteServiceAreaText.includes("dawson county") ? "Dawson County" : null,
+      websiteServiceAreaText.includes("forsyth county") ? "Forsyth County" : null,
+      websiteServiceAreaText.includes("fulton county") ? "Fulton County" : null,
+      websiteServiceAreaText.includes("gwinnett county") ? "Gwinnett County" : null,
+      websiteServiceAreaText.includes("hall county") ? "Hall County" : null,
+      websiteServiceAreaText.includes("lumpkin county") ? "Lumpkin County" : null,
+    ].filter((value): value is string => Boolean(value));
+
+    const competitorDiscoveryServiceAreaParts = cleanServiceAreaParts([
+      marketAnchor.serviceArea,
+      ...(websiteContext?.serviceAreaCities ?? []),
+      ...regionalServiceAreaSignals,
+      resolvedLocation.resolvedCity,
+      websiteContext?.city,
+      marketAnchor.city,
+    ]);
+
     const competitorDiscoveryServiceArea =
-      marketAnchor.source === "explicit_service_area"
-        ? marketAnchor.city
-        : marketAnchor.serviceArea;
+      competitorDiscoveryServiceAreaParts.slice(0, 10).join(", ") ||
+      marketAnchor.city;
 
     console.info("Resolved competitor discovery inputs", {
       companyName,
@@ -352,13 +458,14 @@ export async function generateOnboardingPrefill(input: {
     const competitorCandidates =
       competitorDiscoveryCity && competitorDiscoveryState
         ? await discoverLocalCompetitors({
-            companyName,
-            industry: inferredIndustry,
-            city: competitorDiscoveryCity,
-            state: competitorDiscoveryState,
-            serviceArea: competitorDiscoveryServiceArea,
-            website,
-          })
+        companyName,
+        industry: inferredIndustry,
+        city: competitorDiscoveryCity,
+        state: competitorDiscoveryState,
+        serviceArea: competitorDiscoveryServiceArea,
+        website,
+        origin: resolvedLocation.googlePlaceLocation ?? null,
+      })
         : [];
 
     const businessGoogleCandidate = websiteContext?.googleBusinessProfileUrl

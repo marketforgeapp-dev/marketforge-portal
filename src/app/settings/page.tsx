@@ -130,6 +130,10 @@ export default async function SettingsPage({
       googleBusinessUrl: competitor.googleBusinessUrl ?? "",
       logoUrl: competitor.logoUrl ?? "",
       isPrimaryCompetitor: competitor.isPrimaryCompetitor ?? false,
+      placeId: competitor.googlePlaceId ?? null,
+      rating: competitor.rating ?? null,
+      reviewCount: competitor.reviewCount ?? null,
+      serviceFocus: competitor.serviceFocus ?? [],
     })),
 
     hasServicePages: profile.hasServicePages ?? false,

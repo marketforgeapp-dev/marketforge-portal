@@ -99,6 +99,7 @@ export const onboardingSchema = z.object({
         rating: nullableNumber,
         reviewCount: nullableNumber,
         logoUrl: nullableString,
+        serviceFocus: stringArray,
         isPrimaryCompetitor: z.boolean().optional().default(false),
       })
     )

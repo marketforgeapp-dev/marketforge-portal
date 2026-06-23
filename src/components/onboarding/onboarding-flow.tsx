@@ -213,6 +213,10 @@ export function OnboardingFlow({
                 googleBusinessUrl: competitor.googleBusinessUrl ?? "",
                 logoUrl: competitor.logoUrl ?? "",
                 isPrimaryCompetitor: index === 0,
+                placeId: competitor.placeId ?? null,
+                rating: competitor.rating ?? null,
+                reviewCount: competitor.reviewCount ?? null,
+                serviceFocus: competitor.serviceFocus ?? [],
               }))
             : current.competitors,
       };

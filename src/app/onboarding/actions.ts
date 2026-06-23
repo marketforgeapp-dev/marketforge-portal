@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
 import { onboardingSchema } from "@/lib/onboarding-schema";
 import { calculateAeoReadinessScore } from "@/lib/aeo-readiness";
-import { discoverLocalCompetitors } from "@/lib/google-places-competitors";
+import { lookupSingleCompetitor } from "@/lib/google-places-competitors";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { BILLING_PRICE_IDS, isDemoEmail } from "@/lib/billing";
@@ -200,25 +200,31 @@ function sanitizeOnboardingInput(input: unknown) {
       const item = competitor as Record<string, unknown>;
 
       return {
-  name: typeof item.name === "string" ? item.name.trim() : "",
-  websiteUrl:
-    typeof item.websiteUrl === "string" ? item.websiteUrl : "",
-  googleBusinessUrl:
-    typeof item.googleBusinessUrl === "string"
-      ? item.googleBusinessUrl
-      : "",
-  logoUrl: typeof item.logoUrl === "string" ? item.logoUrl : "",
-  isPrimaryCompetitor:
-    typeof item.isPrimaryCompetitor === "boolean"
-      ? item.isPrimaryCompetitor
-      : false,
-  placeId:
-    typeof item.placeId === "string" ? item.placeId : "",
-  rating:
-    typeof item.rating === "number" ? item.rating : null,
-  reviewCount:
-    typeof item.reviewCount === "number" ? item.reviewCount : null,
-};
+        name: typeof item.name === "string" ? item.name.trim() : "",
+        websiteUrl:
+          typeof item.websiteUrl === "string" ? item.websiteUrl : "",
+        googleBusinessUrl:
+          typeof item.googleBusinessUrl === "string"
+            ? item.googleBusinessUrl
+            : "",
+        logoUrl: typeof item.logoUrl === "string" ? item.logoUrl : "",
+        isPrimaryCompetitor:
+          typeof item.isPrimaryCompetitor === "boolean"
+            ? item.isPrimaryCompetitor
+            : false,
+        placeId:
+          typeof item.placeId === "string" ? item.placeId : null,
+        rating:
+          typeof item.rating === "number" ? item.rating : null,
+        reviewCount:
+          typeof item.reviewCount === "number" ? item.reviewCount : null,
+        serviceFocus: Array.isArray(item.serviceFocus)
+          ? item.serviceFocus
+              .filter((service): service is string => typeof service === "string")
+              .map((service) => service.trim())
+              .filter((service) => service.length > 0)
+          : [],
+  };
     })
     .filter((competitor) => competitor.name.length > 0);
 
@@ -389,22 +395,7 @@ export async function saveOnboarding(input: unknown) {
     servicePageUrls,
     googleBusinessProfileUrl,
   });
-    const discoveredCompetitorPool = values.competitors.length
-    ? await discoverLocalCompetitors({
-        companyName: values.businessName,
-        industry: values.industry,
-        city: values.city,
-        state: values.state,
-        website: values.website,
-      }).catch((error) => {
-        console.error("Competitor discovery failed during onboarding save", {
-          workspaceId: workspace.id,
-          businessName: values.businessName,
-          error,
-        });
-        return [];
-      })
-    : [];
+    
   const businessProfileData = {
     businessName,
     website: toNullableString(values.website),
@@ -498,99 +489,127 @@ export async function saveOnboarding(input: unknown) {
   });
 
   await prisma.competitor.deleteMany({
-    where: { workspaceId: workspace.id },
-  });
+  where: { workspaceId: workspace.id },
+});
 
-  const enrichedCompetitors = await Promise.all(
+const enrichedCompetitors = await Promise.all(
   values.competitors
     .filter((competitor) => competitor.name.trim().length > 0)
     .map(async (competitor, index) => {
-            const enriched =
-        discoveredCompetitorPool.find(
-          (c) =>
-            c.name.trim().toLowerCase() ===
-            competitor.name.trim().toLowerCase()
-        ) ?? null;
+      const trimmedName = competitor.name.trim();
+      const manualWebsiteUrl = toNullableString(competitor.websiteUrl);
+      const manualGoogleBusinessUrl = toNullableString(
+        competitor.googleBusinessUrl
+      );
+      const manualLogoUrl = toNullableString(competitor.logoUrl);
+      const submittedServiceFocus = cleanStringArray(competitor.serviceFocus);
+
+      const submittedRating =
+        typeof competitor.rating === "number" ? competitor.rating : null;
+
+      const submittedReviewCount =
+        typeof competitor.reviewCount === "number"
+          ? competitor.reviewCount
+          : null;
+
+      const submittedPlaceId = toNullableString(competitor.placeId);
+
+      const alreadyHasUsefulEnrichment =
+        Boolean(submittedPlaceId) ||
+        submittedRating !== null ||
+        submittedReviewCount !== null ||
+        submittedServiceFocus.length > 0;
+
+      const discoveredMatch =
+        !alreadyHasUsefulEnrichment && trimmedName.length > 0
+          ? await lookupSingleCompetitor({
+              companyName: trimmedName,
+              industry: values.industry,
+              city: values.city,
+              state: values.state,
+              website: manualWebsiteUrl,
+            }).catch((error) => {
+              console.error("Competitor lookup failed during onboarding save", {
+                workspaceId: workspace.id,
+                competitorName: trimmedName,
+                error,
+              });
+
+              return null;
+            })
+          : null;
+
+      const resolvedRating =
+        submittedRating ??
+        (typeof discoveredMatch?.rating === "number"
+          ? discoveredMatch.rating
+          : null);
+
+      const resolvedReviewCount =
+        submittedReviewCount ??
+        (typeof discoveredMatch?.reviewCount === "number"
+          ? discoveredMatch.reviewCount
+          : null);
+
+      const resolvedServiceFocus =
+        submittedServiceFocus.length > 0
+          ? submittedServiceFocus
+          : discoveredMatch?.serviceFocus ?? [];
+
+      const hasEnrichment =
+        Boolean(submittedPlaceId) ||
+        resolvedRating !== null ||
+        resolvedReviewCount !== null ||
+        resolvedServiceFocus.length > 0 ||
+        Boolean(discoveredMatch);
 
       return {
         workspaceId: workspace.id,
-        name: competitor.name.trim(),
-
-        websiteUrl:
-          toNullableString(competitor.websiteUrl) ??
-          enriched?.websiteUrl ??
-          null,
-
+        name: trimmedName,
+        websiteUrl: manualWebsiteUrl ?? discoveredMatch?.websiteUrl ?? null,
         googleBusinessUrl:
-          toNullableString(competitor.googleBusinessUrl) ??
-          enriched?.googleBusinessUrl ??
-          null,
-
-        logoUrl:
-          toNullableString(competitor.logoUrl) ??
-          enriched?.logoUrl ??
-          null,
-
-        isPrimaryCompetitor:
-          competitor.isPrimaryCompetitor ?? index === 0,
-
-        notes: null,
-        serviceFocus: enriched?.serviceFocus ?? [],
-          googlePlaceId:
-    toNullableString(competitor.placeId) ??
-    enriched?.placeId ??
-    null,
-
-  rating:
-    typeof competitor.rating === "number"
-      ? competitor.rating
-      : enriched?.rating ?? null,
-
-  reviewCount:
-    typeof competitor.reviewCount === "number"
-      ? competitor.reviewCount
-      : enriched?.reviewCount ?? null,
-
-  lastEnrichedAt:
-    typeof competitor.rating === "number" ||
-    typeof competitor.reviewCount === "number" ||
-    typeof enriched?.rating === "number" ||
-    typeof enriched?.reviewCount === "number"
-      ? new Date()
-      : null,
+          manualGoogleBusinessUrl ?? discoveredMatch?.googleBusinessUrl ?? null,
+        logoUrl: manualLogoUrl ?? discoveredMatch?.logoUrl ?? null,
+        isPrimaryCompetitor: competitor.isPrimaryCompetitor ?? index === 0,
+        notes: discoveredMatch?.whyItMatters ?? null,
+        serviceFocus: resolvedServiceFocus,
+        googlePlaceId: submittedPlaceId ?? discoveredMatch?.placeId ?? null,
+        rating: resolvedRating,
+        reviewCount: resolvedReviewCount,
+        lastEnrichedAt: hasEnrichment ? new Date() : null,
         isRunningAds: null,
         isPostingActively: null,
         hasActivePromo: null,
         reviewVelocity: null,
-        signalSummary: null,
+        signalSummary: discoveredMatch?.whyItMatters ?? null,
       };
     })
 );
 
-  if (enrichedCompetitors.length > 0) {
+if (enrichedCompetitors.length > 0) {
   await prisma.competitor.createMany({
     data: enrichedCompetitors,
   });
+}
 
-  const createdCompetitors = await prisma.competitor.findMany({
-    where: { workspaceId: workspace.id },
-    select: {
-      id: true,
-      rating: true,
-      reviewCount: true,
-    },
+const createdCompetitors = await prisma.competitor.findMany({
+  where: { workspaceId: workspace.id },
+  select: {
+    id: true,
+    rating: true,
+    reviewCount: true,
+  },
+});
+
+if (createdCompetitors.length > 0) {
+  await prisma.competitorMetricsSnapshot.createMany({
+    data: createdCompetitors.map((competitor) => ({
+      workspaceId: workspace.id,
+      competitorId: competitor.id,
+      rating: competitor.rating,
+      reviewCount: competitor.reviewCount,
+    })),
   });
-
-  if (createdCompetitors.length > 0) {
-    await prisma.competitorMetricsSnapshot.createMany({
-      data: createdCompetitors.map((competitor) => ({
-        workspaceId: workspace.id,
-        competitorId: competitor.id,
-        rating: competitor.rating,
-        reviewCount: competitor.reviewCount,
-      })),
-    });
-  }
 }
 
 await prisma.workspace.update({

@@ -321,6 +321,10 @@ export function SettingsForm({
           googleBusinessUrl: "",
           logoUrl: "",
           isPrimaryCompetitor: false,
+          placeId: null,
+          rating: null,
+          reviewCount: null,
+          serviceFocus: [],
         },
       ],
     }));
@@ -333,10 +337,36 @@ export function SettingsForm({
   ) {
     setFormData((prev) => {
       const updated = [...prev.competitors];
-      updated[index] = {
-        ...updated[index],
+      const current = updated[index];
+
+      if (!current) {
+        return prev;
+      }
+
+      const nextCompetitor = {
+        ...current,
         [field]: value,
       };
+
+      // If the competitor identity changes, clear stale hidden enrichment.
+      // Settings save will re-enrich this competitor if needed.
+      if (
+        field === "name" ||
+        field === "websiteUrl" ||
+        field === "googleBusinessUrl"
+      ) {
+        nextCompetitor.placeId = null;
+        nextCompetitor.rating = null;
+        nextCompetitor.reviewCount = null;
+        nextCompetitor.serviceFocus = [];
+
+        if (field === "name" || field === "websiteUrl") {
+          nextCompetitor.logoUrl = "";
+        }
+      }
+
+      updated[index] = nextCompetitor;
+
       return {
         ...prev,
         competitors: updated,
@@ -1358,10 +1388,10 @@ const result = await fetchBusinessCandidates({
             <h2 className="text-xl font-bold text-gray-900">Competitors</h2>
                 <SectionSaveButton onSave={handleSave} isPending={isPending} />
             <p className="mt-1 text-sm text-gray-600">
-  Refine the competitor list detected during onboarding so MarketForge
-  can better understand your local competitive landscape and identify
-  opportunities where competitors are inactive or weak.
-</p>
+              Refine the businesses customers are most likely to compare you against.
+              MarketForge uses this list to understand review gaps, service overlap,
+              competitive position, and revenue opportunities.
+            </p>
           </div>
 
           <button

@@ -18,6 +18,11 @@ type RawCompetitor = {
   googleBusinessUrl?: unknown;
   logoUrl?: unknown;
   isPrimaryCompetitor?: unknown;
+
+  placeId?: unknown;
+  rating?: unknown;
+  reviewCount?: unknown;
+  serviceFocus?: unknown;
 };
 
 type RawSelectedGoogleBusiness = {
@@ -205,6 +210,10 @@ function normalizeCompetitors(value: unknown) {
       googleBusinessUrl: toStringValue(item.googleBusinessUrl),
       logoUrl: toStringValue(item.logoUrl),
       isPrimaryCompetitor: toBoolean(item.isPrimaryCompetitor),
+      placeId: toNullableString(item.placeId),
+      rating: toNumberOrNull(item.rating),
+      reviewCount: toNumberOrNull(item.reviewCount),
+      serviceFocus: toStringArray(item.serviceFocus),
     }))
     .filter((item) => item.name.length > 0);
 
@@ -773,7 +782,7 @@ console.log("[settings] decision impact check", {
     },
   });
 
-  const existingCompetitorsByKey = new Map(
+const existingCompetitorsByKey = new Map(
   existingCompetitors.map((competitor) => [
     existingCompetitorKey({
       name: competitor.name,
@@ -784,7 +793,8 @@ console.log("[settings] decision impact check", {
   ])
 );
 
-let competitorSetChanged = existingCompetitors.length !== values.competitors.length;
+let competitorSetChanged =
+  existingCompetitors.length !== values.competitors.length;
 let googleCompetitorLookupCount = 0;
 
 await prisma.competitor.deleteMany({
@@ -810,29 +820,51 @@ const enrichedCompetitors = await Promise.all(
 
     if (existingCompetitor) {
       if (
-        existingCompetitor.isPrimaryCompetitor !== competitor.isPrimaryCompetitor
+        existingCompetitor.isPrimaryCompetitor !==
+        competitor.isPrimaryCompetitor
       ) {
         competitorSetChanged = true;
       }
 
+      const submittedServiceFocus = competitor.serviceFocus ?? [];
+
+      const resolvedRating =
+        typeof competitor.rating === "number"
+          ? competitor.rating
+          : existingCompetitor.rating ?? null;
+
+      const resolvedReviewCount =
+        typeof competitor.reviewCount === "number"
+          ? competitor.reviewCount
+          : existingCompetitor.reviewCount ?? null;
+
+      const resolvedServiceFocus =
+        submittedServiceFocus.length > 0
+          ? submittedServiceFocus
+          : existingCompetitor.serviceFocus ?? [];
+
       return {
         workspaceId: workspace.id,
-        name: existingCompetitor.name,
-        websiteUrl: existingCompetitor.websiteUrl,
-        googleBusinessUrl: existingCompetitor.googleBusinessUrl,
-        logoUrl: manualLogoUrl ?? existingCompetitor.logoUrl,
+        name: trimmedName,
+        websiteUrl: manualWebsiteUrl ?? existingCompetitor.websiteUrl ?? null,
+        googleBusinessUrl:
+          manualGoogleBusinessUrl ??
+          existingCompetitor.googleBusinessUrl ??
+          null,
+        logoUrl: manualLogoUrl ?? existingCompetitor.logoUrl ?? null,
         isPrimaryCompetitor: competitor.isPrimaryCompetitor,
-        notes: existingCompetitor.notes,
-        serviceFocus: existingCompetitor.serviceFocus,
-        googlePlaceId: existingCompetitor.googlePlaceId,
-        rating: existingCompetitor.rating,
-        reviewCount: existingCompetitor.reviewCount,
-        lastEnrichedAt: existingCompetitor.lastEnrichedAt,
-        isRunningAds: existingCompetitor.isRunningAds,
-        isPostingActively: existingCompetitor.isPostingActively,
-        hasActivePromo: existingCompetitor.hasActivePromo,
-        reviewVelocity: existingCompetitor.reviewVelocity,
-        signalSummary: existingCompetitor.signalSummary,
+        notes: existingCompetitor.notes ?? null,
+        serviceFocus: resolvedServiceFocus,
+        googlePlaceId:
+          competitor.placeId ?? existingCompetitor.googlePlaceId ?? null,
+        rating: resolvedRating,
+        reviewCount: resolvedReviewCount,
+        lastEnrichedAt: existingCompetitor.lastEnrichedAt ?? null,
+        isRunningAds: existingCompetitor.isRunningAds ?? null,
+        isPostingActively: existingCompetitor.isPostingActively ?? null,
+        hasActivePromo: existingCompetitor.hasActivePromo ?? null,
+        reviewVelocity: existingCompetitor.reviewVelocity ?? null,
+        signalSummary: existingCompetitor.signalSummary ?? null,
       };
     }
 
@@ -859,6 +891,34 @@ const enrichedCompetitors = await Promise.all(
       elapsedMs: Date.now() - lookupStartedAt,
     });
 
+    const submittedServiceFocus = competitor.serviceFocus ?? [];
+
+    const resolvedRating =
+      typeof competitor.rating === "number"
+        ? competitor.rating
+        : typeof discoveredMatch?.rating === "number"
+          ? discoveredMatch.rating
+          : null;
+
+    const resolvedReviewCount =
+      typeof competitor.reviewCount === "number"
+        ? competitor.reviewCount
+        : typeof discoveredMatch?.reviewCount === "number"
+          ? discoveredMatch.reviewCount
+          : null;
+
+    const resolvedServiceFocus =
+      submittedServiceFocus.length > 0
+        ? submittedServiceFocus
+        : discoveredMatch?.serviceFocus ?? [];
+
+    const hasEnrichment =
+      Boolean(competitor.placeId) ||
+      resolvedRating !== null ||
+      resolvedReviewCount !== null ||
+      resolvedServiceFocus.length > 0 ||
+      Boolean(discoveredMatch);
+
     return {
       workspaceId: workspace.id,
       name: trimmedName,
@@ -868,24 +928,11 @@ const enrichedCompetitors = await Promise.all(
       logoUrl: manualLogoUrl ?? discoveredMatch?.logoUrl ?? null,
       isPrimaryCompetitor: competitor.isPrimaryCompetitor,
       notes: discoveredMatch?.whyItMatters ?? null,
-      serviceFocus: discoveredMatch?.serviceFocus ?? [],
-      googlePlaceId: discoveredMatch?.placeId ?? null,
-
-      rating:
-        typeof discoveredMatch?.rating === "number"
-          ? discoveredMatch.rating
-          : null,
-
-      reviewCount:
-        typeof discoveredMatch?.reviewCount === "number"
-          ? discoveredMatch.reviewCount
-          : null,
-
-      lastEnrichedAt:
-        typeof discoveredMatch?.rating === "number" ||
-        typeof discoveredMatch?.reviewCount === "number"
-          ? new Date()
-          : null,
+      serviceFocus: resolvedServiceFocus,
+      googlePlaceId: competitor.placeId ?? discoveredMatch?.placeId ?? null,
+      rating: resolvedRating,
+      reviewCount: resolvedReviewCount,
+      lastEnrichedAt: hasEnrichment ? new Date() : null,
       isRunningAds: null,
       isPostingActively: null,
       hasActivePromo: null,
@@ -923,13 +970,13 @@ if (decisionImpactingSettingsChanged || competitorSetChanged) {
   });
 }
 
-  revalidatePath("/settings");
-  revalidatePath("/dashboard");
-  revalidatePath("/competitors");
-  revalidatePath("/campaigns");
-  revalidatePath("/reports");
+revalidatePath("/settings");
+revalidatePath("/dashboard");
+revalidatePath("/competitors");
+revalidatePath("/campaigns");
+revalidatePath("/reports");
 
-  return { success: true };
+return { success: true };
 }
 
 export async function fetchBusinessCandidates(input: {

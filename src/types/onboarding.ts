@@ -4,6 +4,13 @@ export type CompetitorInput = {
   googleBusinessUrl: string;
   logoUrl: string;
   isPrimaryCompetitor: boolean;
+
+  // Hidden enrichment fields used by the revenue engine.
+  // These are filled by AI prefill / Google lookup and should survive form state.
+  placeId?: string | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  serviceFocus?: string[];
 };
 
 export type OnboardingFormData = {
@@ -26,8 +33,8 @@ export type OnboardingFormData = {
 
   averageJobValue: number | "";
   servicePricing?: {
-  serviceName: string;
-  averageRevenue: number | "";
+    serviceName: string;
+    averageRevenue: number | "";
   }[];
   highestMarginService: string;
   lowestPriorityService: string;
@@ -39,7 +46,7 @@ export type OnboardingFormData = {
   weeklyCapacity: number | "";
   targetWeeklyRevenue: number | "";
   monthlyActionBudget: number | "";
-  
+
   competitors: CompetitorInput[];
 
   hasServicePages: boolean;
@@ -53,13 +60,13 @@ export type OnboardingFormData = {
   googleRating: number | "";
   googleReviewCount: number | "";
   selectedGoogleBusiness?: {
-  placeId: string | null;
-  name: string | null;
-  formattedAddress: string | null;
-  googleBusinessUrl: string | null;
-  rating: number | null;
-  reviewCount: number | null;
-} | null;
+    placeId: string | null;
+    name: string | null;
+    formattedAddress: string | null;
+    googleBusinessUrl: string | null;
+    rating: number | null;
+    reviewCount: number | null;
+  } | null;
 
   busySeason: string;
   slowSeason: string;

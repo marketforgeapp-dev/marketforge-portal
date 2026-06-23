@@ -88,12 +88,10 @@ export default async function OnboardingPage() {
       googleBusinessUrl: competitor.googleBusinessUrl ?? "",
       logoUrl: competitor.logoUrl ?? "",
       isPrimaryCompetitor: competitor.isPrimaryCompetitor ?? false,
-      placeId: competitor.googlePlaceId ?? "",
-      rating: typeof competitor.rating === "number" ? competitor.rating : "",
-      reviewCount:
-        typeof competitor.reviewCount === "number"
-          ? competitor.reviewCount
-          : "",
+      placeId: competitor.googlePlaceId ?? null,
+      rating: competitor.rating ?? null,
+      reviewCount: competitor.reviewCount ?? null,
+      serviceFocus: competitor.serviceFocus ?? [],
     })),
 
     hasServicePages: profile.hasServicePages ?? false,
