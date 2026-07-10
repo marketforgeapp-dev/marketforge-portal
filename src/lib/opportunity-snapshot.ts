@@ -124,11 +124,17 @@ function buildFastVisibleSetFromCachedDecisionSpace(params: {
 
   const output: SelectedOpportunity[] = [];
   const usedKeys = new Set<string>();
-  const usedFamilies = new Set<string>();
+  const usedFamilyPlayKeys = new Set<string>();
+  const usedFamilyCounts = new Map<string, number>();
 
   function canUse(opportunity: SelectedOpportunity) {
     if (usedKeys.has(opportunity.opportunityKey)) return false;
-    if (usedFamilies.has(opportunity.familyKey)) return false;
+    const playKey = getCommercialPlayKey(opportunity);
+    const familyPlayKey = `${opportunity.familyKey}::${playKey}`;
+    const familyCount = usedFamilyCounts.get(opportunity.familyKey) ?? 0;
+
+    if (usedFamilyPlayKeys.has(familyPlayKey)) return false;
+    if (familyCount >= 2) return false;
     if (opportunity.isInExecution) return false;
     if (opportunity.isDeprioritized) return false;
     if (opportunity.finalSurface === "suppress") return false;
@@ -139,8 +145,15 @@ function buildFastVisibleSetFromCachedDecisionSpace(params: {
     if (!canUse(opportunity)) return;
 
     output.push(opportunity);
+    const playKey = getCommercialPlayKey(opportunity);
+    const familyPlayKey = `${opportunity.familyKey}::${playKey}`;
+
     usedKeys.add(opportunity.opportunityKey);
-    usedFamilies.add(opportunity.familyKey);
+    usedFamilyPlayKeys.add(familyPlayKey);
+    usedFamilyCounts.set(
+      opportunity.familyKey,
+      (usedFamilyCounts.get(opportunity.familyKey) ?? 0) + 1
+    );
   }
 
   for (const previousOpportunity of params.previousVisibleSet) {
@@ -182,6 +195,324 @@ function uniqueByFamilyKey(
   }
 
   return output;
+}
+
+function getCommercialPlayKey(opportunity: SelectedOpportunity): string {
+  const variantKind =
+    typeof opportunity.variantKind === "string" ? opportunity.variantKind : "";
+
+  if (variantKind) {
+    return variantKind;
+  }
+
+  return [
+    opportunity.actionFraming,
+    opportunity.opportunityType,
+    opportunity.demandShape,
+  ]
+    .filter(Boolean)
+    .join("::");
+}
+
+function hasSameFamilyAndCommercialPlay(params: {
+  currentSet: SelectedOpportunity[];
+  candidate: SelectedOpportunity;
+}): boolean {
+  const candidatePlayKey = getCommercialPlayKey(params.candidate);
+
+  return params.currentSet.some(
+    (opportunity) =>
+      opportunity.familyKey === params.candidate.familyKey &&
+      getCommercialPlayKey(opportunity) === candidatePlayKey
+  );
+}
+
+function countFamilyInSet(params: {
+  currentSet: SelectedOpportunity[];
+  familyKey: string;
+}): number {
+  return params.currentSet.filter(
+    (opportunity) => opportunity.familyKey === params.familyKey
+  ).length;
+}
+
+function canAddDifferentCommercialPlay(params: {
+  currentSet: SelectedOpportunity[];
+  candidate: SelectedOpportunity;
+}): boolean {
+  if (
+    params.currentSet.some(
+      (opportunity) =>
+        opportunity.opportunityKey === params.candidate.opportunityKey
+    )
+  ) {
+    return false;
+  }
+
+  if (isEventDrivenOpportunity(params.candidate)) {
+    return false;
+  }
+
+  if (
+    !canRespectDemandShapeLimit({
+      currentSet: params.currentSet,
+      candidate: params.candidate,
+    })
+  ) {
+    return false;
+  }
+
+  if (
+    hasSameFamilyAndCommercialPlay({
+      currentSet: params.currentSet,
+      candidate: params.candidate,
+    })
+  ) {
+    return false;
+  }
+
+  return (
+    countFamilyInSet({
+      currentSet: params.currentSet,
+      familyKey: params.candidate.familyKey,
+    }) < 2
+  );
+}
+
+function isEventDrivenOpportunity(opportunity: SelectedOpportunity): boolean {
+  return (
+    opportunity.contextType === "event-driven" ||
+    opportunity.familyKey === "storm-cleanup"
+  );
+}
+
+function getDemandShapeLimit(demandShape: string): number {
+  if (demandShape === "visibility") return 1;
+  if (demandShape === "high-value-narrow") return 1;
+  if (demandShape === "urgent-problem") return 2;
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function canRespectDemandShapeLimit(params: {
+  currentSet: SelectedOpportunity[];
+  candidate: SelectedOpportunity;
+}): boolean {
+  const currentCount = params.currentSet.filter(
+    (opportunity) => opportunity.demandShape === params.candidate.demandShape
+  ).length;
+
+  return currentCount < getDemandShapeLimit(params.candidate.demandShape);
+}
+
+function getRepairVariantPriority(opportunity: SelectedOpportunity): number {
+  const playKey = getCommercialPlayKey(opportunity);
+
+  if (isEventDrivenOpportunity(opportunity)) {
+    return playKey === "primary" ? 20 : 10;
+  }
+
+  switch (playKey) {
+    case "primary":
+      return 100;
+    case "estimate_offer":
+      return 94;
+    case "bundle":
+      return 92;
+    case "service_area":
+      return 86;
+    case "trust":
+      return 78;
+    case "capacity":
+      return 74;
+    case "premium":
+      return 62;
+    case "urgent":
+      return 48;
+    default:
+      return 50;
+  }
+}
+
+function sortForRepairBackfill(
+  opportunities: SelectedOpportunity[]
+): SelectedOpportunity[] {
+  return [...opportunities].sort((a, b) => {
+    const bPriority = getRepairVariantPriority(b);
+    const aPriority = getRepairVariantPriority(a);
+
+    if (bPriority !== aPriority) {
+      return bPriority - aPriority;
+    }
+
+    if (b.finalSurface !== a.finalSurface) {
+      const surfaceRank: Record<string, number> = {
+        hero: 4,
+        surface: 3,
+        reserve: 2,
+        suppress: 1,
+      };
+
+      return (surfaceRank[b.finalSurface] ?? 0) - (surfaceRank[a.finalSurface] ?? 0);
+    }
+
+    return b.finalRecommendationScore - a.finalRecommendationScore;
+  });
+}
+
+function countCommercialPlayInSet(params: {
+  currentSet: SelectedOpportunity[];
+  playKey: string;
+}): number {
+  return params.currentSet.filter(
+    (opportunity) => getCommercialPlayKey(opportunity) === params.playKey
+  ).length;
+}
+
+function getSameFamilyBackfillPriority(params: {
+  currentSet: SelectedOpportunity[];
+  candidate: SelectedOpportunity;
+}): number {
+  const playKey = getCommercialPlayKey(params.candidate);
+
+  if (isEventDrivenOpportunity(params.candidate)) {
+    return 0;
+  }
+
+  const estimateCount = countCommercialPlayInSet({
+    currentSet: params.currentSet,
+    playKey: "estimate_offer",
+  });
+
+  const bundleCount = countCommercialPlayInSet({
+    currentSet: params.currentSet,
+    playKey: "bundle",
+  });
+
+  const serviceAreaCount = countCommercialPlayInSet({
+    currentSet: params.currentSet,
+    playKey: "service_area",
+  });
+
+  switch (playKey) {
+    case "bundle":
+      return bundleCount === 0 ? 110 : 76;
+
+    case "estimate_offer":
+      return estimateCount === 0 ? 100 : 68;
+
+    case "service_area":
+      return serviceAreaCount === 0 ? 88 : 60;
+
+    case "trust":
+      return 80;
+
+    case "capacity":
+      return 74;
+
+    case "premium":
+      return 58;
+
+    case "urgent":
+      return 42;
+
+    case "primary":
+      return 30;
+
+    default:
+      return 50;
+  }
+}
+
+function getNextCommercialBackfillCandidate(params: {
+  currentSet: SelectedOpportunity[];
+  candidatePool: SelectedOpportunity[];
+}): SelectedOpportunity | null {
+  const eligibleCandidates = params.candidatePool.filter((candidate) =>
+    canAddDifferentCommercialPlay({
+      currentSet: params.currentSet,
+      candidate,
+    })
+  );
+
+  if (eligibleCandidates.length === 0) {
+    return null;
+  }
+
+  return [...eligibleCandidates].sort((a, b) => {
+    const bPriority = getSameFamilyBackfillPriority({
+      currentSet: params.currentSet,
+      candidate: b,
+    });
+
+    const aPriority = getSameFamilyBackfillPriority({
+      currentSet: params.currentSet,
+      candidate: a,
+    });
+
+    if (bPriority !== aPriority) {
+      return bPriority - aPriority;
+    }
+
+    return b.finalRecommendationScore - a.finalRecommendationScore;
+  })[0];
+}
+
+function preferPrimaryRepresentativeForPremiumVariants(params: {
+  currentSet: SelectedOpportunity[];
+  candidatePool: SelectedOpportunity[];
+}): SelectedOpportunity[] {
+  return params.currentSet.map((opportunity, index) => {
+    const isHeroSlot = index === 0 || opportunity.finalSurface === "hero";
+
+    if (isHeroSlot) {
+      return opportunity;
+    }
+
+    if (getCommercialPlayKey(opportunity) !== "premium") {
+      return opportunity;
+    }
+
+    const primaryCandidate = params.candidatePool.find(
+      (candidate) =>
+        candidate.familyKey === opportunity.familyKey &&
+        getCommercialPlayKey(candidate) === "primary" &&
+        candidate.opportunityKey !== opportunity.opportunityKey &&
+        !isEventDrivenOpportunity(candidate)
+    );
+
+    return primaryCandidate ?? opportunity;
+  });
+}
+
+function canBackfillUniqueFamily(params: {
+  currentSet: SelectedOpportunity[];
+  candidate: SelectedOpportunity;
+}): boolean {
+  if (
+    params.currentSet.some(
+      (opportunity) =>
+        opportunity.opportunityKey === params.candidate.opportunityKey ||
+        opportunity.familyKey === params.candidate.familyKey
+    )
+  ) {
+    return false;
+  }
+
+  if (isEventDrivenOpportunity(params.candidate)) {
+    return false;
+  }
+
+  if (
+    !canRespectDemandShapeLimit({
+      currentSet: params.currentSet,
+      candidate: params.candidate,
+    })
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function buildAiCandidatePool(params: {
@@ -459,27 +790,47 @@ function repairAiVisibleSet(params: {
     replaceAt(indexToReplace, replacement);
   }
 
-  // Deduplicate in case a replacement collided
-    // Deduplicate by exact key first, then hard-dedupe by family
+  // Deduplicate exact key first, then prefer one action per service family.
   const dedupedByKey = uniqueByOpportunityKey(repaired);
-  const deduped = uniqueByFamilyKey(dedupedByKey);
+  const repairBackfillPool = sortForRepairBackfill(params.aiCandidatePool);
+  const deduped = preferPrimaryRepresentativeForPremiumVariants({
+    currentSet: uniqueByFamilyKey(dedupedByKey),
+    candidatePool: repairBackfillPool,
+  });
 
-  // Backfill to 6 if deduping shrank the set
+  // Backfill pass 1: preserve unique service-family diversity first,
+  // but choose the best commercial representative for each missing family.
   if (deduped.length < 6) {
-    for (const candidate of params.aiCandidatePool) {
+    for (const candidate of repairBackfillPool) {
       if (deduped.length >= 6) break;
+
       if (
-        deduped.some(
-          (opportunity) =>
-            opportunity.opportunityKey === candidate.opportunityKey ||
-            opportunity.familyKey === candidate.familyKey
-        )
+        !canBackfillUniqueFamily({
+          currentSet: deduped,
+          candidate,
+        })
       ) {
         continue;
       }
 
       deduped.push(candidate);
     }
+  }
+
+    // Backfill pass 2: if the company has fewer than 6 real service families,
+  // allow a second action from the same family only when the commercial play differs.
+  // Prefer commercial variety: bundle/service-area/trust should not lose to a second estimate play.
+  while (deduped.length < 6) {
+    const nextCandidate = getNextCommercialBackfillCandidate({
+      currentSet: deduped,
+      candidatePool: repairBackfillPool,
+    });
+
+    if (!nextCandidate) {
+      break;
+    }
+
+    deduped.push(nextCandidate);
   }
 
   return deduped.slice(0, 6);
@@ -845,13 +1196,14 @@ if (snapshotIsFresh && existing) {
           workspaceId,
           count: aiCandidatePool.length,
           opportunities: aiCandidatePool.map((opportunity) => ({
-            opportunityKey: opportunity.opportunityKey,
-            title: opportunity.displayMoveLabel,
-            familyKey: opportunity.familyKey,
-            demandShape: opportunity.demandShape,
-            finalSurface: opportunity.finalSurface,
-            actionFraming: opportunity.actionFraming,
-          })),
+          opportunityKey: opportunity.opportunityKey,
+          title: opportunity.displayMoveLabel,
+          familyKey: opportunity.familyKey,
+          demandShape: opportunity.demandShape,
+          finalSurface: opportunity.finalSurface,
+          actionFraming: opportunity.actionFraming,
+          variantKind: opportunity.variantKind,
+        })),
         });
         const aiSelectionStartedAt = Date.now();
         const aiSelection = await selectOpportunitySetWithAI({
@@ -908,21 +1260,23 @@ if (snapshotIsFresh && existing) {
             visibleOpportunityKeys: aiSelection.visibleOpportunityKeys,
             reasoning: aiSelection.reasoning,
             materializedVisibleSet: materializedVisibleSet.map((opportunity) => ({
-              opportunityKey: opportunity.opportunityKey,
-              title: opportunity.displayMoveLabel,
-              familyKey: opportunity.familyKey,
-              demandShape: opportunity.demandShape,
-              finalSurface: opportunity.finalSurface,
-              actionFraming: opportunity.actionFraming,
-            })),
+            opportunityKey: opportunity.opportunityKey,
+            title: opportunity.displayMoveLabel,
+            familyKey: opportunity.familyKey,
+            demandShape: opportunity.demandShape,
+            finalSurface: opportunity.finalSurface,
+            actionFraming: opportunity.actionFraming,
+            variantKind: opportunity.variantKind,
+          })),
             repairedVisibleSet: repairedVisibleSet.map((opportunity) => ({
-              opportunityKey: opportunity.opportunityKey,
-              title: opportunity.displayMoveLabel,
-              familyKey: opportunity.familyKey,
-              demandShape: opportunity.demandShape,
-              finalSurface: opportunity.finalSurface,
-              actionFraming: opportunity.actionFraming,
-            })),
+            opportunityKey: opportunity.opportunityKey,
+            title: opportunity.displayMoveLabel,
+            familyKey: opportunity.familyKey,
+            demandShape: opportunity.demandShape,
+            finalSurface: opportunity.finalSurface,
+            actionFraming: opportunity.actionFraming,
+            variantKind: opportunity.variantKind,
+          })),
           });
 
           if (repairedVisibleSet.length > 0) {
@@ -962,12 +1316,14 @@ if (snapshotIsFresh && existing) {
             finalSurface: payload.topOpportunity.finalSurface,
           },
           backlogOpportunities: payload.backlogOpportunities.map((opportunity) => ({
-            opportunityKey: opportunity.opportunityKey,
-            title: opportunity.displayMoveLabel,
-            familyKey: opportunity.familyKey,
-            demandShape: opportunity.demandShape,
-            finalSurface: opportunity.finalSurface,
-          })),
+          opportunityKey: opportunity.opportunityKey,
+          title: opportunity.displayMoveLabel,
+          familyKey: opportunity.familyKey,
+          demandShape: opportunity.demandShape,
+          finalSurface: opportunity.finalSurface,
+          actionFraming: opportunity.actionFraming,
+          variantKind: opportunity.variantKind,
+        })),
         });
         const persistStartedAt = Date.now();
         await prisma.workspaceOpportunitySnapshot.upsert({

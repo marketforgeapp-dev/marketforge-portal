@@ -2485,7 +2485,10 @@ Return a single structured next-best-action plan.
 
   const campaignName = campaignDraft.title || effectiveActionThesis.title;
   const effectiveCampaignOffer =
-    promotionalContext.customerFacingOffer ?? campaignDraft.offer;
+    promotionalContext.customerFacingOffer ??
+    campaignDraft.offer ??
+    effectiveActionThesis.offerHint ??
+    resolvedOpportunity.actionThesis.offerHint;
 
   const campaignOrigin = options.campaignOrigin ?? "nl_custom";
   const consumesRecommendationSlot =

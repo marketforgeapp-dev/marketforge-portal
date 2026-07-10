@@ -74,7 +74,16 @@ export type CandidateContextFitInput = {
   bestMove: string;
   opportunityType: string;
   actionFraming: ActionFraming;
-  variantKind: "primary" | "urgent" | "capacity" | "trust" | "premium" | "visibility";
+    variantKind:
+    | "primary"
+    | "urgent"
+    | "capacity"
+    | "trust"
+    | "premium"
+    | "estimate_offer"
+    | "bundle"
+    | "service_area"
+    | "visibility";
   rawBaseScore: number;
   seasonalityRelevance: InferredSignalLevel;
   seasonalityReason: string;
@@ -310,24 +319,25 @@ export function evaluateDeterministicContext(params: {
     };
   }
 
-  if (profile.contextType === "event-driven") {
+    if (profile.contextType === "event-driven") {
     if (urgency < 1 && seasonality < 0.5) {
       return {
         contextType: profile.contextType,
-        deterministicAdjustment: -28,
-        deterministicMultiplier: 0.7,
+        deterministicAdjustment: -32,
+        deterministicMultiplier: 0.65,
         heroEligibleDeterministic: false,
         preliminarySurface: "suppress",
         deterministicReason:
-          "This is event-driven work without enough current urgency or timing support.",
+          "This is event-driven work without enough current urgency or timing support, so it should not appear as a normal revenue action.",
       };
     }
 
-    adjustment -= 4;
-    heroEligibleDeterministic = urgency >= 1;
-    preliminarySurface = urgency >= 1 ? "surface" : "reserve";
+    adjustment -= 18;
+    multiplier *= 0.82;
+    heroEligibleDeterministic = false;
+    preliminarySurface = urgency >= 1 && seasonality >= 1 ? "reserve" : "suppress";
     deterministicReason =
-      "This is event-driven work, so stronger urgency support is required before it can surface aggressively.";
+      "This is event-driven work, so it should stay behind dependable revenue actions unless there is explicit current-event support.";
   }
 
   if (profile.contextType === "emergency") {
@@ -412,8 +422,41 @@ export function evaluateDeterministicContext(params: {
     adjustment += 4;
   }
 
-  if (params.variantKind === "trust" && urgency >= 1) {
+    if (params.variantKind === "trust" && urgency >= 1) {
     adjustment -= 5;
+  }
+
+  if (params.variantKind === "estimate_offer") {
+    adjustment += profile.lowFrequencyHighValue ? 4 : 2;
+    heroEligibleDeterministic = false;
+
+    deterministicReason =
+      "This is a safe estimate-request commercial play, so it can add backlog depth without inventing a risky discount or external promotion.";
+  }
+
+  if (params.variantKind === "bundle") {
+  const bundleCanCompeteForHero =
+    profile.contextType !== "emergency" &&
+    profile.contextType !== "event-driven" &&
+    profile.contextType !== "visibility";
+
+  adjustment += profile.lowFrequencyHighValue ? 4 : 3;
+
+  if (!bundleCanCompeteForHero) {
+    heroEligibleDeterministic = false;
+  }
+
+  deterministicReason = bundleCanCompeteForHero
+    ? "This is a bundle-style commercial play tied to services the business already offers. It can compete for hero placement when the bundle is safe, non-event-driven, and commercially stronger than a plain service push."
+    : "This is a bundle-style commercial play, but bundle hero placement is blocked for emergency, event-driven, or visibility-oriented work.";
+}
+
+  if (params.variantKind === "service_area") {
+    adjustment += 1;
+    heroEligibleDeterministic = false;
+
+    deterministicReason =
+      "This is a service-area expansion play, so it can create more demand without changing the underlying service offering.";
   }
 
   const deterministicAdjustedScore = clamp(

@@ -235,7 +235,10 @@ type RevenueVariantKind =
   | "urgent"
   | "capacity"
   | "trust"
-  | "premium";
+  | "premium"
+  | "estimate_offer"
+  | "bundle"
+  | "service_area";
 
 export type DemandShape =
   | "everyday-core"
@@ -322,7 +325,7 @@ function limitCandidatesPerFamily(
       (a, b) => b.rawOpportunityScore - a.rawOpportunityScore
     );
 
-    limited.push(...ordered.slice(0, contextProfile.maxVisiblePerFamily + 1));
+    limited.push(...ordered.slice(0, Math.max(contextProfile.maxVisiblePerFamily + 1, 3)));
   }
 
   return limited.sort((a, b) => b.rawOpportunityScore - a.rawOpportunityScore);
@@ -334,6 +337,10 @@ function getDemandShape(params: {
 }): DemandShape {
   if (params.familyKey === "ai-search-visibility" || params.kind === "visibility") {
     return "visibility";
+  }
+
+  if (params.familyKey === "storm-cleanup") {
+    return "urgent-problem";
   }
 
   if (params.kind === "capacity") {
@@ -562,6 +569,275 @@ function shouldAllowCapacityVariant(params: {
   }
 
   return true;
+}
+
+function getBundlePartnerFamilyKey(params: {
+  familyKey: string;
+  availableFamilyKeys: Set<string>;
+}): string | null {
+  const bundlePairs: Record<string, string[]> = {
+    "tree-removal": ["stump-grinding"],
+    "stump-grinding": ["tree-removal"],
+    "tree-trimming": ["stump-grinding", "brush-removal"],
+    "pruning-trimming": ["stump-grinding", "brush-removal"],
+
+    "septic-tank-pumping": ["septic-system-inspection"],
+    "septic-pumping": ["septic-inspection", "septic-system-inspection"],
+    "septic-inspection": ["septic-pumping", "septic-tank-pumping"],
+    "septic-system-inspection": ["septic-tank-pumping"],
+
+    "drain-cleaning": ["hydro-jetting"],
+    "hydro-jetting": ["drain-cleaning"],
+
+    "water-heater-repair-replacement": ["water-heater-service"],
+
+    "ac-repair": ["hvac-maintenance"],
+    "heating-repair": ["hvac-maintenance"],
+    "hvac-maintenance": ["ac-repair", "heating-repair"],
+  };
+
+  return (
+    bundlePairs[params.familyKey]?.find((familyKey) =>
+      params.availableFamilyKeys.has(familyKey)
+    ) ?? null
+  );
+}
+
+function getBundlePartnerServiceName(params: {
+  canonicalService: CanonicalService;
+  availableFamilyKeys: Set<string>;
+}): string | null {
+  const partnerFamilyKey = getBundlePartnerFamilyKey({
+    familyKey: params.canonicalService.familyKey,
+    availableFamilyKeys: params.availableFamilyKeys,
+  });
+
+  if (!partnerFamilyKey) {
+    return null;
+  }
+
+  return prettyServiceName(
+    getBlueprintForFamily(
+      partnerFamilyKey,
+      params.canonicalService.industry
+    ).serviceName
+  );
+}
+
+function shouldAllowEstimateOfferVariant(params: {
+  profile: BusinessProfile;
+  canonicalService: CanonicalService;
+}): boolean {
+  const familyKey = params.canonicalService.familyKey;
+  const contextProfile = getServiceContextProfile(familyKey);
+
+  if (isGeneralServiceFamily(familyKey)) {
+    return false;
+  }
+
+  if (
+    contextProfile.contextType === "emergency" ||
+    contextProfile.contextType === "event-driven" ||
+    contextProfile.contextType === "visibility"
+  ) {
+    return false;
+  }
+
+    const fallbackJobValue = Number(params.profile.averageJobValue ?? 450);
+
+  const serviceJobValue = resolveServiceJobValue({
+    profile: params.profile,
+    candidate: {
+      familyKey,
+      serviceName: params.canonicalService.canonicalName,
+      actionThesisPrimaryService: params.canonicalService.canonicalName,
+      industry: params.canonicalService.industry,
+    },
+    fallbackJobValue:
+      Number.isFinite(fallbackJobValue) && fallbackJobValue > 0
+        ? fallbackJobValue
+        : 450,
+  });
+
+  return (
+    serviceJobValue >= 750 ||
+    params.canonicalService.blueprint.valueBias >= 8 ||
+    contextProfile.lowFrequencyHighValue
+  );
+}
+
+function shouldAllowBundleVariant(params: {
+  profile: BusinessProfile;
+  canonicalService: CanonicalService;
+  availableFamilyKeys: Set<string>;
+}): boolean {
+  const familyKey = params.canonicalService.familyKey;
+  const contextProfile = getServiceContextProfile(familyKey);
+
+  if (isGeneralServiceFamily(familyKey)) {
+    return false;
+  }
+
+  if (
+    contextProfile.contextType === "emergency" ||
+    contextProfile.contextType === "event-driven" ||
+    contextProfile.contextType === "visibility"
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    getBundlePartnerFamilyKey({
+      familyKey,
+      availableFamilyKeys: params.availableFamilyKeys,
+    })
+  );
+}
+
+function shouldAllowServiceAreaVariant(params: {
+  profile: BusinessProfile;
+  canonicalService: CanonicalService;
+}): boolean {
+  const familyKey = params.canonicalService.familyKey;
+  const contextProfile = getServiceContextProfile(familyKey);
+
+  if (!params.profile.serviceArea?.trim()) {
+    return false;
+  }
+
+  if (isGeneralServiceFamily(familyKey)) {
+    return false;
+  }
+
+  if (
+    contextProfile.contextType === "event-driven" ||
+    contextProfile.contextType === "visibility"
+  ) {
+    return false;
+  }
+
+  if (params.canonicalService.isLowestPriority) {
+    return false;
+  }
+
+  return (
+    params.canonicalService.isPreferred ||
+    params.canonicalService.blueprint.demandBias >= 8 ||
+    params.canonicalService.blueprint.valueBias >= 8
+  );
+}
+
+function getVariantAngle(kind: RevenueVariantKind): string {
+  switch (kind) {
+    case "urgent":
+      return "fast response";
+    case "capacity":
+      return "schedule fill";
+    case "trust":
+      return "proof and credibility";
+    case "premium":
+      return "higher-value positioning";
+    case "estimate_offer":
+      return "estimate request";
+    case "bundle":
+      return "service bundle";
+    case "service_area":
+      return "service-area expansion";
+    case "primary":
+    default:
+      return "core revenue";
+  }
+}
+
+function getVariantOfferHint(params: {
+  kind: RevenueVariantKind;
+  serviceName: string;
+  bundlePartnerName?: string | null;
+}): string {
+  const service = prettyServiceName(params.serviceName).toLowerCase();
+  const partner = params.bundlePartnerName?.toLowerCase() ?? null;
+
+  switch (params.kind) {
+    case "estimate_offer":
+      return `Request a clear ${service} estimate`;
+    case "bundle":
+      return partner
+        ? `Ask about bundling ${service} with ${partner}`
+        : `Ask about bundling ${service} with related work`;
+    default:
+      return "";
+  }
+}
+
+function getVariantCtaHint(params: {
+  kind: RevenueVariantKind;
+  serviceName: string;
+}): string {
+  const service = prettyServiceName(params.serviceName).toLowerCase();
+
+  switch (params.kind) {
+    case "estimate_offer":
+      return "Request an estimate";
+    case "bundle":
+      return "Ask about bundle options";
+    case "service_area":
+      return `Book ${service}`;
+    case "trust":
+      return "See why homeowners choose us";
+    case "capacity":
+      return "Book now";
+    case "urgent":
+      return "Call now";
+    default:
+      return `Book ${service}`;
+  }
+}
+
+function getVariantDisplaySummary(params: {
+  kind: RevenueVariantKind;
+  serviceName: string;
+  serviceArea?: string | null;
+  fallback: string;
+  bundlePartnerName?: string | null;
+}): string {
+  const area = params.serviceArea?.trim() || "your service area";
+  const service = prettyServiceName(params.serviceName).toLowerCase();
+  const partner = params.bundlePartnerName?.toLowerCase() ?? null;
+
+  switch (params.kind) {
+    case "estimate_offer":
+      return `Turn homeowners comparing ${service} into estimate requests in ${area}.`;
+    case "bundle":
+      return partner
+        ? `Promote ${service} together with ${partner} as a practical higher-value job in ${area}.`
+        : `Promote ${service} together with related work as a practical higher-value job in ${area}.`;
+    case "service_area":
+      return `Create more booked ${service} jobs in nearby parts of ${area}.`;
+    default:
+      return params.fallback;
+  }
+}
+
+function getVariantActionFramingReason(kind: RevenueVariantKind): string {
+  switch (kind) {
+    case "capacity":
+      return "This variant is designed to turn open capacity into bookings.";
+    case "trust":
+      return "This variant is designed to improve conversion with stronger proof.";
+    case "premium":
+      return "This variant is designed to create a stronger premium positioning move.";
+    case "urgent":
+      return "This variant is designed to capture urgent booking intent.";
+    case "estimate_offer":
+      return "This variant is designed to turn interested homeowners into estimate requests without inventing a risky discount.";
+    case "bundle":
+      return "This variant is designed to increase job value by packaging related services the business already offers.";
+    case "service_area":
+      return "This variant is designed to expand demand in the real service area without inventing a new service.";
+    case "primary":
+    default:
+      return "This variant is the core revenue move for the service family.";
+  }
 }
 
 function cleanServiceStyleDisplayLabel(params: {
@@ -960,6 +1236,7 @@ function getSeasonalBestMove(params: {
   canonicalService: CanonicalService;
   kind: RevenueVariantKind;
   seasonalityTiming: ReturnType<typeof getSeasonalityTiming>;
+  bundlePartnerName?: string | null;
 }): string {
   const { canonicalService, kind, seasonalityTiming } = params;
   const prettyName = prettyServiceName(canonicalService.canonicalName);
@@ -1004,7 +1281,11 @@ function getSeasonalBestMove(params: {
     }
   }
 
-  return getVariantBestMove({ canonicalService, kind });
+  return getVariantBestMove({
+  canonicalService,
+  kind,
+  bundlePartnerName: params.bundlePartnerName,
+});
 }
 
 function inferBaseOpportunityType(params: {
@@ -1098,11 +1379,11 @@ function getVariantOpportunityType(params: {
     return "CAPACITY_GAP";
   }
 
-  if (kind === "premium") {
+    if (kind === "premium" || kind === "estimate_offer" || kind === "bundle") {
     return "HIGH_VALUE_SERVICE";
   }
 
-  if (kind === "trust") {
+  if (kind === "trust" || kind === "service_area") {
     return "LOCAL_SEARCH_SPIKE";
   }
 
@@ -1118,18 +1399,31 @@ function getVariantActionFraming(kind: RevenueVariantKind): ActionFraming {
     case "trust":
       return "REPUTATION";
     case "premium":
+    case "estimate_offer":
+    case "bundle":
       return "PROMOTION";
+    case "service_area":
+      return "PAID_CAMPAIGN";
     default:
       return "PAID_CAMPAIGN";
   }
 }
 
+function stripGenericServiceSuffixForPremium(value: string): string {
+  return value
+    .replace(/\s+Service$/i, "")
+    .trim();
+}
+
 function getVariantBestMove(params: {
   canonicalService: CanonicalService;
   kind: RevenueVariantKind;
+  bundlePartnerName?: string | null;
 }): string {
   const { canonicalService, kind } = params;
   const prettyName = prettyServiceName(canonicalService.canonicalName);
+  const premiumName = stripGenericServiceSuffixForPremium(prettyName);
+  const partnerName = params.bundlePartnerName ?? "Related Service";
 
   switch (kind) {
     case "primary":
@@ -1141,7 +1435,13 @@ function getVariantBestMove(params: {
     case "trust":
       return `Show Homeowners Why Your ${prettyName} Service Is the Right Choice`;
     case "premium":
-      return `Promote Higher-Value ${prettyName} Service`;
+      return `Promote Higher-Value ${premiumName}`;
+    case "estimate_offer":
+      return `Promote ${prettyName} Estimate Requests`;
+    case "bundle":
+      return `Promote ${prettyName} + ${partnerName} Bundle`;
+    case "service_area":
+      return `Promote ${prettyName} in Nearby Service Areas`;
     default:
       return canonicalService.blueprint.defaultBestMove;
   }
@@ -1150,9 +1450,12 @@ function getVariantBestMove(params: {
 function getVariantTitle(params: {
   canonicalService: CanonicalService;
   kind: RevenueVariantKind;
+  bundlePartnerName?: string | null;
 }): string {
   const { canonicalService, kind } = params;
   const prettyName = prettyServiceName(canonicalService.canonicalName);
+  const premiumName = stripGenericServiceSuffixForPremium(prettyName);
+  const partnerName = params.bundlePartnerName ?? "Related Service";
 
   switch (kind) {
     case "primary":
@@ -1164,7 +1467,13 @@ function getVariantTitle(params: {
     case "trust":
       return `${prettyName} Credibility Opportunity`;
     case "premium":
-      return `${prettyName} Higher-Value Service Opportunity`;
+      return `${premiumName} Higher-Value Opportunity`;
+    case "estimate_offer":
+      return `${prettyName} Estimate Request Opportunity`;
+    case "bundle":
+      return `${prettyName} + ${partnerName} Bundle Opportunity`;
+    case "service_area":
+      return `${prettyName} Service-Area Expansion Opportunity`;
     default:
       return canonicalService.blueprint.title;
   }
@@ -1197,6 +1506,15 @@ function getVariantScoreAdjustment(params: {
 
     case "premium":
       return canonicalService.blueprint.valueBias >= 10 ? 6 : 2;
+
+    case "estimate_offer":
+      return canonicalService.blueprint.valueBias >= 8 ? 5 : 3;
+
+    case "bundle":
+      return canonicalService.blueprint.valueBias >= 8 ? 4 : 2;
+
+    case "service_area":
+      return canonicalService.isPreferred ? 4 : 2;
 
     default:
       return 0;
@@ -1400,6 +1718,12 @@ function buildWhyNowBullets(params: {
     bulletThree = `Homeowners usually do not wait long to act on this kind of need, so this is a strong opportunity to win jobs quickly.`;
   } else if (kind === "premium") {
     bulletThree = `This is the kind of service where better positioning can help you win higher-value work instead of only competing on price.`;
+  } else if (kind === "estimate_offer") {
+    bulletThree = `This action gives homeowners a clear next step to request an estimate without relying on a risky discount or invented promotion.`;
+  } else if (kind === "bundle") {
+    bulletThree = `Bundling related work can increase job value while staying grounded in services the business already offers.`;
+  } else if (kind === "service_area") {
+    bulletThree = `This action expands the same service into more of the real service area instead of inventing a new service line.`;
   } else if (kind === "trust") {
     bulletThree = `This is a service where homeowners want to feel confident before they book, so clearer proof and credibility can directly improve conversion.`;
   } else if (marketTimingIntentScore >= 75) {
@@ -1416,6 +1740,7 @@ function buildWhyNowBullets(params: {
 function buildRevenueVariantCandidates(params: {
   profile: BusinessProfile;
   canonicalService: CanonicalService;
+  availableFamilyKeys: Set<string>;
   availableJobsEstimate: number;
   capacityFit: CapacityFit;
   capacityScore: number;
@@ -1427,6 +1752,7 @@ function buildRevenueVariantCandidates(params: {
   const {
     profile,
     canonicalService,
+    availableFamilyKeys,
     availableJobsEstimate,
     capacityFit,
     capacityScore,
@@ -1517,14 +1843,59 @@ function buildRevenueVariantCandidates(params: {
 
   const seasonalPriority: RevenueVariantKind[] =
     seasonalityTiming.timing === "SLOW"
-      ? ["capacity", "trust", "primary", "premium", "urgent"]
+      ? [
+          "capacity",
+          "trust",
+          "estimate_offer",
+          "service_area",
+          "primary",
+          "bundle",
+          "premium",
+          "urgent",
+        ]
       : seasonalityTiming.timing === "BUSY"
-        ? ["urgent", "premium", "primary", "trust", "capacity"]
+        ? [
+            "urgent",
+            "primary",
+            "premium",
+            "estimate_offer",
+            "bundle",
+            "service_area",
+            "trust",
+            "capacity",
+          ]
         : seasonalityTiming.timing === "PEAK"
-          ? ["urgent", "primary", "premium", "trust", "capacity"]
+          ? [
+              "urgent",
+              "primary",
+              "premium",
+              "estimate_offer",
+              "bundle",
+              "service_area",
+              "trust",
+              "capacity",
+            ]
           : seasonalityTiming.timing === "SHOULDER"
-            ? ["trust", "capacity", "primary", "premium", "urgent"]
-            : ["primary", "urgent", "capacity", "trust", "premium"];
+            ? [
+                "trust",
+                "estimate_offer",
+                "service_area",
+                "capacity",
+                "primary",
+                "bundle",
+                "premium",
+                "urgent",
+              ]
+            : [
+                "primary",
+                "estimate_offer",
+                "service_area",
+                "urgent",
+                "capacity",
+                "trust",
+                "bundle",
+                "premium",
+              ];
 
   const enabledVariantKinds = new Set<RevenueVariantKind>(["primary"]);
 
@@ -1558,11 +1929,47 @@ function buildRevenueVariantCandidates(params: {
     enabledVariantKinds.add("premium");
   }
 
+    if (
+    shouldAllowEstimateOfferVariant({
+      profile,
+      canonicalService,
+    })
+  ) {
+    enabledVariantKinds.add("estimate_offer");
+  }
+
+  if (
+    shouldAllowBundleVariant({
+      profile,
+      canonicalService,
+      availableFamilyKeys,
+    })
+  ) {
+    enabledVariantKinds.add("bundle");
+  }
+
+  if (
+    shouldAllowServiceAreaVariant({
+      profile,
+      canonicalService,
+    })
+  ) {
+    enabledVariantKinds.add("service_area");
+  }
+
   const variantKinds = seasonalPriority.filter((kind) =>
     enabledVariantKinds.has(kind)
   );
 
   return variantKinds.map((kind) => {
+    const bundlePartnerName =
+      kind === "bundle"
+        ? getBundlePartnerServiceName({
+            canonicalService,
+            availableFamilyKeys,
+          })
+        : null;
+
     const campaignType = getVariantCampaignType({ canonicalService, kind });
     const opportunityType = getVariantOpportunityType({
       canonicalService,
@@ -1574,8 +1981,13 @@ function buildRevenueVariantCandidates(params: {
       canonicalService,
       kind,
       seasonalityTiming,
+      bundlePartnerName,
     });
-    const title = getVariantTitle({ canonicalService, kind });
+    const title = getVariantTitle({
+      canonicalService,
+      kind,
+      bundlePartnerName,
+    });
     const performanceSignal = getPerformanceSignal(performanceSignals, campaignType);
 
     const displayContract = buildDisplayContract({
@@ -1585,6 +1997,26 @@ function buildRevenueVariantCandidates(params: {
       actionFraming,
       serviceArea: profile.serviceArea,
     });
+
+        const displaySummary = getVariantDisplaySummary({
+      kind,
+      serviceName: canonicalService.canonicalName,
+      serviceArea: profile.serviceArea,
+      fallback: displayContract.displaySummary,
+      bundlePartnerName,
+    });
+
+    const reputationAdjustmentKind:
+      | "primary"
+      | "urgent"
+      | "capacity"
+      | "trust"
+      | "premium" =
+      kind === "estimate_offer" || kind === "bundle"
+        ? "premium"
+        : kind === "service_area"
+          ? "primary"
+          : kind;
 
     const variantScore =
       serviceBaseScore +
@@ -1601,7 +2033,7 @@ function buildRevenueVariantCandidates(params: {
       }) +
       getReputationVariantAdjustment({
         position: reputationSignal.position,
-        kind,
+        kind: reputationAdjustmentKind,
       }) +
       (performanceSignal?.scoreBoost ?? 0);
 
@@ -1620,21 +2052,22 @@ function buildRevenueVariantCandidates(params: {
         familyKey: canonicalService.familyKey,
         displayMoveLabel: displayContract.displayMoveLabel,
       }),
-      displaySummary: displayContract.displaySummary,
+      displaySummary,
       imageKey: displayContract.imageKey,
       imageMode: displayContract.imageMode,
-      actionThesis: {
+            actionThesis: {
         ...displayContract.actionThesis,
-        angle:
-          kind === "urgent"
-            ? "fast response"
-            : kind === "capacity"
-              ? "schedule fill"
-              : kind === "trust"
-                ? "proof and credibility"
-                : kind === "premium"
-                  ? "higher-value positioning"
-                  : "core revenue",
+        angle: getVariantAngle(kind),
+        summary: displaySummary,
+        offerHint: getVariantOfferHint({
+          kind,
+          serviceName: canonicalService.canonicalName,
+          bundlePartnerName,
+        }),
+        ctaHint: getVariantCtaHint({
+          kind,
+          serviceName: canonicalService.canonicalName,
+        }),
       },
       recommendedCampaignType: campaignType,
       sourceTags: getVariantTags({ canonicalService, kind }),
@@ -1709,16 +2142,7 @@ function buildRevenueVariantCandidates(params: {
       homeownerIntentStrength: enrichment.homeownerIntentStrength,
       homeownerIntentReason: enrichment.homeownerIntentReason,
       actionFraming,
-            actionFramingReason:
-        kind === "capacity"
-          ? "This variant is designed to turn open capacity into bookings."
-          : kind === "trust"
-            ? "This variant is designed to improve conversion with stronger proof."
-            : kind === "premium"
-              ? "This variant is designed to create a stronger premium positioning move."
-              : kind === "urgent"
-                ? "This variant is designed to capture urgent booking intent."
-                : "This variant is the core revenue move for the service family.",
+      actionFramingReason: getVariantActionFramingReason(kind),
       eligibleForBacklog: !canonicalService.isDeprioritized,
       eligibleForHero:
         !canonicalService.isDeprioritized &&
@@ -2273,6 +2697,9 @@ export async function buildRevenueOpportunityEngine(params: {
     },
   });
   const candidateBuildStartedAt = Date.now();
+  const availableFamilyKeys = new Set(
+    servicesForEngine.map((service) => service.familyKey)
+  );
   const candidateBuckets = servicesForEngine.flatMap((canonicalService) => {
     const enrichment =
       enrichmentMap.get(normalize(canonicalService.canonicalName)) ??
@@ -2285,6 +2712,7 @@ export async function buildRevenueOpportunityEngine(params: {
     return buildRevenueVariantCandidates({
       profile,
       canonicalService,
+      availableFamilyKeys,
       availableJobsEstimate,
       capacityFit,
       capacityScore,
