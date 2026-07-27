@@ -24,6 +24,21 @@ type EstimatedRange = {
   revenueHigh?: number | null;
 };
 
+type CommercialBrief = {
+  market?: string;
+
+  commercialActionSpec?: {
+    ownerObjective?: string;
+    expectedOutcome?: string;
+    primaryCallToAction?: string;
+
+    target?: {
+      displayLabel?: string;
+      relationshipGoal?: string;
+    };
+  };
+};
+
 type Props = {
   campaign: CampaignWithExecution;
 };
@@ -75,6 +90,37 @@ function extractEstimatedRange(
         ? estimatedRange.revenueHigh
         : null,
   };
+}
+
+function extractCommercialBrief(
+  briefJson: Prisma.JsonValue | null
+): CommercialBrief | null {
+  if (
+    !briefJson ||
+    typeof briefJson !== "object" ||
+    Array.isArray(briefJson)
+  ) {
+    return null;
+  }
+
+  return briefJson as CommercialBrief;
+}
+
+function formatLabel(
+  value?: string | null
+) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(
+      /\b\w/g,
+      (character) =>
+        character.toUpperCase()
+    );
 }
 
 function statusLabel(status: Campaign["status"]) {
@@ -146,21 +192,65 @@ function getApprovedPlatforms(
 }
 
 export function ExecutionCard({ campaign }: Props) {
-  const execution = getExecutionMeta(campaign.briefJson);
-  const estimatedRange = extractEstimatedRange(campaign.briefJson);
-  const approvedPlatforms = getApprovedPlatforms(campaign, execution);
-  const approvedAssetTypes = getApprovedAssetTypes(campaign, execution);
-    const budgetRecommendation = getBudgetAllocationRecommendation(
-    approvedAssetTypes,
-    {
-      revenueLow: estimatedRange?.revenueLow ?? null,
-      revenueHigh:
-        estimatedRange?.revenueHigh ??
-        (typeof campaign.estimatedRevenue === "number"
-          ? campaign.estimatedRevenue
-          : 0),
-    }
-  );
+  const execution =
+    getExecutionMeta(
+      campaign.briefJson
+    );
+
+  const estimatedRange =
+    extractEstimatedRange(
+      campaign.briefJson
+    );
+
+  const commercialBrief =
+    extractCommercialBrief(
+      campaign.briefJson
+    );
+
+  const isCommercial =
+    commercialBrief?.market ===
+    "COMMERCIAL";
+
+  const approvedPlatforms =
+    isCommercial
+      ? []
+      : getApprovedPlatforms(
+          campaign,
+          execution
+        );
+
+  const approvedAssetTypes =
+    getApprovedAssetTypes(
+      campaign,
+      execution
+    );
+
+  const approvedMaterialCount =
+    campaign.campaignAssets.filter(
+      (asset) =>
+        asset.isApproved
+    ).length;
+
+  const budgetRecommendation =
+    isCommercial
+      ? null
+      : getBudgetAllocationRecommendation(
+          approvedAssetTypes,
+          {
+            revenueLow:
+              estimatedRange
+                ?.revenueLow ??
+              null,
+
+            revenueHigh:
+              estimatedRange
+                ?.revenueHigh ??
+              (typeof campaign.estimatedRevenue ===
+              "number"
+                ? campaign.estimatedRevenue
+                : 0),
+          }
+        );
 
   const jobsDisplay =
     estimatedRange?.jobsLow != null && estimatedRange?.jobsHigh != null
@@ -176,6 +266,30 @@ export function ExecutionCard({ campaign }: Props) {
         ? campaign.estimatedRevenue
         : 0;
 
+    const commercialSpec =
+    commercialBrief
+      ?.commercialActionSpec;
+
+  const commercialTarget =
+    commercialSpec
+      ?.target
+      ?.displayLabel ??
+    campaign.audience ??
+    "Commercial account";
+
+  const commercialObjective =
+    formatLabel(
+      commercialSpec
+        ?.ownerObjective
+    );
+
+  const commercialRelationshipGoal =
+    formatLabel(
+      commercialSpec
+        ?.target
+        ?.relationshipGoal
+    );
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -189,7 +303,10 @@ export function ExecutionCard({ campaign }: Props) {
           </h3>
 
           <p className="mt-1 text-sm text-gray-600">
-            {campaign.targetService ?? "General service action"}
+            {isCommercial
+              ? commercialTarget
+              : campaign.targetService ??
+                "General service action"}
           </p>
         </div>
 
@@ -210,33 +327,81 @@ export function ExecutionCard({ campaign }: Props) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-gray-50 p-3">
-          <p className="text-[10px] uppercase tracking-wide text-gray-500">
-            Est Jobs
-          </p>
-          <p className="mt-1 text-sm font-semibold text-gray-900">
-            {jobsDisplay}
-          </p>
-        </div>
+      {isCommercial ? (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-gray-500">
+              Objective
+            </p>
 
-        <div className="rounded-xl bg-gray-50 p-3">
-          <p className="text-[10px] uppercase tracking-wide text-gray-500">
-            Est Revenue
-          </p>
-          <p className="mt-1 text-sm font-semibold text-gray-900">
-            ${revenueDisplay.toLocaleString()}
-          </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {commercialObjective}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-gray-500">
+              Approved Materials
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {approvedMaterialCount}
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-gray-500">
+              Est Jobs
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {jobsDisplay}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-gray-500">
+              Est Revenue
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              ${revenueDisplay.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 space-y-2 text-sm text-gray-700">
-        <p>
-          <span className="font-semibold text-gray-900">Platforms:</span>{" "}
-          {approvedPlatforms.length > 0
-            ? approvedPlatforms.join(", ")
-            : "No approved platforms yet"}
-        </p>
+        {isCommercial ? (
+          <>
+            <p>
+              <span className="font-semibold text-gray-900">
+                Target:
+              </span>{" "}
+              {commercialTarget}
+            </p>
+
+            <p>
+              <span className="font-semibold text-gray-900">
+                Relationship Goal:
+              </span>{" "}
+              {commercialRelationshipGoal}
+            </p>
+          </>
+        ) : (
+          <p>
+            <span className="font-semibold text-gray-900">
+              Platforms:
+            </span>{" "}
+            {approvedPlatforms.length > 0
+              ? approvedPlatforms.join(
+                  ", "
+                )
+              : "No approved platforms yet"}
+          </p>
+        )}
         <p>
           <span className="font-semibold text-gray-900">Owner:</span>{" "}
           {execution?.launchOwner ?? "Not assigned"}
@@ -255,7 +420,9 @@ export function ExecutionCard({ campaign }: Props) {
         </p>
       </div>
 
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+    {!isCommercial &&
+      budgetRecommendation ? (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
           Action Budget
         </p>
@@ -281,7 +448,8 @@ export function ExecutionCard({ campaign }: Props) {
         <p className="mt-3 text-xs leading-5 text-gray-600">
           {budgetRecommendation.note}
         </p>
-      </div>
+        </div>
+      ) : null}
 
       <div className="mt-4">
         <ExecutionStatusActions campaignId={campaign.id} status={campaign.status} />

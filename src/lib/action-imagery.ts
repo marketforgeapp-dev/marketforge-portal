@@ -107,9 +107,4 @@ return {
   src,
   alt: resolvedKey.replace(/-/g, " "),
 };
-
-  return {
-    src: buildIndustryImagePath(industryFolder, resolvedKey),
-    alt: resolvedKey.replace(/-/g, " "),
-  };
 }

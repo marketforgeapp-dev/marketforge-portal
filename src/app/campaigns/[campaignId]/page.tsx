@@ -3,9 +3,18 @@ import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { prisma } from "@/lib/prisma";
 import { CampaignStatusActions } from "@/components/campaigns/campaign-status-actions";
 import { CampaignBriefPanel } from "@/components/campaigns/campaign-brief-panel";
+import {
+  CommercialCampaignBriefPanel,
+} from "@/components/campaigns/commercial-campaign-brief-panel";
+import {
+  CommercialOwnerInputPanel,
+} from "@/components/campaigns/commercial-owner-input-panel";
 import { CampaignAssetsReview } from "@/components/campaigns/campaign-assets-review";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { getRecommendedActionBudget } from "@/lib/budget-allocation-recommendations";
+import {
+  currentUser,
+} from "@clerk/nextjs/server";
 
 type Props = {
   params: Promise<{
@@ -14,6 +23,8 @@ type Props = {
 };
 
 type BudgetBriefShape = {
+  market?: string;
+
   estimatedRange?: {
     revenueLow?: number;
     revenueHigh?: number;
@@ -33,6 +44,15 @@ function parseBudgetBrief(value: unknown): BudgetBriefShape | null {
 
 export default async function CampaignDetailPage({ params }: Props) {
   const { campaignId } = await params;
+
+  const clerkUser =
+  await currentUser();
+
+  const primaryEmail =
+    clerkUser
+      ?.emailAddresses[0]
+      ?.emailAddress ??
+    "";
 
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
@@ -61,19 +81,85 @@ export default async function CampaignDetailPage({ params }: Props) {
       logoUrl: true,
       businessName: true,
       website: true,
+      phone: true,
+      serviceArea: true,
+      preferredServices: true,
+      servicePricingJson: true,
       industryLabel: true,
     },
   });
 
-  const brief = parseBudgetBrief(campaign.briefJson);
+  const pricedServices =
+  Array.isArray(
+    profile?.servicePricingJson
+  )
+    ? profile.servicePricingJson.flatMap(
+        (item) => {
+          if (
+            !item ||
+            typeof item !== "object" ||
+            Array.isArray(item)
+          ) {
+            return [];
+          }
 
-  const actionBudget = getRecommendedActionBudget({
+          const serviceName =
+            (
+              item as Record<
+                string,
+                unknown
+              >
+            ).serviceName;
+
+          return typeof serviceName ===
+            "string" &&
+            serviceName.trim()
+            ? [
+                serviceName.trim(),
+              ]
+            : [];
+        }
+      )
+    : [];
+
+    const availableServices =
+      Array.from(
+        new Set(
+          (
+            profile
+              ?.preferredServices
+              ?.length
+              ? profile.preferredServices
+              : pricedServices
+          )
+            .map((service) =>
+              service.trim()
+            )
+            .filter(Boolean)
+        )
+      );
+
+  const brief =
+    parseBudgetBrief(
+      campaign.briefJson
+    );
+
+  const isCommercial =
+    brief?.market ===
+    "COMMERCIAL";
+
+  const actionBudget =
+    isCommercial
+      ? 0
+      : getRecommendedActionBudget({
     revenueLow: brief?.estimatedRange?.revenueLow,
     revenueHigh:
       brief?.estimatedRange?.revenueHigh ??
       Number(campaign.estimatedRevenue ?? 0),
-    actionFraming: brief?.nextBestAction?.actionType,
-  });
+          actionFraming:
+            brief?.nextBestAction
+              ?.actionType,
+        });
 
   return (
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
@@ -103,6 +189,7 @@ export default async function CampaignDetailPage({ params }: Props) {
 
           <CampaignStatusActions
             campaignId={campaign.id}
+            isCommercial={isCommercial}
             status={campaign.status}
             campaignName={campaign.name}
             estimatedBookedJobs={campaign.estimatedBookedJobs}
@@ -111,27 +198,58 @@ export default async function CampaignDetailPage({ params }: Props) {
             briefJson={campaign.briefJson}
           />
 
+          {isCommercial ? (
+            <CommercialOwnerInputPanel
+              campaignId={campaign.id}
+              status={campaign.status}
+              briefJson={campaign.briefJson}
+              defaults={{
+                senderEmail:
+                  primaryEmail,
+
+                senderPhone:
+                  profile?.phone ?? "",
+
+                serviceArea:
+                  profile?.serviceArea ??
+                  campaign.serviceArea ??
+                  "",
+
+                availableServices,
+              }}
+            />
+          ) : null}
+
           <CampaignAssetsReview
             campaignId={campaign.id}
             status={campaign.status}
             assets={campaign.assets}
+            briefJson={campaign.briefJson}
             logoUrl={profile?.logoUrl ?? null}
             businessName={profile?.businessName ?? null}
             websiteUrl={profile?.website ?? null}
             industryLabel={profile?.industryLabel ?? null}
           />
 
-          <CampaignBriefPanel
-            campaignId={campaign.id}
-            status={campaign.status}
-            campaignName={campaign.name}
-            targetService={campaign.targetService}
-            offer={campaign.offer}
-            audience={campaign.audience}
-            briefJson={campaign.briefJson}
-            logoUrl={profile?.logoUrl ?? null}
-            industryLabel={profile?.industryLabel ?? null}
-          />
+                    {isCommercial ? (
+            <CommercialCampaignBriefPanel
+              status={campaign.status}
+              campaignName={campaign.name}
+              briefJson={campaign.briefJson}
+            />
+          ) : (
+            <CampaignBriefPanel
+              campaignId={campaign.id}
+              status={campaign.status}
+              campaignName={campaign.name}
+              targetService={campaign.targetService}
+              offer={campaign.offer}
+              audience={campaign.audience}
+              briefJson={campaign.briefJson}
+              logoUrl={profile?.logoUrl ?? null}
+              industryLabel={profile?.industryLabel ?? null}
+            />
+          )}
         </main>
       </div>
     </div>

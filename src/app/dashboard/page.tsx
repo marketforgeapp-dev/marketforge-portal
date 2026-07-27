@@ -7,6 +7,27 @@ import { getOrCreateWorkspaceOpportunitySnapshot } from "@/lib/opportunity-snaps
 import { deriveWorkspaceReputationSignal } from "@/lib/reputation-signals";
 import { getRecommendedActionBudget } from "@/lib/budget-allocation-recommendations";
 
+type CampaignMarketBrief = {
+  market?: string;
+};
+
+function isCommercialBrief(
+  value: unknown
+) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return false;
+  }
+
+  return (
+    (value as CampaignMarketBrief)
+      .market === "COMMERCIAL"
+  );
+}
+
 export default async function DashboardPage() {
   const workspace = await getCurrentWorkspace();
 
@@ -94,8 +115,21 @@ export default async function DashboardPage() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const allocatedBudget = campaigns.reduce((sum, campaign) => {
-    const updatedAt =
+  const allocatedBudget =
+    campaigns.reduce(
+      (
+        sum,
+        campaign
+      ) => {
+        if (
+          isCommercialBrief(
+            campaign.briefJson
+          )
+        ) {
+          return sum;
+        }
+
+        const updatedAt =
       campaign.updatedAt instanceof Date
         ? campaign.updatedAt
         : new Date(campaign.updatedAt);
@@ -125,8 +159,13 @@ export default async function DashboardPage() {
       revenueHigh: Number(campaign.estimatedRevenue ?? 0),
     });
 
-    return sum + actionBudget;
-  }, 0);
+            return (
+          sum +
+          actionBudget
+        );
+      },
+      0
+    );
 
   const remainingBudget = Math.max(monthlyBudget - allocatedBudget, 0);
 

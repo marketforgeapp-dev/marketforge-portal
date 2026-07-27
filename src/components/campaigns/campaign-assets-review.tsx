@@ -10,6 +10,7 @@ type Props = {
   campaignId: string;
   status: CampaignStatus;
   assets: CampaignAsset[];
+  briefJson?: unknown;
   logoUrl?: string | null;
   businessName?: string | null;
   websiteUrl?: string | null;
@@ -79,11 +80,209 @@ type StructuredAssetPayload =
   | EmailAssetPayload
   | BlogAssetPayload;
 
+type CommercialAssetMetadata = {
+  market?: "COMMERCIAL";
+  commercialAssetId?: string;
+  commercialCategory?: string;
+  commercialCategoryLabel?: string;
+  readiness?:
+    | "READY_NOW"
+    | "OWNER_INPUT_REQUIRED"
+    | "ACCOUNT_DISCOVERY_REQUIRED";
+  purpose?: string;
+  requiredOwnerInputKeys?: string[];
+  requiredAccountDiscoveryItems?: string[];
+  usageInstructions?: string;
+  completionSignal?: string;
+};
+
+type CommercialOwnerInputRequirement = {
+  key?: string;
+  label?: string;
+  reason?: string;
+  requiredBefore?:
+    | "INITIAL_OUTREACH"
+    | "DISCOVERY"
+    | "PROPOSAL"
+    | "CONTRACT"
+    | "ONBOARDING";
+  currentValue?: string | null;
+};
+
+type CommercialBriefShape = {
+  commercialActionSpec?: {
+    ownerInputRequirements?:
+      CommercialOwnerInputRequirement[];
+  };
+};
+
+type CommercialAssetInputSummary = {
+  requiredBeforeLaunch:
+    CommercialOwnerInputRequirement[];
+
+  requiredLater:
+    CommercialOwnerInputRequirement[];
+};
+
 function formatAssetType(value: string) {
   return value
     .toLowerCase()
     .replaceAll("_", " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function parseCommercialAssetMetadata(
+  asset: CampaignAsset
+): CommercialAssetMetadata | null {
+  const metadata = asset.metadataJson;
+
+  if (
+    !metadata ||
+    typeof metadata !== "object" ||
+    Array.isArray(metadata)
+  ) {
+    return null;
+  }
+
+  const parsed =
+    metadata as Record<string, unknown>;
+
+  if (
+    parsed.market !== "COMMERCIAL" ||
+    typeof parsed.commercialCategory !==
+      "string"
+  ) {
+    return null;
+  }
+
+  return parsed as CommercialAssetMetadata;
+}
+
+function getCommercialAssetLabel(
+  asset: CampaignAsset
+) {
+  const metadata =
+    parseCommercialAssetMetadata(asset);
+
+  if (!metadata) {
+    return null;
+  }
+
+  return (
+    metadata.commercialCategoryLabel ??
+    formatAssetType(
+      metadata.commercialCategory ??
+        "Commercial Asset"
+    )
+  );
+}
+
+function getAssetReviewLabel(
+  asset: CampaignAsset
+) {
+  return (
+    getCommercialAssetLabel(asset) ??
+    formatAssetType(asset.assetType)
+  );
+}
+
+function parseCommercialBrief(
+  value: unknown
+): CommercialBriefShape | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  return value as CommercialBriefShape;
+}
+
+function normalizeRequirementKey(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getCommercialAssetInputSummary(params: {
+  asset: CampaignAsset;
+  briefJson: unknown;
+}): CommercialAssetInputSummary | null {
+  const metadata =
+    parseCommercialAssetMetadata(
+      params.asset
+    );
+
+  if (!metadata) {
+    return null;
+  }
+
+  const brief =
+    parseCommercialBrief(
+      params.briefJson
+    );
+
+  const requirements =
+    brief?.commercialActionSpec
+      ?.ownerInputRequirements ??
+    [];
+
+  const assetKeys =
+    new Set(
+      (
+        metadata
+          .requiredOwnerInputKeys ??
+        []
+      ).map(
+        normalizeRequirementKey
+      )
+    );
+
+  const assetRequirements =
+    requirements.filter(
+      (requirement) => {
+        if (
+          requirement.currentValue
+            ?.trim()
+        ) {
+          return false;
+        }
+
+        const key =
+          normalizeRequirementKey(
+            requirement.key ?? ""
+          );
+
+        return (
+          key.length > 0 &&
+          assetKeys.has(key)
+        );
+      }
+    );
+
+  return {
+    requiredBeforeLaunch:
+      assetRequirements.filter(
+        (requirement) =>
+          requirement
+            .requiredBefore ===
+          "INITIAL_OUTREACH"
+      ),
+
+    requiredLater:
+      assetRequirements.filter(
+        (requirement) =>
+          requirement
+            .requiredBefore !==
+          "INITIAL_OUTREACH"
+      ),
+  };
 }
 
 function parseStructuredAsset(
@@ -98,7 +297,111 @@ function parseStructuredAsset(
   }
 }
 
-function groupAssetsForReview(assets: CampaignAsset[]) {
+function groupAssetsForReview(
+  assets: CampaignAsset[]
+) {
+  const commercialAssets =
+    assets.filter(
+      (asset) =>
+        parseCommercialAssetMetadata(
+          asset
+        ) !== null
+    );
+
+  if (commercialAssets.length > 0) {
+    const orderedCommercialCategories = [
+      "ACCOUNT_BRIEF",
+      "CAPABILITY_STATEMENT",
+      "INITIAL_OUTREACH",
+      "PHONE_SCRIPT",
+      "VOICEMAIL",
+      "DIRECT_MESSAGE",
+      "OFFICE_VISIT",
+      "QUALIFICATION",
+      "DISCOVERY",
+      "WALKTHROUGH",
+      "VENDOR_READINESS",
+      "PROPOSAL",
+      "MAINTENANCE_AGREEMENT",
+      "OBJECTION_HANDLING",
+      "FOLLOW_UP",
+      "NEGOTIATION",
+      "ONBOARDING",
+    ];
+
+    const grouped =
+      orderedCommercialCategories
+        .map((category) => {
+          const categoryAssets =
+            commercialAssets.filter(
+              (asset) =>
+                parseCommercialAssetMetadata(
+                  asset
+                )
+                  ?.commercialCategory ===
+                category
+            );
+
+          return {
+            key:
+              `commercial-${category}`,
+
+            label:
+              formatAssetType(category),
+
+            subtitle:
+              "Review, edit, approve, or remove this Commercial pursuit material.",
+
+            assets:
+              categoryAssets,
+          };
+        })
+        .filter(
+          (group) =>
+            group.assets.length > 0
+        );
+
+    const recognizedIds =
+      new Set(
+        grouped.flatMap(
+          (group) =>
+            group.assets.map(
+              (asset) =>
+                asset.id
+            )
+        )
+      );
+
+    const remainingCommercialAssets =
+      commercialAssets.filter(
+        (asset) =>
+          !recognizedIds.has(
+            asset.id
+          )
+      );
+
+    if (
+      remainingCommercialAssets.length >
+      0
+    ) {
+      grouped.push({
+        key:
+          "commercial-other",
+
+        label:
+          "Other Commercial Materials",
+
+        subtitle:
+          "Review, edit, approve, or remove these additional Commercial pursuit materials.",
+
+        assets:
+          remainingCommercialAssets,
+      });
+    }
+
+    return grouped;
+  }
+
   const orderedTypes = [
     "GOOGLE_BUSINESS",
     "META",
@@ -111,21 +414,53 @@ function groupAssetsForReview(assets: CampaignAsset[]) {
     "SEO",
   ];
 
-  const buckets = orderedTypes
-    .map((type) => ({
-      type,
-      assets: assets.filter((asset) => asset.assetType === type),
-    }))
-    .filter((bucket) => bucket.assets.length > 0);
+  const buckets =
+    orderedTypes
+      .map((type) => ({
+        key:
+          type,
 
-  const remaining = assets.filter(
-    (asset) => !orderedTypes.includes(asset.assetType)
-  );
+        label:
+          formatAssetType(type),
+
+        subtitle:
+          type === "META"
+            ? "One approved Meta asset is previewed as both Facebook and Instagram."
+            : "Approve only what you want included in execution and export.",
+
+        assets:
+          assets.filter(
+            (asset) =>
+              asset.assetType ===
+              type
+          ),
+      }))
+      .filter(
+        (bucket) =>
+          bucket.assets.length > 0
+      );
+
+  const remaining =
+    assets.filter(
+      (asset) =>
+        !orderedTypes.includes(
+          asset.assetType
+        )
+    );
 
   if (remaining.length > 0) {
     buckets.push({
-      type: "OTHER",
-      assets: remaining,
+      key:
+        "OTHER",
+
+      label:
+        "Other",
+
+      subtitle:
+        "Approve only what you want included in execution and export.",
+
+      assets:
+        remaining,
     });
   }
 
@@ -640,9 +975,32 @@ function AssetPreview({
   websiteUrl?: string | null;
   industryLabel?: string | null;
 }) {
-  const structured = parseStructuredAsset(asset);
+    const structured =
+    parseStructuredAsset(asset);
 
-    if (asset.assetType === "GOOGLE_BUSINESS" && structured?.kind === "GOOGLE_BUSINESS") {
+  const commercialMetadata =
+    parseCommercialAssetMetadata(
+      asset
+    );
+
+  if (commercialMetadata) {
+    return (
+      <TextBlockPreview
+        label={`${getAssetReviewLabel(
+          asset
+        )} Preview`}
+        title={asset.title}
+        content={asset.content}
+      />
+    );
+  }
+
+  if (
+    asset.assetType ===
+      "GOOGLE_BUSINESS" &&
+    structured?.kind ===
+      "GOOGLE_BUSINESS"
+  ) {
     return (
       <GoogleBusinessPreview
         payload={structured}
@@ -1192,6 +1550,7 @@ export function CampaignAssetsReview({
   campaignId,
   status,
   assets,
+  briefJson,
   logoUrl,
   businessName,
   websiteUrl,
@@ -1201,8 +1560,98 @@ export function CampaignAssetsReview({
   const [isPending, startTransition] = useTransition();
   const [editor, setEditor] = useState<AssetEditorState | null>(null);
 
-  const canEdit = status !== "LAUNCHED" && status !== "COMPLETED";
-  const groupedAssets = useMemo(() => groupAssetsForReview(assets), [assets]);
+    const canEdit =
+    status !== "LAUNCHED" &&
+    status !== "COMPLETED";
+
+  const hasCommercialAssets =
+    useMemo(
+      () =>
+        assets.some(
+          (asset) =>
+            parseCommercialAssetMetadata(
+              asset
+            ) !== null
+        ),
+      [assets]
+    );
+
+  const groupedAssets =
+    useMemo(
+      () =>
+        groupAssetsForReview(
+          assets
+        ),
+      [assets]
+    );
+  const commercialInputSummary =
+  useMemo(() => {
+    if (!hasCommercialAssets) {
+      return null;
+    }
+
+    const summaries =
+      assets
+        .map((asset) =>
+          getCommercialAssetInputSummary({
+            asset,
+            briefJson,
+          })
+        )
+        .filter(
+          (
+            summary
+          ): summary is CommercialAssetInputSummary =>
+            summary !== null
+        );
+
+    const requiredBeforeLaunch =
+      summaries.flatMap(
+        (summary) =>
+          summary.requiredBeforeLaunch
+      );
+
+    const requiredLater =
+      summaries.flatMap(
+        (summary) =>
+          summary.requiredLater
+      );
+
+    const dedupe = (
+      requirements:
+        CommercialOwnerInputRequirement[]
+    ) =>
+      Array.from(
+        new Map(
+          requirements.map(
+            (requirement) => [
+              requirement.key ??
+                requirement.label ??
+                JSON.stringify(
+                  requirement
+                ),
+              requirement,
+            ]
+          )
+        ).values()
+      );
+
+    return {
+      requiredBeforeLaunch:
+        dedupe(
+          requiredBeforeLaunch
+        ),
+
+      requiredLater:
+        dedupe(
+          requiredLater
+        ),
+    };
+  }, [
+    assets,
+    briefJson,
+    hasCommercialAssets,
+  ]);
   const pendingApprovalCount = useMemo(
     () => assets.filter((asset) => !asset.isApproved).length,
     [assets]
@@ -1272,22 +1721,31 @@ export function CampaignAssetsReview({
     <section className="mf-card rounded-3xl p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
-            What Will Go Live
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+            {hasCommercialAssets
+              ? "Commercial Pursuit Package"
+              : "What Will Go Live"}
           </p>
+
           <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900">
-            Review the launch-ready assets
+            {hasCommercialAssets
+              ? "Review the execution-ready materials"
+              : "Review the launch-ready assets"}
           </h2>
+
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-            Review each platform, then approve, remove, or edit what should go
-            live.
+            {hasCommercialAssets
+              ? "Review each Commercial document, then approve, remove, or edit what should be included in the account pursuit."
+              : "Review each platform, then approve, remove, or edit what should go live."}
           </p>
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
               Approval Required
             </p>
             <p className="mt-1 text-sm leading-6 text-amber-900">
-              Only approved platforms are available for execution.
+              {hasCommercialAssets
+                ? "Only approved materials are included in execution."
+                : "Only approved platforms are available for execution."}
             </p>
           </div>
         </div>
@@ -1319,29 +1777,153 @@ export function CampaignAssetsReview({
       </div>
 
       <div className="mt-6 space-y-8">
-        {groupedAssets.map((group) => (
-          <div key={group.type} className="space-y-4">
-            <SectionHeading
-              title={formatAssetType(group.type)}
-              subtitle={
-                group.type === "META"
-                  ? "One approved Meta asset is previewed as both Facebook and Instagram."
-                  : "Approve only what you want included in execution and export."
-              }
-            />
+  {hasCommercialAssets &&
+  commercialInputSummary ? (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800">
+          Owner Input Required Before Launch
+        </p>
+
+        {commercialInputSummary
+          .requiredBeforeLaunch
+          .length > 0 ? (
+          <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-950">
+            {commercialInputSummary
+              .requiredBeforeLaunch
+              .map(
+                (requirement) => (
+                  <li
+                    key={
+                      requirement.key ??
+                      requirement.label
+                    }
+                    className="flex gap-2"
+                  >
+                    <span aria-hidden="true">
+                      •
+                    </span>
+
+                    <span>
+                      <span className="font-semibold">
+                        {requirement.label ??
+                          formatAssetType(
+                            requirement.key ??
+                              "Owner input"
+                          )}
+                      </span>
+
+                      {requirement.reason
+                        ? ` — ${requirement.reason}`
+                        : ""}
+                    </span>
+                  </li>
+                )
+              )}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-emerald-800">
+            No owner-input requirements currently block launch.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-800">
+          Owner Input Required Later
+        </p>
+
+        {commercialInputSummary
+          .requiredLater.length >
+        0 ? (
+          <ul className="mt-3 space-y-2 text-sm leading-6 text-blue-950">
+            {commercialInputSummary
+              .requiredLater.map(
+                (requirement) => (
+                  <li
+                    key={
+                      requirement.key ??
+                      requirement.label
+                    }
+                    className="flex gap-2"
+                  >
+                    <span aria-hidden="true">
+                      •
+                    </span>
+
+                    <span>
+                      <span className="font-semibold">
+                        {requirement.label ??
+                          formatAssetType(
+                            requirement.key ??
+                              "Owner input"
+                          )}
+                      </span>
+
+                      {" — Needed before "}
+
+                      {formatAssetType(
+                        requirement.requiredBefore ??
+                          "later execution"
+                      )}
+                    </span>
+                  </li>
+                )
+              )}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-blue-800">
+            No later owner-input requirements are recorded.
+          </p>
+        )}
+      </div>
+    </div>
+  ) : null}
+
+  {groupedAssets.map(
+          (group) => (
+            <div
+              key={group.key}
+              className="space-y-4"
+            >
+              <SectionHeading
+                title={
+                  group.label
+                }
+                subtitle={
+                  group.subtitle
+                }
+              />
 
             {group.assets.map((asset) => {
-              const isEditing = editor?.assetId === asset.id;
+            const isEditing =
+              editor?.assetId ===
+              asset.id;
 
-              return (
+            const commercialInput =
+              getCommercialAssetInputSummary({
+                asset,
+                briefJson,
+              });
+
+            return (
                 <div
+                  id={
+                    parseCommercialAssetMetadata(
+                      asset
+                    )
+                      ? `commercial-asset-${asset.id}`
+                      : undefined
+                  }
                   key={asset.id}
-                  className="rounded-3xl border border-gray-200 bg-gray-50 p-4 md:p-5"
+                  className="scroll-mt-6 rounded-3xl border border-gray-200 bg-gray-50 p-4 md:p-5"
                 >
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="space-y-2">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
-                        {formatAssetType(asset.assetType)}
+                        {getAssetReviewLabel(
+                          asset
+                        )}
                       </p>
                       {asset.title ? (
                         <p className="text-lg font-semibold text-gray-900">
@@ -1376,9 +1958,9 @@ export function CampaignAssetsReview({
                             type="button"
                             disabled={isPending}
                             onClick={() => {
-  const current = buildEditorContent(asset);
-  setEditor(current);
-}}
+                        const current = buildEditorContent(asset);
+                        setEditor(current);
+                      }}
                             className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200 disabled:opacity-60"
                           >
                             Edit
@@ -1387,6 +1969,94 @@ export function CampaignAssetsReview({
                       ) : null}
                     </div>
                   </div>
+
+                  {commercialInput &&
+(
+  commercialInput
+    .requiredBeforeLaunch
+    .length > 0 ||
+  commercialInput
+    .requiredLater
+    .length > 0
+) ? (
+  <div className="mt-4 space-y-3">
+    {commercialInput
+      .requiredBeforeLaunch
+      .length > 0 ? (
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-800">
+          Owner Input Required Before Launch
+        </p>
+
+        <ul className="mt-2 space-y-1 text-sm text-amber-950">
+          {commercialInput
+            .requiredBeforeLaunch
+            .map(
+              (requirement) => (
+                <li
+                  key={
+                    requirement.key ??
+                    requirement.label
+                  }
+                >
+                  •{" "}
+                  {requirement.label ??
+                    formatAssetType(
+                      requirement.key ??
+                        "Owner input"
+                    )}
+                </li>
+              )
+            )}
+        </ul>
+
+        <p className="mt-2 text-xs text-amber-800">
+          Use Edit to replace these placeholders before approving the action.
+        </p>
+      </div>
+    ) : null}
+
+    {commercialInput
+      .requiredLater.length >
+    0 ? (
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-800">
+          Owner Input Required Later
+        </p>
+
+        <ul className="mt-2 space-y-1 text-sm text-blue-950">
+          {commercialInput
+            .requiredLater.map(
+              (requirement) => (
+                <li
+                  key={
+                    requirement.key ??
+                    requirement.label
+                  }
+                >
+                  •{" "}
+                  {requirement.label ??
+                    formatAssetType(
+                      requirement.key ??
+                        "Owner input"
+                    )}{" "}
+                  — before{" "}
+                  {formatAssetType(
+                    requirement.requiredBefore ??
+                      "later execution"
+                  )}
+                </li>
+              )
+            )}
+        </ul>
+
+        <p className="mt-2 text-xs text-blue-800">
+          These items do not prevent initial outreach.
+        </p>
+      </div>
+    ) : null}
+  </div>
+) : null}
 
                   <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
                     <div className="min-w-0">
@@ -1415,7 +2085,7 @@ export function CampaignAssetsReview({
                           </p>
                         </div>
 
-                                                <div className="space-y-4 p-4">
+                        <div className="space-y-4 p-4">
                           {isEditing ? (
                             <>
                               {editor.structuredKind ? (

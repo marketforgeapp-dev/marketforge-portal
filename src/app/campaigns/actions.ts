@@ -26,9 +26,29 @@ import {
 } from "@/lib/ai-images";
 import { refineTargetingWithAI } from "@/lib/targeting-ai";
 
+export type PromptReadinessResult =
+  | {
+      ready: true;
+    }
+  | {
+      ready: false;
+      title: string;
+      message: string;
+      requirements: string[];
+      examplePrompt: string;
+    };
+
 type CreateCampaignResult =
   | { success: true; campaignId: string; campaignName: string }
-  | { success: false; error: string };
+  | { success: false; error: string }
+  | {
+      success: false;
+      needsInput: true;
+      title: string;
+      message: string;
+      requirements: string[];
+      examplePrompt: string;
+    };
 
 function toPrismaJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -51,9 +71,26 @@ type PromptLane =
   | "REVIEWS"
   | "GENERAL";
 
+type ResidentialOwnerObjective =
+  | "STANDARD_SERVICE_GROWTH"
+  | "COMPETITIVE_ACQUISITION"
+  | "EDUCATION_PREPAREDNESS"
+  | "POSITIONING_TRUST"
+  | "RETENTION_REACTIVATION"
+  | "REFERRAL_GROWTH"
+  | "CROSS_SELL_UPSELL"
+  | "REVIEW_GENERATION";
+
+type ResolvedOwnerObjective = {
+  objective: ResidentialOwnerObjective;
+  confidence: "high" | "default";
+  matchedSignals: string[];
+};
+
 type RoutedIntent = {
   lane: PromptLane;
   mode: "CAMPAIGN" | "ACTION_PACK" | "AUTO";
+  ownerObjective: ResidentialOwnerObjective;
   preferredCampaignType?: CampaignType;
   preferredActionType?:
     | "CAMPAIGN_LAUNCH"
@@ -341,6 +378,7 @@ function toTitleCase(value: string): string {
 }
 
 async function generateBlogWithAI(params: {
+  ownerObjective: ResidentialOwnerObjective;
   businessName: string;
   serviceName: string;
   serviceArea: string;
@@ -353,6 +391,10 @@ You are writing a helpful, local-service blog post for homeowners.
 Business: ${params.businessName}
 Service: ${params.serviceName}
 Location: ${params.serviceArea}
+Owner Objective: ${params.ownerObjective}
+
+Objective guidance:
+${getAssetCopyGuidance(params.ownerObjective)}
 
 Write a clear, natural, homeowner-friendly blog post.
 
@@ -382,7 +424,10 @@ Guidelines:
 - Excerpt = 1 sentence summary
 - Introduction = 2–3 sentences
 - Each section body = 2–4 sentences
-- CTA = simple homeowner action (call, schedule, etc.)
+- CTA must match the owner objective.
+- For education or preparedness, use a restrained educational CTA.
+- For standard service growth, a call or scheduling CTA is appropriate.
+- Do not force immediate booking language into an educational article.
 `;
 
     const response = await openai.chat.completions.create({
@@ -407,7 +452,77 @@ Guidelines:
   }
 }
 
+function getAssetCopyGuidance(
+  ownerObjective: ResidentialOwnerObjective
+): string {
+  switch (ownerObjective) {
+    case "EDUCATION_PREPAREDNESS":
+      return `
+- Write useful educational and preparedness content.
+- Do not use fear, manufactured urgency, discounts, or aggressive sales language.
+- Give homeowners practical steps they can understand and use.
+- Use a restrained CTA such as "Save this guidance", "Prepare your property", "Learn what to look for", or "Contact us if professional help is needed".
+- Do not invent weather severity, timing, damage, temperatures, or emergency declarations.
+`.trim();
+
+    case "REFERRAL_GROWTH":
+      return `
+- Write for satisfied past customers, not cold prospects.
+- Clearly explain the real referral incentive and qualifying event supplied by the owner.
+- Do not invent additional reward terms, restrictions, deadlines, or fulfillment rules.
+- Use a referral CTA such as "Refer a friend".
+`.trim();
+
+    case "RETENTION_REACTIVATION":
+      return `
+- Write for past or existing customers.
+- Acknowledge the existing relationship naturally.
+- Give the customer a credible reason to return.
+- Do not write as though the audience has never used the business.
+- Do not invent a discount or urgency.
+`.trim();
+
+    case "CROSS_SELL_UPSELL":
+      return `
+- Write for existing or past customers.
+- Explain why the related service is a useful next step.
+- Do not invent a bundle, discount, package savings, or false urgency.
+- Keep the message relationship-aware and relevant to prior service.
+`.trim();
+
+    case "COMPETITIVE_ACQUISITION":
+      return `
+- Help homeowners compare providers using truthful, supportable decision criteria.
+- Do not attack competitors or invent competitor weaknesses.
+- Do not use unsupported superiority claims.
+- Keep the service and homeowner decision at the center of the copy.
+`.trim();
+
+    case "POSITIONING_TRUST":
+      return `
+- Build customer confidence and credible provider preference.
+- Do not use unsupported "best", "number one", or "top-rated" claims.
+- Focus on professionalism, clarity, responsiveness, communication, and decision confidence.
+`.trim();
+
+    case "REVIEW_GENERATION":
+      return `
+- Request honest feedback from real recent customers.
+- Do not ask specifically for positive reviews.
+- Do not offer an incentive in exchange for a review.
+`.trim();
+
+    case "STANDARD_SERVICE_GROWTH":
+    default:
+      return `
+- Preserve the current direct, conversion-oriented residential service copy.
+- Keep the service, offer, and CTA aligned to immediate homeowner demand.
+`.trim();
+  }
+}
+
 async function generateAdCopyWithAI(params: {
+  ownerObjective: ResidentialOwnerObjective;
   businessName: string;
   serviceArea: string;
   targetService: string;
@@ -422,7 +537,7 @@ async function generateAdCopyWithAI(params: {
 }) {
   try {
     const prompt = `
-You are writing high-converting, homeowner-facing local service ad copy.
+You are writing customer-facing copy for a local home-service business action.
 
 Business: ${params.businessName}
 Service Area: ${params.serviceArea}
@@ -432,6 +547,12 @@ Action Summary: ${params.actionSummary}
 Audience: ${params.targetAudience}
 Offer: ${params.offer ?? "None"}
 CTA: ${params.cta ?? "Book now"}
+Owner Objective: ${params.ownerObjective}
+
+Owner-objective copy guidance:
+${getAssetCopyGuidance(params.ownerObjective)}
+
+Context:
 
 Context:
 - This is for local home service businesses.
@@ -445,7 +566,8 @@ Context:
 
 Special rules:
 - If this is a review action, do NOT write ad copy. Write simple homeowner-facing review-request messaging.
-- If this is a visibility action, write copy that explains the business is improving how homeowners find the service online. Do not sound like an SEO consultant.
+- If this is an AEO or SEO visibility action, explain the service naturally without sounding like an SEO consultant.
+- If this is an education or preparedness action, provide useful homeowner guidance rather than explaining that the business is "improving visibility."
 - If there is no real offer, do not invent one.
 
 Return JSON only in this shape:
@@ -851,18 +973,642 @@ function toCampaignObjectiveFromAction(actionType: string): CampaignObjective {
   }
 }
 
-function routePromptIntent(prompt: string): RoutedIntent {
+function buildNeedsInputResult(params: {
+  title: string;
+  message: string;
+  requirements: string[];
+  examplePrompt: string;
+}): PromptReadinessResult {
+  return {
+    ready: false,
+    title: params.title,
+    message: params.message,
+    requirements: params.requirements,
+    examplePrompt: params.examplePrompt,
+  };
+}
+
+function hasExplicitReferralIncentive(prompt: string): boolean {
   const lower = normalize(prompt);
 
+  const incentiveSignals = [
+    "$",
+    "%",
+    "gift card",
+    "service credit",
+    "account credit",
+    "future service credit",
+    "discount",
+    "cash reward",
+    "referral reward",
+    "free service",
+    "free add-on",
+    "free add on",
+    "donation",
+    "reward both",
+    "give them",
+    "receive a",
+    "gets a",
+    "earn a",
+  ];
+
+  return incentiveSignals.some((signal) => lower.includes(signal));
+}
+
+function hasExplicitMonetaryValue(prompt: string): boolean {
+  const lower = normalize(prompt);
+
+  return (
+    /\$\s?\d/.test(prompt) ||
+    /\b\d+(?:\.\d+)?\s?%/.test(lower) ||
+    /\b\d+\s+dollars?\b/.test(lower)
+  );
+}
+
+function hasNamedFinancingProviderOrProgram(prompt: string): boolean {
+  const lower = normalize(prompt);
+
+  const providerPatterns = [
+    /\bthrough\s+[a-z0-9][a-z0-9&.' -]{2,40}\b/,
+    /\bprovided by\s+[a-z0-9][a-z0-9&.' -]{2,40}\b/,
+    /\bfinancing from\s+[a-z0-9][a-z0-9&.' -]{2,40}\b/,
+    /\b[a-z0-9][a-z0-9&.' -]{2,30}\s+financing\b/,
+    /\bmanufacturer financing\b/,
+    /\butility financing\b/,
+  ];
+
+  return providerPatterns.some((pattern) => pattern.test(lower));
+}
+
+function hasFinancingUsageInstruction(prompt: string): boolean {
+  const lower = normalize(prompt);
+
+  return [
+    "do not advertise an apr",
+    "do not mention apr",
+    "do not advertise a rate",
+    "do not mention a rate",
+    "financing options available",
+    "ask about financing",
+    "call for financing details",
+    "call for eligibility",
+    "subject to approval",
+    "for qualified customers",
+    "apply online",
+    "application link",
+  ].some((signal) => lower.includes(signal));
+}
+
+function hasEligibleFinancingService(prompt: string): boolean {
+  const lower = normalize(prompt);
+
+  return [
+    "for tree removal",
+    "for stump grinding",
+    "for hvac",
+    "for ac",
+    "for air conditioning",
+    "for furnace",
+    "for system replacement",
+    "for plumbing",
+    "for water heater",
+    "for septic",
+    "for generator",
+    "for installation",
+    "for replacement",
+    "for repairs",
+    "for jobs over",
+    "for purchases over",
+  ].some((signal) => lower.includes(signal));
+}
+
+function resolveReferralReadiness(
+  prompt: string
+): PromptReadinessResult | null {
+  const objective =
+    resolveResidentialOwnerObjective(prompt).objective;
+
+  if (objective !== "REFERRAL_GROWTH") {
+    return null;
+  }
+
+  if (hasExplicitReferralIncentive(prompt)) {
+    return null;
+  }
+
+  return buildNeedsInputResult({
+    title: "Add the referral offer to your request",
+    message:
+      "A referral action needs a real value exchange before MarketForge can generate customer-facing assets. Add the reward and basic qualification terms directly to your prompt.",
+    requirements: [
+      "What reward or incentive will be offered?",
+      "Who receives the reward: the referring customer, the new customer, or both?",
+      "What must happen for the referral to qualify?",
+      "When will the reward be issued?",
+    ],
+    examplePrompt:
+      "Give past customers a $50 service credit when they refer a new customer who books and completes a job. Issue the credit after the referred job is paid.",
+  });
+}
+
+function resolveFinancingReadiness(
+  prompt: string
+): PromptReadinessResult | null {
+  const lower = normalize(prompt);
+
+  const mentionsFinancing = [
+    "financing",
+    "finance options",
+    "payment plan",
+    "payment plans",
+    "monthly payments",
+  ].some((signal) => lower.includes(signal));
+
+  if (!mentionsFinancing) {
+    return null;
+  }
+
+  const hasProvider =
+    hasNamedFinancingProviderOrProgram(prompt);
+
+  const hasUsageInstruction =
+    hasFinancingUsageInstruction(prompt);
+
+  const hasService =
+    hasEligibleFinancingService(prompt);
+
+  const hasExactTerms =
+    hasExplicitMonetaryValue(prompt) ||
+    lower.includes("apr") ||
+    lower.includes("months") ||
+    lower.includes("term");
+
+  /*
+   * Public or manufacturer financing can proceed when the user
+   * identifies the program well enough for promotional enrichment.
+   *
+   * Private or vague financing requests need owner-supplied details.
+   */
   if (
+    hasProvider &&
+    (hasService || hasUsageInstruction || hasExactTerms)
+  ) {
+    return null;
+  }
+
+  return buildNeedsInputResult({
+    title: "Add your financing details",
+    message:
+      "MarketForge needs enough approved financing information to generate truthful customer-facing assets. Financing terms, eligibility, and application instructions cannot be invented.",
+    requirements: [
+      "Who provides the financing or what is the program called?",
+      "Which services or purchases qualify?",
+      "Should MarketForge use exact approved terms or only say that financing options are available?",
+      "Where should customers call, apply, or request eligibility details?",
+    ],
+    examplePrompt:
+      "Promote financing through GreenSky for tree removal jobs over $2,500. Use the phrase “financing options available” without advertising an APR or monthly payment. Ask customers to call for eligibility details.",
+  });
+}
+
+function resolveDiscountReadiness(
+  prompt: string
+): PromptReadinessResult | null {
+  const lower = normalize(prompt);
+
+  const mentionsBusinessPromotion = [
+    "our discount",
+    "our special",
+    "our promotion",
+    "our promo",
+    "summer discount",
+    "seasonal discount",
+    "limited-time discount",
+    "limited time discount",
+    "coupon",
+    "special offer",
+  ].some((signal) => lower.includes(signal));
+
+  if (!mentionsBusinessPromotion) {
+    return null;
+  }
+
+  const hasValue =
+    hasExplicitMonetaryValue(prompt) ||
+    lower.includes("free ");
+
+  const hasEligibleService =
+    [
+      "tree removal",
+      "stump grinding",
+      "tree trimming",
+      "pruning",
+      "hvac",
+      "ac repair",
+      "system replacement",
+      "furnace",
+      "plumbing",
+      "water heater",
+      "drain cleaning",
+      "septic",
+      "generator",
+      "installation",
+      "repair",
+      "service",
+    ].some((signal) => lower.includes(signal));
+
+  const hasTiming =
+    [
+      "through ",
+      "until ",
+      "expires ",
+      "this week",
+      "this month",
+      "this summer",
+      "this winter",
+      "this spring",
+      "this fall",
+      "limited time",
+    ].some((signal) => lower.includes(signal));
+
+  const hasRedemptionInstruction =
+    [
+      "mention",
+      "use code",
+      "promo code",
+      "call to redeem",
+      "book online",
+      "request an estimate",
+      "schedule",
+    ].some((signal) => lower.includes(signal));
+
+  if (
+    hasValue &&
+    hasEligibleService &&
+    (hasTiming || hasRedemptionInstruction)
+  ) {
+    return null;
+  }
+
+  return buildNeedsInputResult({
+    title: "Add the promotion details",
+    message:
+      "MarketForge needs the actual business-created offer before generating customer-facing assets. The discount value, eligible service, and redemption terms cannot be assumed.",
+    requirements: [
+      "What is the discount, credit, free add-on, or promotional value?",
+      "Which service or purchase qualifies?",
+      "When does the offer apply or expire?",
+      "How should customers claim or redeem it?",
+    ],
+    examplePrompt:
+      "Offer $100 off tree removal jobs booked this month. The discount applies to completed jobs over $1,500. Ask customers to mention the offer when requesting an estimate.",
+  });
+}
+
+function resolveMembershipReadiness(
+  prompt: string
+): PromptReadinessResult | null {
+  const lower = normalize(prompt);
+
+  const mentionsPlan = [
+    "maintenance plan",
+    "maintenance membership",
+    "service agreement",
+    "service plan",
+    "membership program",
+    "our membership",
+    "our plan",
+  ].some((signal) => lower.includes(signal));
+
+  if (!mentionsPlan) {
+    return null;
+  }
+
+  const hasIncludedBenefits =
+    [
+      "includes",
+      "included",
+      "covers",
+      "inspection",
+      "priority scheduling",
+      "priority service",
+      "discounted repairs",
+      "annual visit",
+      "seasonal visit",
+      "maintenance visit",
+      "tune-up",
+      "tune up",
+    ].some((signal) => lower.includes(signal));
+
+  const hasPriceOrApprovedNonPriceInstruction =
+    hasExplicitMonetaryValue(prompt) ||
+    lower.includes("do not mention price") ||
+    lower.includes("ask about pricing") ||
+    lower.includes("call for pricing");
+
+  const hasBillingOrEnrollmentInstruction =
+    [
+      "per month",
+      "monthly",
+      "per year",
+      "annual",
+      "annually",
+      "enroll",
+      "sign up",
+      "call to join",
+      "book online",
+    ].some((signal) => lower.includes(signal));
+
+  if (
+    hasIncludedBenefits &&
+    hasPriceOrApprovedNonPriceInstruction &&
+    hasBillingOrEnrollmentInstruction
+  ) {
+    return null;
+  }
+
+  return buildNeedsInputResult({
+    title: "Add your plan details",
+    message:
+      "MarketForge needs the real membership or maintenance-plan structure before generating an action. Plan benefits, pricing language, and enrollment terms must come from the business.",
+    requirements: [
+      "What is the plan or membership called?",
+      "What services or benefits are included?",
+      "What pricing language is approved?",
+      "How often is the customer billed or serviced?",
+      "How should customers enroll or ask for details?",
+    ],
+    examplePrompt:
+      "Promote our Tree Care Membership. It includes one annual tree-health inspection and priority scheduling. The plan is $199 per year. Ask customers to call to enroll.",
+  });
+}
+
+function resolvePromptReadiness(
+  prompt: string
+): PromptReadinessResult {
+  const cleanedPrompt = prompt.trim();
+
+  if (cleanedPrompt.length < 10) {
+    return buildNeedsInputResult({
+      title: "Add more detail to your request",
+      message:
+        "MarketForge needs a clearer business goal before it can generate an action.",
+      requirements: [
+        "Describe the result you want.",
+        "Include the service, audience, offer, or business objective when relevant.",
+      ],
+      examplePrompt:
+        "Promote tree removal to homeowners in my service area.",
+    });
+  }
+
+  const readinessChecks = [
+    resolveReferralReadiness,
+    resolveFinancingReadiness,
+    resolveDiscountReadiness,
+    resolveMembershipReadiness,
+  ];
+
+  for (const check of readinessChecks) {
+    const issue = check(cleanedPrompt);
+
+    if (issue) {
+      return issue;
+    }
+  }
+
+  return {
+    ready: true,
+  };
+}
+
+export async function validateCampaignPrompt(
+  prompt: string
+): Promise<PromptReadinessResult> {
+  return resolvePromptReadiness(prompt);
+}
+
+function resolveResidentialOwnerObjective(
+  prompt: string
+): ResolvedOwnerObjective {
+  const lower = normalize(prompt);
+
+  const matchedSignals: string[] = [];
+
+  const includesAny = (phrases: string[]) =>
+    phrases.some((phrase) => lower.includes(phrase));
+
+  const hasEducationVerb = includesAny([
+    "educate",
+    "teach",
+    "explain",
+    "help homeowners understand",
+    "show homeowners how",
+    "prepare homeowners",
+    "prevention tips",
+    "prevent",
+    "protect their",
+    "protect your",
+    "checklist",
+    "advisory",
+  ]);
+
+  const hasPreparednessTopic = includesAny([
+    "frozen pipe",
+    "frozen pipes",
+    "freeze",
+    "winter storm",
+    "hurricane",
+    "severe storm",
+    "severe weather",
+    "extreme heat",
+    "heavy rain",
+    "high winds",
+    "sewer backup",
+    "spring maintenance",
+    "fall maintenance",
+    "storm preparation",
+    "weather preparation",
+  ]);
+
+  if (hasEducationVerb && hasPreparednessTopic) {
+    matchedSignals.push(
+      "educational or prevention language",
+      "preparedness or seasonal-risk topic"
+    );
+
+    return {
+      objective: "EDUCATION_PREPAREDNESS",
+      confidence: "high",
+      matchedSignals,
+    };
+  }
+
+  if (
+    includesAny([
+      "win business from",
+      "choosing us instead of",
+      "choose us instead of",
+      "compete with",
+      "compete against",
+      "take market share from",
+      "beat the larger companies",
+      "beat the big companies",
+      "win customers from",
+    ])
+  ) {
+    matchedSignals.push("explicit competitive-acquisition language");
+
+    return {
+      objective: "COMPETITIVE_ACQUISITION",
+      confidence: "high",
+      matchedSignals,
+    };
+  }
+
+  if (
+    includesAny([
+      "more referrals",
+      "referral program",
+      "refer a friend",
+      "refer friends",
+      "refer family",
+      "ask customers to refer",
+      "word of mouth",
+      "customer referrals",
+    ])
+  ) {
+    matchedSignals.push("explicit referral-growth language");
+
+    return {
+      objective: "REFERRAL_GROWTH",
+      confidence: "high",
+      matchedSignals,
+    };
+  }
+
+  if (
+    includesAny([
+      "more repeat customers",
+      "repeat business",
+      "bring customers back",
+      "win customers back",
+      "past customers",
+      "existing customers",
+      "customers who have not called",
+      "reactivate",
+      "reactivation",
+      "customer retention",
+      "retain customers",
+    ])
+  ) {
+    matchedSignals.push("explicit retention or reactivation language");
+
+    return {
+      objective: "RETENTION_REACTIVATION",
+      confidence: "high",
+      matchedSignals,
+    };
+  }
+
+  const hasExistingCustomerSignal =
+    includesAny([
+      "past customers",
+      "existing customers",
+      "current customers",
+      "recent customers",
+    ]) ||
+    /\b(past|existing|current|recent)\b.{0,50}\bcustomers?\b/.test(lower);
+
+  const hasRelatedServiceSignal =
+    includesAny([
+      "cross-sell",
+      "cross sell",
+      "upsell",
+      "up-sell",
+      "add another service",
+      "related service",
+      "also promote",
+      "schedule another service",
+      "schedule an additional service",
+    ]) ||
+    /\b(encourage|ask|invite|remind)\b.{0,80}\b(schedule|book|add)\b/.test(
+      lower
+    );
+
+  if (hasExistingCustomerSignal && hasRelatedServiceSignal) {
+    matchedSignals.push(
+      "existing-customer audience",
+      "related-service or upsell language"
+    );
+
+    return {
+      objective: "CROSS_SELL_UPSELL",
+      confidence: "high",
+      matchedSignals,
+    };
+  }
+
+  if (
+    includesAny([
+      "become known as",
+      "first company people think of",
+      "build trust",
+      "increase trust",
+      "improve our reputation",
+      "be seen as",
+      "establish us as",
+      "become the trusted",
+      "position us as",
+      "known as the best",
+      "become the best known",
+    ])
+  ) {
+    matchedSignals.push("explicit positioning or trust-building language");
+
+    return {
+      objective: "POSITIONING_TRUST",
+      confidence: "high",
+      matchedSignals,
+    };
+  }
+
+  if (lower.includes("review")) {
+    matchedSignals.push("review-generation language");
+
+    return {
+      objective: "REVIEW_GENERATION",
+      confidence: "high",
+      matchedSignals,
+    };
+  }
+
+  return {
+    objective: "STANDARD_SERVICE_GROWTH",
+    confidence: "default",
+    matchedSignals: [],
+  };
+}
+
+function routePromptIntent(prompt: string): RoutedIntent {
+  const lower = normalize(prompt);
+  const resolvedOwnerObjective =
+    resolveResidentialOwnerObjective(prompt);
+
+    if (
     lower.includes("slow week") ||
     lower.includes("fill the schedule") ||
     lower.includes("fill schedule") ||
+    lower.includes("fill my schedule") ||
+    lower.includes("fill our schedule") ||
+    lower.includes("fill this week's schedule") ||
+    lower.includes("fill this week’s schedule") ||
     lower.includes("capacity")
   ) {
     return {
       lane: "CAPACITY_FILL",
       mode: "CAMPAIGN",
+      ownerObjective: "STANDARD_SERVICE_GROWTH",
       preferredCampaignType: "MAINTENANCE_PUSH",
       preferredActionType: "CAPACITY_FILL",
       label: "Capacity-fill intent",
@@ -873,6 +1619,7 @@ function routePromptIntent(prompt: string): RoutedIntent {
     return {
       lane: "REVIEWS",
       mode: "CAMPAIGN",
+      ownerObjective: "REVIEW_GENERATION",
       preferredCampaignType: "REVIEW_GENERATION",
       preferredActionType: "REVIEW_GENERATION",
       label: "Review intent",
@@ -890,17 +1637,36 @@ function routePromptIntent(prompt: string): RoutedIntent {
     return {
       lane: "AEO_SEO",
       mode: "ACTION_PACK",
+      ownerObjective: "STANDARD_SERVICE_GROWTH",
       preferredCampaignType: "AEO_FAQ",
       preferredActionType: "AEO_CONTENT",
       label: "AEO / SEO intent",
     };
   }
 
+  if (
+    resolvedOwnerObjective.objective !==
+    "STANDARD_SERVICE_GROWTH"
+  ) {
+    return {
+      lane: "GENERAL",
+      mode: "CAMPAIGN",
+      ownerObjective: resolvedOwnerObjective.objective,
+      preferredCampaignType: "CUSTOM",
+      preferredActionType: "CUSTOM",
+      label: `${resolvedOwnerObjective.objective
+        .toLowerCase()
+        .replace(/_/g, " ")} intent`,
+    };
+  }
+
   const requestedService = extractRequestedServiceLabel(prompt);
+
   if (requestedService) {
     return {
       lane: "SERVICE",
       mode: "CAMPAIGN",
+      ownerObjective: "STANDARD_SERVICE_GROWTH",
       label: `${requestedService} service intent`,
     };
   }
@@ -908,6 +1674,7 @@ function routePromptIntent(prompt: string): RoutedIntent {
   return {
     lane: "GENERAL",
     mode: "AUTO",
+    ownerObjective: "STANDARD_SERVICE_GROWTH",
     label: "Auto intent",
   };
 }
@@ -1002,15 +1769,30 @@ function scoreExistingOpportunityFit(
 
 function buildPromptRefinedActionThesis(params: {
   prompt: string;
+  ownerObjective: ResidentialOwnerObjective;
   resolvedOpportunity: Pick<
     ResolvedOpportunity,
     "familyKey" | "actionThesis" | "displayMoveLabel" | "imageMode" | "imageKey"
   >;
   serviceArea: string;
 }): ActionThesis & { whyThisActionBullets: string[] } {
-  const { prompt, resolvedOpportunity } = params;
+  const { prompt, ownerObjective, resolvedOpportunity } = params;
   const lower = normalize(prompt);
   const base = resolvedOpportunity.actionThesis;
+
+  if (ownerObjective !== "STANDARD_SERVICE_GROWTH") {
+    return {
+      ...base,
+      whyThisActionBullets: [
+        ...(base.title
+          ? [`The selected move is "${base.title}".`]
+          : []),
+        "The action is intentionally aligned to the owner’s stated business objective rather than being forced into a conventional service-promotion campaign.",
+        "The audience, message, CTA, and supporting assets should all reflect this objective consistently.",
+        "Existing residential service-growth behavior should remain unchanged for ordinary promotional requests.",
+      ],
+    };
+  }
 
   if (
     lower.includes("aeo") ||
@@ -1067,6 +1849,90 @@ function buildPromptRefinedActionThesis(params: {
   };
 }
 
+function getOwnerObjectivePromptGuidance(params: {
+  ownerObjective: ResidentialOwnerObjective;
+  userPrompt: string;
+}): string {
+  switch (params.ownerObjective) {
+    case "COMPETITIVE_ACQUISITION":
+      return `
+- Treat competitors as strategic context, not as targets for attack.
+- Use truthful and supportable differentiation only.
+- Do not invent competitor weaknesses, negative claims, superiority claims, customer lists, or comparative facts.
+- Do not impersonate or disparage a competitor.
+- The competitor name does not need to appear prominently in consumer-facing assets.
+- When verified differentiators are unavailable, help homeowners compare providers using neutral decision criteria.
+`.trim();
+
+    case "EDUCATION_PREPAREDNESS":
+      return `
+- The primary objective is education, prevention, preparedness, safety, or community value.
+- Do not convert this into a discount, emergency repair promotion, aggressive sales campaign, or fear-based advertisement.
+- Provide practical and specific homeowner guidance.
+- Use a restrained CTA such as "Save this guidance", "Prepare your property", "Learn what to look for", or "Contact us if professional help is needed".
+- Do not invent weather timing, severity, temperatures, affected locations, damage forecasts, or emergency declarations.
+- Treat an approaching event stated by the user as user-provided context without adding unsupported specifics.
+`.trim();
+
+    case "POSITIONING_TRUST":
+      return `
+- Build credibility, recognition, and provider preference.
+- Do not repeat unsupported claims such as "best", "number one", or "top-rated".
+- Use supportable trust factors or neutral decision criteria.
+- When verified proof is unavailable, focus on professionalism, service clarity, responsiveness, communication, and decision confidence without claiming facts not provided.
+`.trim();
+
+    case "RETENTION_REACTIVATION":
+      return `
+- Write for existing or past customers.
+- Acknowledge the established customer relationship.
+- Do not use cold-acquisition language as though recipients have never used the business.
+- Focus on continued care, timely follow-up, convenience, a relevant service reminder, or another credible reason to return.
+- An incentive is optional and must not be invented.
+`.trim();
+
+    case "REFERRAL_GROWTH":
+      return hasExplicitReferralIncentive(params.userPrompt)
+        ? `
+- The user supplied a referral incentive.
+- Use only the incentive and terms explicitly provided.
+- Do not invent reward values, eligibility, timing, qualification, or fulfillment rules.
+- Make the referral action clear for the existing customer.
+- The CTA should be "Refer a friend" or equivalent.
+`.trim()
+        : `
+- The user requested referral growth but did not provide a real incentive.
+- Do not invent a referral reward.
+- Frame this as defining and preparing a referral offer before customer-facing launch.
+- Make the missing dependencies explicit: reward, recipient, qualification event, timing, and fulfillment process.
+- Do not imply that the referral campaign is fully launch-ready until these terms are confirmed.
+`.trim();
+
+    case "CROSS_SELL_UPSELL":
+      return `
+- Write for existing or past customers.
+- Promote only a logically related service.
+- Explain why the additional service is relevant.
+- Do not invent a bundle, discount, package savings, or urgency.
+- Keep the message useful and relationship-aware rather than opportunistic.
+`.trim();
+
+    case "REVIEW_GENERATION":
+      return `
+- Preserve the existing review-generation behavior.
+- Request honest feedback from real recent customers.
+- Do not invent review incentives or ask specifically for positive reviews.
+`.trim();
+
+    case "STANDARD_SERVICE_GROWTH":
+    default:
+      return `
+- Preserve the current direct, conversion-oriented residential service-growth behavior.
+- Keep the existing offer, targeting, CTA, imagery, and campaign framing patterns unless the user explicitly requests otherwise.
+`.trim();
+  }
+}
+
 function resolveSyntheticJobValue(params: {
   profile: {
     averageJobValue: unknown;
@@ -1096,6 +1962,430 @@ function resolveSyntheticJobValue(params: {
     },
     fallbackJobValue,
   });
+}
+
+function getObjectiveTopicLabel(params: {
+  prompt: string;
+  industry: string;
+  requestedService: string | null;
+  ownerObjective: ResidentialOwnerObjective;
+}): string {
+  if (params.requestedService) {
+    return params.requestedService;
+  }
+
+  const lower = normalize(params.prompt);
+
+  if (params.ownerObjective === "EDUCATION_PREPAREDNESS") {
+    if (lower.includes("dangerous tree") || lower.includes("hazardous tree")) {
+      return "Dangerous Tree Preparedness";
+    }
+
+    if (
+      lower.includes("storm") ||
+      lower.includes("high wind") ||
+      lower.includes("hurricane")
+    ) {
+      return params.industry === "tree-service"
+        ? "Storm Tree Preparedness"
+        : "Seasonal Preparedness";
+    }
+
+    if (lower.includes("frozen pipe") || lower.includes("freeze")) {
+      return "Frozen Pipe Prevention";
+    }
+
+    if (lower.includes("sewer backup")) {
+      return "Sewer Backup Prevention";
+    }
+
+    if (lower.includes("extreme heat")) {
+      return "Extreme Heat Preparedness";
+    }
+
+    return "Homeowner Preparedness";
+  }
+
+  if (params.ownerObjective === "COMPETITIVE_ACQUISITION") {
+    switch (params.industry) {
+      case "tree-service":
+        return "Tree Service";
+      case "septic":
+        return "Septic Service";
+      case "hvac":
+        return "HVAC Service";
+      default:
+        return "Plumbing Service";
+    }
+  }
+
+  if (params.ownerObjective === "POSITIONING_TRUST") {
+    switch (params.industry) {
+      case "tree-service":
+        return lower.includes("emergency")
+          ? "Emergency Tree Service"
+          : "Tree Service";
+      case "septic":
+        return "Septic Service";
+      case "hvac":
+        return lower.includes("emergency")
+          ? "Emergency HVAC Service"
+          : "HVAC Service";
+      default:
+        return lower.includes("emergency")
+          ? "Emergency Plumbing"
+          : "Plumbing Service";
+    }
+  }
+
+  if (params.ownerObjective === "RETENTION_REACTIVATION") {
+    return "Customer Reactivation";
+  }
+
+  if (params.ownerObjective === "REFERRAL_GROWTH") {
+    return "Customer Referrals";
+  }
+
+  if (params.ownerObjective === "CROSS_SELL_UPSELL") {
+    return "Related Service Follow-Up";
+  }
+
+  return "Local Service Demand";
+}
+
+function buildExpandedObjectiveSyntheticOpportunity(params: {
+  prompt: string;
+  routedIntent: RoutedIntent;
+  profile: {
+    businessName: string;
+    serviceArea: string;
+    averageJobValue: unknown;
+    servicePricingJson?: unknown;
+  };
+}): ResolvedOpportunity {
+  const { prompt, routedIntent, profile } = params;
+  const lower = normalize(prompt);
+  const requestedService = extractRequestedServiceLabel(prompt);
+
+  const inferredIndustry = inferIndustryFromContext({
+    prompt,
+    familyKey: requestedService ? slugify(requestedService) : null,
+    serviceName: requestedService,
+  });
+
+  const topicLabel = getObjectiveTopicLabel({
+    prompt,
+    industry: inferredIndustry,
+    requestedService,
+    ownerObjective: routedIntent.ownerObjective,
+  });
+
+  const familyKey = `${inferredIndustry}-${slugify(
+    routedIntent.ownerObjective
+  )}`;
+
+  const resolvedJobValue = resolveSyntheticJobValue({
+    profile,
+    familyKey,
+    serviceName: topicLabel,
+    primaryService: topicLabel,
+  });
+
+  const base = {
+    opportunityType: "LOCAL_SEARCH_SPIKE" as OpportunityType,
+    recommendedCampaignType: "CUSTOM" as CampaignType,
+    jobsLow: 1,
+    jobsHigh: 3,
+    revenueLow: Math.round(resolvedJobValue * 1),
+    revenueHigh: Math.round(resolvedJobValue * 3),
+    rawOpportunityScore: 70,
+    confidenceLabel: "Medium",
+    confidenceScore: 80,
+    source: "generated" as const,
+    fitScore: 96,
+  };
+
+  switch (routedIntent.ownerObjective) {
+    case "EDUCATION_PREPAREDNESS": {
+      const title =
+        inferredIndustry === "tree-service" &&
+        (lower.includes("storm") ||
+          lower.includes("dangerous tree") ||
+          lower.includes("hazardous tree"))
+          ? "Create a Storm Tree Safety Advisory"
+          : `Create a ${topicLabel} Advisory`;
+
+      return {
+        ...base,
+        opportunityKey: buildSyntheticOpportunityKey({
+          serviceName: topicLabel,
+          opportunityType: base.opportunityType,
+          bestMove: title,
+        }),
+        familyKey,
+        title: `${topicLabel} Education Opportunity`,
+        serviceName: topicLabel,
+        bestMove: title,
+        displayMoveLabel: title,
+        displaySummary:
+          "Create useful homeowner guidance centered on prevention, preparedness, safety, and community value.",
+        imageKey: "company-logo",
+        imageMode: "LOGO",
+        actionThesis: {
+          familyKey,
+          primaryService: topicLabel,
+          angle: "homeowner education and preparedness",
+          title,
+          summary:
+            "Provide practical, timely guidance that helps homeowners reduce risk and understand when professional help may be needed.",
+          audience: `Homeowners in ${profile.serviceArea} who would benefit from timely prevention and preparedness guidance`,
+          offerHint: "",
+          ctaHint: "Review the safety guidance",
+        imageKey: "company-logo",
+        imageMode: "LOGO",
+        },
+        whyNowBullets: [
+          "The owner explicitly requested educational or preparedness content rather than a conventional service promotion.",
+          "The action should provide practical homeowner value without manufacturing an offer or aggressive sales urgency.",
+          "Useful public-service guidance can strengthen trust, authority, and future consideration.",
+        ],
+        whyThisMatters:
+          "Educational and preparedness requests should remain helpful and restrained instead of being converted into an opportunistic repair advertisement.",
+        sourceTags: ["Demand"],
+      };
+    }
+
+    case "COMPETITIVE_ACQUISITION": {
+      const title = `Win More Local ${topicLabel} Comparisons`;
+
+      return {
+        ...base,
+        opportunityKey: buildSyntheticOpportunityKey({
+          serviceName: topicLabel,
+          opportunityType: base.opportunityType,
+          bestMove: title,
+        }),
+        familyKey,
+        title: `${topicLabel} Competitive Acquisition Opportunity`,
+        serviceName: topicLabel,
+        bestMove: title,
+        displayMoveLabel: title,
+        displaySummary:
+          "Create a truthful differentiation action for homeowners comparing local providers.",
+        imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+        imageMode: "SERVICE_IMAGE",
+        actionThesis: {
+          familyKey,
+          primaryService: topicLabel,
+          angle: "truthful provider differentiation",
+          title,
+          summary:
+            "Help homeowners compare providers using credible decision criteria and supportable business strengths.",
+          audience: `Homeowners in ${profile.serviceArea} actively comparing local providers for ${topicLabel.toLowerCase()}`,
+          offerHint: "",
+          ctaHint: "Request an estimate",
+          imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+          imageMode: "SERVICE_IMAGE",
+        },
+        whyNowBullets: [
+          "The owner explicitly wants to win consideration from competing local providers.",
+          "The action should improve customer preference through truthful differentiation rather than competitor attacks.",
+          "The competitor context should guide strategy without forcing competitor names into every consumer-facing asset.",
+        ],
+        whyThisMatters:
+          "Competitive acquisition should help the business become the stronger customer choice without fabricating weaknesses or unsupported superiority claims.",
+        sourceTags: ["Competitor", "Demand"],
+      };
+    }
+
+    case "POSITIONING_TRUST": {
+      const title = `Build Trust Around ${topicLabel}`;
+
+      return {
+        ...base,
+        opportunityKey: buildSyntheticOpportunityKey({
+          serviceName: topicLabel,
+          opportunityType: base.opportunityType,
+          bestMove: title,
+        }),
+        familyKey,
+        title: `${topicLabel} Positioning Opportunity`,
+        serviceName: topicLabel,
+        bestMove: title,
+        displayMoveLabel: title,
+        displaySummary:
+          "Strengthen customer confidence and provider preference through credible positioning.",
+        imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+        imageMode: "SERVICE_IMAGE",
+        actionThesis: {
+          familyKey,
+          primaryService: topicLabel,
+          angle: "trust and provider positioning",
+          title,
+          summary:
+            "Build recognition and customer confidence using clear, supportable reasons to choose the business.",
+          audience: `Homeowners in ${profile.serviceArea} comparing providers and looking for a trusted local choice`,
+          offerHint: "",
+          ctaHint: "Request an estimate",
+          imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+          imageMode: "SERVICE_IMAGE",
+        },
+        whyNowBullets: [
+          "The owner explicitly wants stronger trust, recognition, or customer preference.",
+          "The action should build credibility without repeating unsupported 'best' or 'number one' claims.",
+          "Clear provider positioning can improve consideration before a homeowner is ready to book.",
+        ],
+        whyThisMatters:
+          "Trust-building should create believable customer preference rather than relying on vague or unsupported superiority language.",
+        sourceTags: ["Demand"],
+      };
+    }
+
+    case "RETENTION_REACTIVATION": {
+      const title = "Reconnect with Past Customers";
+
+      return {
+        ...base,
+        opportunityKey: buildSyntheticOpportunityKey({
+          serviceName: topicLabel,
+          opportunityType: base.opportunityType,
+          bestMove: title,
+        }),
+        familyKey,
+        title: "Customer Retention Opportunity",
+        serviceName: topicLabel,
+        bestMove: title,
+        displayMoveLabel: title,
+        displaySummary:
+          "Create a relationship-based follow-up action for existing or past customers.",
+        imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+        imageMode: "SERVICE_IMAGE",
+        actionThesis: {
+          familyKey,
+          primaryService: topicLabel,
+          angle: "customer retention and reactivation",
+          title,
+          summary:
+            "Reconnect with past customers using timely, useful follow-up instead of cold acquisition language.",
+          audience: `Past customers in ${profile.serviceArea} who may reasonably need another service or follow-up`,
+          offerHint: "",
+          ctaHint: "Schedule service",
+          imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+          imageMode: "SERVICE_IMAGE",
+        },
+        whyNowBullets: [
+          "The owner explicitly wants more repeat business from established customer relationships.",
+          "Past customers should receive relationship-aware messaging rather than cold prospecting copy.",
+          "A timely reminder, continued-care message, or relevant service reason can create repeat business without requiring a discount.",
+        ],
+        whyThisMatters:
+          "Retention actions should acknowledge the existing relationship and give customers a credible reason to return.",
+        sourceTags: ["Demand"],
+      };
+    }
+
+        case "REFERRAL_GROWTH": {
+      const title = "Launch a Customer Referral Offer";
+
+      return {
+        ...base,
+
+        opportunityKey: buildSyntheticOpportunityKey({
+          serviceName: topicLabel,
+          opportunityType: base.opportunityType,
+          bestMove: title,
+        }),
+
+        familyKey,
+        title: "Customer Referral Growth Opportunity",
+        serviceName: "Customer Referrals",
+        bestMove: title,
+        displayMoveLabel: title,
+
+        displaySummary:
+          "Create a referral action around the real incentive and qualification terms supplied by the owner.",
+
+        imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+        imageMode: "SERVICE_IMAGE",
+
+        actionThesis: {
+          familyKey,
+          primaryService: "Customer Referrals",
+          angle: "incentivized customer referrals",
+          title,
+          summary:
+            "Turn satisfied customers into advocates using the real referral incentive supplied in the request.",
+          audience: `Satisfied past customers in ${profile.serviceArea} who may be comfortable referring friends, family, or neighbors`,
+          offerHint:
+            "Use only the referral incentive explicitly supplied by the owner",
+          ctaHint: "Refer a friend",
+          imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+          imageMode: "SERVICE_IMAGE",
+        },
+
+        whyNowBullets: [
+          "The owner explicitly wants customer referrals and supplied a real value exchange.",
+          "The action must preserve the provided incentive without inventing additional terms.",
+          "Referral messaging should make the reward and qualification rules easy to understand.",
+        ],
+
+        whyThisMatters:
+          "A referral action can become launch-ready because the owner supplied a real incentive and qualifying terms.",
+
+        sourceTags: ["Demand"],
+      };
+    }
+
+    case "CROSS_SELL_UPSELL": {
+      const title = requestedService
+        ? `Promote ${requestedService} to Past Customers`
+        : "Promote a Relevant Follow-Up Service";
+
+      return {
+        ...base,
+        opportunityKey: buildSyntheticOpportunityKey({
+          serviceName: topicLabel,
+          opportunityType: base.opportunityType,
+          bestMove: title,
+        }),
+        familyKey,
+        title: "Customer Cross-Sell Opportunity",
+        serviceName: topicLabel,
+        bestMove: title,
+        displayMoveLabel: title,
+        displaySummary:
+          "Create a relevant next-service action for customers who already know the business.",
+        imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+        imageMode: "SERVICE_IMAGE",
+        actionThesis: {
+          familyKey,
+          primaryService: topicLabel,
+          angle: "relevant existing-customer service follow-up",
+          title,
+          summary:
+            "Promote a logically related service to existing customers by clearly explaining why the next service is useful.",
+          audience: `Existing or past customers in ${profile.serviceArea} for whom the related service is genuinely relevant`,
+          offerHint: "",
+          ctaHint: "Schedule the related service",
+          imageKey: getFallbackImageKeyForIndustry(inferredIndustry),
+          imageMode: "SERVICE_IMAGE",
+        },
+        whyNowBullets: [
+          "The owner explicitly wants to promote an additional service to an existing customer group.",
+          "The message should explain why the follow-up service is relevant rather than forcing an unnecessary bundle.",
+          "The existing relationship should remain visible in the campaign framing.",
+        ],
+        whyThisMatters:
+          "Cross-sell actions should create useful follow-up opportunities without treating established customers like cold prospects.",
+        sourceTags: ["Service Value", "Demand"],
+      };
+    }
+
+    default:
+      throw new Error(
+        `Unsupported expanded owner objective: ${routedIntent.ownerObjective}`
+      );
+  }
 }
 
 function buildSyntheticOpportunity(params: {
@@ -1656,12 +2946,28 @@ function sanitizeCustomerFacingOffer(value?: string | null) {
 
 function buildMetaHeadline(params: {
   actionTitle: string;
+  ownerObjective: ResidentialOwnerObjective;
   targetService: string;
   isReviewAction: boolean;
   isVisibilityAction: boolean;
 }) {
   if (params.isReviewAction) {
     return "Request More Customer Reviews";
+  }
+
+  if (params.ownerObjective === "EDUCATION_PREPAREDNESS") {
+    return cleanActionTitleForAd(params.actionTitle);
+  }
+
+  if (params.ownerObjective === "REFERRAL_GROWTH") {
+    return cleanActionTitleForAd(params.actionTitle);
+  }
+
+  if (
+    params.ownerObjective === "RETENTION_REACTIVATION" ||
+    params.ownerObjective === "CROSS_SELL_UPSELL"
+  ) {
+    return cleanActionTitleForAd(params.actionTitle);
   }
 
   if (params.isVisibilityAction) {
@@ -1673,6 +2979,7 @@ function buildMetaHeadline(params: {
 
 function buildMetaPrimaryTextFromAction(params: {
   actionSummary?: string | null;
+  ownerObjective: ResidentialOwnerObjective;
   serviceArea?: string | null;
   cta?: string | null;
   offer?: string | null;
@@ -1683,6 +2990,31 @@ function buildMetaPrimaryTextFromAction(params: {
   const serviceArea = getConsumerFacingAreaLabel(params.serviceArea);
   const cta = (params.cta ?? "Book now").trim();
   const cleanOffer = sanitizeCustomerFacingOffer(params.offer);
+  if (params.ownerObjective === "EDUCATION_PREPAREDNESS") {
+    const summary = (params.actionSummary ?? "").trim();
+
+    return summary
+      ? `${summary} ${cta}.`
+      : `Review these practical homeowner preparedness steps. ${cta}.`;
+  }
+
+  if (params.ownerObjective === "REFERRAL_GROWTH") {
+    const summary = (params.actionSummary ?? "").trim();
+    const offerLead = cleanOffer ? `${cleanOffer}. ` : "";
+
+    return `${offerLead}${summary} ${cta}.`.trim();
+  }
+
+  if (
+    params.ownerObjective === "RETENTION_REACTIVATION" ||
+    params.ownerObjective === "CROSS_SELL_UPSELL"
+  ) {
+    const summary = (params.actionSummary ?? "").trim();
+
+    return summary
+      ? `${summary} ${cta}.`
+      : `A relevant follow-up service is available for past customers. ${cta}.`;
+  }
 
   if (params.isReviewAction) {
     return `Ask recent completed-job customers for a review using a simple, approved follow-up workflow.`;
@@ -1704,6 +3036,7 @@ function buildMetaPrimaryTextFromAction(params: {
 }
 
 function buildGoogleBusinessDescriptionFromAction(params: {
+  ownerObjective: ResidentialOwnerObjective;
   actionSummary?: string | null;
   serviceArea?: string | null;
   cta?: string | null;
@@ -1715,6 +3048,31 @@ function buildGoogleBusinessDescriptionFromAction(params: {
   const serviceArea = getConsumerFacingAreaLabel(params.serviceArea);
   const cta = (params.cta ?? "Learn more").trim();
   const cleanOffer = sanitizeCustomerFacingOffer(params.offer);
+  if (params.ownerObjective === "EDUCATION_PREPAREDNESS") {
+    const summary = (params.actionSummary ?? "").trim();
+
+    return summary
+      ? `${summary} ${cta}.`
+      : `Use this practical guidance to prepare your property and understand when professional help may be needed.`;
+  }
+
+  if (params.ownerObjective === "REFERRAL_GROWTH") {
+    const summary = (params.actionSummary ?? "").trim();
+    const offerLead = cleanOffer ? `${cleanOffer} — ` : "";
+
+    return `${offerLead}${summary} ${cta}.`.trim();
+  }
+
+  if (
+    params.ownerObjective === "RETENTION_REACTIVATION" ||
+    params.ownerObjective === "CROSS_SELL_UPSELL"
+  ) {
+    const summary = (params.actionSummary ?? "").trim();
+
+    return summary
+      ? `${summary} ${cta}.`
+      : `A relevant follow-up service is available for past customers. ${cta}.`;
+  }
 
   if (params.isReviewAction) {
     return `Use this approved workflow to request reviews from recent completed-job customers.`;
@@ -1735,13 +3093,86 @@ function buildGoogleBusinessDescriptionFromAction(params: {
   return cleanOffer ? `${cleanOffer} — ${base}` : base;
 }
 
+function shouldRefineTargetingWithAI(
+  ownerObjective: ResidentialOwnerObjective
+): boolean {
+  return (
+    ownerObjective === "STANDARD_SERVICE_GROWTH" ||
+    ownerObjective === "COMPETITIVE_ACQUISITION" ||
+    ownerObjective === "POSITIONING_TRUST"
+  );
+}
+
 function getAssetTypesForAction(params: {
+  ownerObjective: ResidentialOwnerObjective;
   executionMode: "CAMPAIGN" | "ACTION_PACK";
   actionType: string;
   campaignType: CampaignType;
   routedLane: PromptLane;
   opportunityType: OpportunityType;
 }): AssetType[] {
+  switch (params.ownerObjective) {
+    case "EDUCATION_PREPAREDNESS":
+      return [
+        "GOOGLE_BUSINESS",
+        "META",
+        "BLOG",
+        "AEO_FAQ",
+        "ANSWER_SNIPPET",
+      ];
+
+    case "REFERRAL_GROWTH":
+      return [
+        "GOOGLE_BUSINESS",
+        "META",
+        "EMAIL",
+      ];
+
+    case "RETENTION_REACTIVATION":
+      return [
+        "GOOGLE_BUSINESS",
+        "META",
+        "EMAIL",
+      ];
+
+    case "CROSS_SELL_UPSELL":
+      return [
+        "GOOGLE_BUSINESS",
+        "META",
+        "EMAIL",
+      ];
+
+    case "COMPETITIVE_ACQUISITION":
+      return [
+        "GOOGLE_BUSINESS",
+        "META",
+        "GOOGLE_ADS",
+        "YELP",
+        "BLOG",
+      ];
+
+    case "POSITIONING_TRUST":
+      return [
+        "GOOGLE_BUSINESS",
+        "META",
+        "GOOGLE_ADS",
+        "YELP",
+        "BLOG",
+        "AEO_FAQ",
+        "ANSWER_SNIPPET",
+      ];
+
+    case "REVIEW_GENERATION":
+      return [
+        "GOOGLE_BUSINESS",
+        "EMAIL",
+      ];
+
+    case "STANDARD_SERVICE_GROWTH":
+    default:
+      break;
+  }
+
   const visibilityAction = isVisibilityActionType({
     actionType: params.actionType,
     campaignType: params.campaignType,
@@ -1756,7 +3187,7 @@ function getAssetTypesForAction(params: {
   });
 
   if (visibilityAction) {
-        return [
+    return [
       "GOOGLE_BUSINESS",
       "BLOG",
       "AEO_FAQ",
@@ -1881,6 +3312,8 @@ function buildStructuredEmailAsset(params: {
 
 function buildEmailAssetFromAction(params: {
   actionTitle: string;
+  ownerObjective: ResidentialOwnerObjective;
+  offer?: string | null;
   actionSummary?: string | null;
   cta?: string | null;
   targetService: string;
@@ -1896,6 +3329,54 @@ function buildEmailAssetFromAction(params: {
       previewLine: "Would you be willing to leave a quick review?",
       body: `Thank you for choosing us for your recent service. If everything went well, we’d appreciate a quick review. Your feedback helps other homeowners in ${params.serviceArea} feel confident choosing the right company.`,
       cta: "Leave a review",
+      industry: params.industry,
+    });
+  }
+
+  if (params.ownerObjective === "REFERRAL_GROWTH") {
+    const offer = sanitizeCustomerFacingOffer(params.offer);
+
+    return buildStructuredEmailAsset({
+      subject: params.actionTitle,
+      previewLine:
+        offer ?? "A new referral reward is available for past customers.",
+      body: [
+        params.actionSummary ??
+          "We are inviting satisfied past customers to refer friends, family, or neighbors.",
+        offer ? `Referral offer: ${offer}.` : null,
+        "Use the referral process described in this action and make sure the qualifying terms are clear before sending.",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      cta: params.cta ?? "Refer a friend",
+      industry: params.industry,
+    });
+  }
+
+  if (params.ownerObjective === "RETENTION_REACTIVATION") {
+    return buildStructuredEmailAsset({
+      subject: params.actionTitle,
+      previewLine:
+        params.actionSummary ??
+        "A helpful follow-up from a company you have worked with before.",
+      body:
+        params.actionSummary ??
+        `Thank you for choosing us previously. We are available when you need another service or follow-up.`,
+      cta: params.cta ?? "Schedule service",
+      industry: params.industry,
+    });
+  }
+
+  if (params.ownerObjective === "CROSS_SELL_UPSELL") {
+    return buildStructuredEmailAsset({
+      subject: params.actionTitle,
+      previewLine:
+        params.actionSummary ??
+        `A related ${params.targetService.toLowerCase()} service may be useful.`,
+      body:
+        params.actionSummary ??
+        `Based on your previous service, ${params.targetService.toLowerCase()} may be a useful next step.`,
+      cta: params.cta ?? "Learn more",
       industry: params.industry,
     });
   }
@@ -1988,6 +3469,7 @@ function buildCustomerFacingBlogSections(params: {
 }
 
 async function buildStructuredBlogAsset(params: {
+  ownerObjective: ResidentialOwnerObjective;
   title?: string | null;
   businessName?: string | null;
   serviceArea?: string | null;
@@ -2005,6 +3487,7 @@ async function buildStructuredBlogAsset(params: {
 
   // 🔥 NEW: Try AI generation first
   const aiBlog = await generateBlogWithAI({
+    ownerObjective: params.ownerObjective,
     businessName,
     serviceName,
     serviceArea,
@@ -2130,11 +3613,16 @@ export async function createCampaignFromPrompt(
   options: CreateCampaignFromPromptOptions = {}
 ): Promise<CreateCampaignResult> {
   const cleanedPrompt = prompt.trim();
+  const readiness = resolvePromptReadiness(cleanedPrompt);
 
-  if (cleanedPrompt.length < 10) {
+  if (!readiness.ready) {
     return {
       success: false,
-      error: "Please enter a more specific request.",
+      needsInput: true,
+      title: readiness.title,
+      message: readiness.message,
+      requirements: readiness.requirements,
+      examplePrompt: readiness.examplePrompt,
     };
   }
 
@@ -2196,6 +3684,15 @@ export async function createCampaignFromPrompt(
   });
 
   const routedIntent = routePromptIntent(cleanedPrompt);
+  console.log("[nl-owner-objective]", {
+    prompt: cleanedPrompt,
+    lane: routedIntent.lane,
+    mode: routedIntent.mode,
+    ownerObjective: routedIntent.ownerObjective,
+    label: routedIntent.label,
+    matchedSignals:
+      resolveResidentialOwnerObjective(cleanedPrompt).matchedSignals,
+  });
 
   const scoredExistingMatches = engine.rankedOpportunities
     .map((opportunity) => ({
@@ -2212,7 +3709,7 @@ export async function createCampaignFromPrompt(
         b.opportunity.rawOpportunityScore - a.opportunity.rawOpportunityScore
     );
 
-    const bestExistingMatch = scoredExistingMatches[0] ?? null;
+  const bestExistingMatch = scoredExistingMatches[0] ?? null;
   const strongMatchThreshold = getStrongMatchThreshold(routedIntent.lane);
   const forcedOpportunity = options.linkedOpportunity ?? null;
 
@@ -2238,10 +3735,25 @@ export async function createCampaignFromPrompt(
       familyKey: bestExistingMatch.opportunity.familyKey,
       industry: inferredIndustry,
     });
+  
+  const requiresExpandedObjectiveSyntheticOpportunity =
+    routedIntent.ownerObjective !== "STANDARD_SERVICE_GROWTH" &&
+    routedIntent.ownerObjective !== "REVIEW_GENERATION";
 
   const resolvedOpportunity: ResolvedOpportunity =
     forcedOpportunity ??
-        (bestExistingMatch &&
+    (requiresExpandedObjectiveSyntheticOpportunity
+      ? buildExpandedObjectiveSyntheticOpportunity({
+          prompt: cleanedPrompt,
+          routedIntent,
+          profile: {
+            businessName: profile.businessName,
+            serviceArea: profile.serviceArea,
+            averageJobValue: profile.averageJobValue,
+            servicePricingJson: profile.servicePricingJson,
+          },
+        })
+      : bestExistingMatch &&
     bestExistingMatch.fitScore >= strongMatchThreshold &&
     !shouldRejectSpecificExistingMatch
       ? {
@@ -2291,12 +3803,18 @@ export async function createCampaignFromPrompt(
               hasFaqContent: profile.hasFaqContent,
               servicePageUrls: profile.servicePageUrls,
             },
-          }));
+        }));
 
   const refinedActionThesis = buildPromptRefinedActionThesis({
     prompt: cleanedPrompt,
+    ownerObjective: routedIntent.ownerObjective,
     resolvedOpportunity,
     serviceArea: profile.serviceArea,
+  });
+
+  const ownerObjectiveGuidance = getOwnerObjectivePromptGuidance({
+    ownerObjective: routedIntent.ownerObjective,
+    userPrompt: cleanedPrompt,
   });
 
   const systemPrompt = `
@@ -2312,6 +3830,8 @@ Critical rules:
 - Do not drift back to a broader category if the action thesis is more specific.
 - The action thesis is the source of truth for title, angle, audience, CTA, and image direction.
 - Respect explicit user intent.
+- Use the supplied owner objective to determine whether the output should be promotional, educational, competitive, relationship-based, referral-oriented, or positioning-oriented.
+- Do not force every owner objective into immediate demand generation.
 - Keep the language direct, commercial, and trustworthy.
 - Avoid generic agency language.
 - Avoid fake certainty.
@@ -2350,6 +3870,12 @@ ${cleanedPrompt}
 Detected intent:
 ${routedIntent.label}
 
+Internal owner objective:
+${routedIntent.ownerObjective}
+
+Owner-objective guidance:
+${ownerObjectiveGuidance}
+
 Resolved opportunity source:
 ${resolvedOpportunity.source}
 
@@ -2381,6 +3907,12 @@ CTA Hint: ${refinedActionThesis.ctaHint}
 Image Key: ${refinedActionThesis.imageKey}
 Image Mode: ${refinedActionThesis.imageMode}
 Why This Action Bullets: ${refinedActionThesis.whyThisActionBullets.join(" | ")}
+
+Owner-objective consistency rules:
+- The campaign title, action thesis, audience, CTA, offer posture, imagery guidance, and assets must all align to the internal owner objective.
+- Do not revert an expanded objective into a conventional service promotion merely because the resolved topic relates to a service.
+- When the owner objective is STANDARD_SERVICE_GROWTH, preserve the established residential promotional behavior.
+- When the owner objective is not STANDARD_SERVICE_GROWTH, follow the objective-specific guidance above.
 
 Promotional context instructions:
 - If the user requested a manufacturer, brand, product, rebate, financing offer, supplier incentive, inventory push, or seasonal promotion, extract it into promotionalContext.
@@ -2443,11 +3975,27 @@ Return a single structured next-best-action plan.
         : parsed.nextBestAction.executionMode;
 
   const effectiveActionType =
-    routedIntent.preferredActionType ?? parsed.nextBestAction.actionType;
+    routedIntent.preferredActionType ??
+    parsed.nextBestAction.actionType;
 
-    const effectiveActionThesis = {
+  const expandedObjective =
+    routedIntent.ownerObjective !== "STANDARD_SERVICE_GROWTH" &&
+    routedIntent.ownerObjective !== "REVIEW_GENERATION";
+
+  const effectiveActionThesis = {
     ...refinedActionThesis,
     ...parsed.actionThesis,
+    ...(expandedObjective
+      ? {
+          primaryService: refinedActionThesis.primaryService,
+          angle: refinedActionThesis.angle,
+          title: refinedActionThesis.title,
+          summary: refinedActionThesis.summary,
+          audience: refinedActionThesis.audience,
+          offerHint: refinedActionThesis.offerHint,
+          ctaHint: refinedActionThesis.ctaHint,
+        }
+      : {}),
     familyKey: resolvedOpportunity.familyKey,
     imageKey: refinedActionThesis.imageKey,
     imageMode: refinedActionThesis.imageMode,
@@ -2457,18 +4005,20 @@ Return a single structured next-best-action plan.
         : refinedActionThesis.whyThisActionBullets,
   };
 
-  const campaignDraft =
+  const finalActionThesis = effectiveActionThesis;
+
+    const campaignDraft =
     parsed.campaign ??
     buildFallbackCampaignFromResolvedOpportunity(
       resolvedOpportunity,
       { serviceArea: profile.serviceArea },
-      effectiveActionThesis.title,
-      effectiveActionThesis.summary,
+      finalActionThesis.title,
+      finalActionThesis.summary,
       effectiveActionType,
-      effectiveActionThesis
+      finalActionThesis
     );
 
-  const estimatedRevenue = midpoint(
+    const estimatedRevenue = midpoint(
     resolvedOpportunity.revenueLow,
     resolvedOpportunity.revenueHigh
   );
@@ -2480,14 +4030,17 @@ Return a single structured next-best-action plan.
 
   const estimatedLeads =
     estimatedBookedJobs != null
-      ? Math.max(estimatedBookedJobs * 2, estimatedBookedJobs + 2)
+      ? Math.max(
+          estimatedBookedJobs * 2,
+          estimatedBookedJobs + 2
+        )
       : null;
 
   const campaignName = campaignDraft.title || effectiveActionThesis.title;
   const effectiveCampaignOffer =
     promotionalContext.customerFacingOffer ??
     campaignDraft.offer ??
-    effectiveActionThesis.offerHint ??
+    finalActionThesis.offerHint ??
     resolvedOpportunity.actionThesis.offerHint;
 
   const campaignOrigin = options.campaignOrigin ?? "nl_custom";
@@ -2497,20 +4050,21 @@ Return a single structured next-best-action plan.
   const structuredIndustry = inferIndustryFromContext({
     prompt: cleanedPrompt,
     familyKey: resolvedOpportunity.familyKey,
-    serviceName: effectiveActionThesis.primaryService,
+    serviceName: finalActionThesis.primaryService,
   });
 
   const actionSpec = buildActionSpec({
+  ownerObjective: routedIntent.ownerObjective,
   actionName: campaignName,
   targetService: campaignDraft.targetService,
   rawOffer: effectiveCampaignOffer,
   promotionalContext: promotionalContext as Record<string, unknown>,
   rawAudience:
     campaignDraft.audience ??
-    effectiveActionThesis.audience ??
+    finalActionThesis.audience ??
     resolvedOpportunity.actionThesis.audience,
   cta: campaignDraft.cta,
-  actionSummary: effectiveActionThesis.summary,
+  actionSummary: finalActionThesis.summary,
   actionType: effectiveActionType,
   routedLane: routedIntent.lane,
   opportunityType: resolvedOpportunity.opportunityType,
@@ -2524,21 +4078,24 @@ Return a single structured next-best-action plan.
 
 let refinedTargeting = null;
 
-try {
-  refinedTargeting = await refineTargetingWithAI({
-    service: actionSpec.targetService,
-    serviceArea: profile.serviceArea,
-    demandType: actionSpec.targeting.base.service.demandType,
-    intentLevel: actionSpec.targeting.intent.level,
-    jobValueTier: actionSpec.targeting.economics.jobValueTier,
-    existingKeywordThemes:
-      actionSpec.targeting.platforms.googleAds.keywordThemes,
-    existingNegativeKeywords:
-      actionSpec.targeting.wasteControls.negativeKeywordThemes,
-    promotionalContext,
-  });
-} catch (e) {
-  console.error("Targeting AI refinement failed", e);
+if (shouldRefineTargetingWithAI(routedIntent.ownerObjective)) {
+  try {
+    refinedTargeting = await refineTargetingWithAI({
+      ownerObjective: routedIntent.ownerObjective,
+      service: actionSpec.targetService,
+      serviceArea: profile.serviceArea,
+      demandType: actionSpec.targeting.base.service.demandType,
+      intentLevel: actionSpec.targeting.intent.level,
+      jobValueTier: actionSpec.targeting.economics.jobValueTier,
+      existingKeywordThemes:
+        actionSpec.targeting.platforms.googleAds.keywordThemes,
+      existingNegativeKeywords:
+        actionSpec.targeting.wasteControls.negativeKeywordThemes,
+      promotionalContext,
+    });
+  } catch (e) {
+    console.error("Targeting AI refinement failed", e);
+  }
 }
 
 if (refinedTargeting) {
@@ -2621,7 +4178,8 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
 
   const isOfferAction = actionSpec.offerType !== "none";
 
-  const includedAssetTypes = getAssetTypesForAction({
+  const includedAssetTypes: AssetType[] = getAssetTypesForAction({
+    ownerObjective: routedIntent.ownerObjective,
     executionMode: effectiveExecutionMode,
     actionType: effectiveActionType,
     campaignType: campaignDraft.campaignType,
@@ -2629,15 +4187,16 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
     opportunityType: resolvedOpportunity.opportunityType,
   });
 
-    const generatedAdCopy = await generateAdCopyWithAI({
+  const generatedAdCopy = await generateAdCopyWithAI({
+    ownerObjective: routedIntent.ownerObjective,
     businessName: profile.businessName,
     serviceArea: profile.serviceArea,
-    targetService: effectiveActionThesis.primaryService,
-    actionTitle: effectiveActionThesis.title,
-    actionSummary: effectiveActionThesis.summary,
+    targetService: finalActionThesis.primaryService,
+    actionTitle: finalActionThesis.title,
+    actionSummary: finalActionThesis.summary,
     targetAudience: actionSpec.targetAudience,
     offer: actionSpec.offerLabel,
-    cta: effectiveActionThesis.ctaHint,
+    cta: finalActionThesis.ctaHint,
     isReviewAction: reviewAction,
     isVisibilityAction: visibilityAction,
     isOfferAction,
@@ -2663,6 +4222,17 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
       briefJson: {
         userPrompt: cleanedPrompt,
         parsedIntent: parsed.parsedIntent,
+        ownerObjective: routedIntent.ownerObjective,
+
+        objectiveSignals:
+          resolveResidentialOwnerObjective(cleanedPrompt).matchedSignals,
+
+        launchReadiness: "READY_FOR_REVIEW",
+
+        referralIncentiveProvided:
+          routedIntent.ownerObjective === "REFERRAL_GROWTH"
+            ? hasExplicitReferralIncentive(cleanedPrompt)
+            : null,
         promotionalContext: toPrismaJsonValue(promotionalContext),
         campaignOrigin,
         consumesRecommendationSlot,
@@ -2675,13 +4245,13 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
           sourceTags: resolvedOpportunity.sourceTags,
           whyThisMatters: resolvedOpportunity.whyThisMatters,
         },
-        actionThesis: effectiveActionThesis,
+        actionThesis: finalActionThesis,
         nextBestAction: {
           ...parsed.nextBestAction,
           executionMode: effectiveExecutionMode,
           actionType: effectiveActionType,
-          title: effectiveActionThesis.title,
-          summary: effectiveActionThesis.summary,
+          title: finalActionThesis.title,
+          summary: finalActionThesis.summary,
         },
         actionPack: parsed.actionPack,
         actionSpec: toPrismaJsonValue(actionSpec),
@@ -2705,8 +4275,8 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
           : null,
         displayMoveLabel: resolvedOpportunity.displayMoveLabel,
         displaySummary: resolvedOpportunity.displaySummary,
-        imageKey: effectiveActionThesis.imageKey,
-        imageMode: effectiveActionThesis.imageMode,
+        imageKey: finalActionThesis.imageKey,
+        imageMode: finalActionThesis.imageMode,
         estimatedRange: {
           jobsLow: resolvedOpportunity.jobsLow,
           jobsHigh: resolvedOpportunity.jobsHigh,
@@ -2722,9 +4292,11 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
     },
   });
 
-  const googleBusinessImage = shouldGenerateAiImage({
+  const googleBusinessImage =
+    includedAssetTypes.includes("GOOGLE_BUSINESS") &&
+    shouldGenerateAiImage({
     assetType: "GOOGLE_BUSINESS",
-    imageMode: effectiveActionThesis.imageMode,
+    imageMode: finalActionThesis.imageMode,
     isReviewAction: reviewAction,
     isVisibilityAction: visibilityAction,
   })
@@ -2733,9 +4305,9 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         assetType: "GOOGLE_BUSINESS",
         businessName: profile.businessName,
         serviceArea: profile.serviceArea,
-        targetService: effectiveActionThesis.primaryService,
-        actionTitle: effectiveActionThesis.title,
-        actionSummary: effectiveActionThesis.summary,
+        targetService: finalActionThesis.primaryService,
+        actionTitle: finalActionThesis.title,
+        actionSummary: finalActionThesis.summary,
         audience: actionSpec.targetAudience,
         offer: actionSpec.offerLabel,
         cta: actionSpec.cta,
@@ -2747,9 +4319,11 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         mimeType: null,
       };
 
-    const metaImage = shouldGenerateAiImage({
+  const metaImage =
+    includedAssetTypes.includes("META") &&
+    shouldGenerateAiImage({
     assetType: "META",
-    imageMode: effectiveActionThesis.imageMode,
+    imageMode: finalActionThesis.imageMode,
     isReviewAction: reviewAction,
     isVisibilityAction: visibilityAction,
   })
@@ -2758,9 +4332,9 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         assetType: "META",
         businessName: profile.businessName,
         serviceArea: profile.serviceArea,
-        targetService: effectiveActionThesis.primaryService,
-        actionTitle: effectiveActionThesis.title,
-        actionSummary: effectiveActionThesis.summary,
+        targetService: finalActionThesis.primaryService,
+        actionTitle: finalActionThesis.title,
+        actionSummary: finalActionThesis.summary,
         audience: actionSpec.targetAudience,
         offer: actionSpec.offerLabel,
         cta: actionSpec.cta,
@@ -2772,9 +4346,11 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         mimeType: null,
       };
 
-  const googleAdsImage = shouldGenerateAiImage({
+  const googleAdsImage =
+    includedAssetTypes.includes("GOOGLE_ADS") &&
+    shouldGenerateAiImage({
     assetType: "GOOGLE_ADS",
-    imageMode: effectiveActionThesis.imageMode,
+    imageMode: finalActionThesis.imageMode,
     isReviewAction: reviewAction,
     isVisibilityAction: visibilityAction,
   })
@@ -2783,9 +4359,9 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         assetType: "GOOGLE_ADS",
         businessName: profile.businessName,
         serviceArea: profile.serviceArea,
-        targetService: effectiveActionThesis.primaryService,
-        actionTitle: effectiveActionThesis.title,
-        actionSummary: effectiveActionThesis.summary,
+        targetService: finalActionThesis.primaryService,
+        actionTitle: finalActionThesis.title,
+        actionSummary: finalActionThesis.summary,
         audience: actionSpec.targetAudience,
         offer: actionSpec.offerLabel,
         cta: actionSpec.cta,
@@ -2817,22 +4393,23 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
           ? "Google Business Action Draft"
           : "Google Business Post",
       content: buildStructuredGoogleBusinessAsset({
-        title: generatedAdCopy?.googleBusiness?.title ?? effectiveActionThesis.title,
+        title: generatedAdCopy?.googleBusiness?.title ?? finalActionThesis.title,
         summary:
           generatedAdCopy?.googleBusiness?.description ??
           buildGoogleBusinessDescriptionFromAction({
-            actionSummary: effectiveActionThesis.summary,
+            ownerObjective: routedIntent.ownerObjective,
+            actionSummary: finalActionThesis.summary,
             serviceArea: profile.serviceArea,
-            cta: effectiveActionThesis.ctaHint,
+            cta: finalActionThesis.ctaHint,
             offer: actionSpec.offerLabel,
             isReviewAction: reviewAction,
             isVisibilityAction: visibilityAction,
-            targetService: effectiveActionThesis.primaryService,
+            targetService: finalActionThesis.primaryService,
           }),
-        cta: generatedAdCopy?.googleBusiness?.cta ?? effectiveActionThesis.ctaHint,
+        cta: generatedAdCopy?.googleBusiness?.cta ?? finalActionThesis.ctaHint,
         offer: sanitizeCustomerFacingOffer(actionSpec.offerLabel),
-        imageKey: effectiveActionThesis.imageKey,
-        imageMode: effectiveActionThesis.imageMode,
+        imageKey: finalActionThesis.imageKey,
+        imageMode: finalActionThesis.imageMode,
         industry: structuredIndustry,
         serviceArea: profile.serviceArea,
       }),
@@ -2855,26 +4432,28 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         headline:
           generatedAdCopy?.meta?.headline ??
           buildMetaHeadline({
-            actionTitle: effectiveActionThesis.title,
-            targetService: effectiveActionThesis.primaryService,
+            actionTitle: finalActionThesis.title,
+            ownerObjective: routedIntent.ownerObjective,
+            targetService: finalActionThesis.primaryService,
             isReviewAction: reviewAction,
             isVisibilityAction: visibilityAction,
           }),
         primaryText:
           generatedAdCopy?.meta?.primaryText ??
           buildMetaPrimaryTextFromAction({
-            actionSummary: effectiveActionThesis.summary,
+            ownerObjective: routedIntent.ownerObjective,
+            actionSummary: finalActionThesis.summary,
             serviceArea: profile.serviceArea,
-            cta: effectiveActionThesis.ctaHint,
+            cta: finalActionThesis.ctaHint,
             offer: actionSpec.offerLabel,
             isReviewAction: reviewAction,
             isVisibilityAction: visibilityAction,
-            targetService: effectiveActionThesis.primaryService,
+            targetService: finalActionThesis.primaryService,
           }),
-        cta: generatedAdCopy?.meta?.cta ?? effectiveActionThesis.ctaHint,
+        cta: generatedAdCopy?.meta?.cta ?? finalActionThesis.ctaHint,
         offer: sanitizeCustomerFacingOffer(actionSpec.offerLabel),
-        imageKey: effectiveActionThesis.imageKey,
-        imageMode: effectiveActionThesis.imageMode,
+        imageKey: finalActionThesis.imageKey,
+        imageMode: finalActionThesis.imageMode,
         industry: structuredIndustry,
         serviceArea: profile.serviceArea,
       }),
@@ -2917,10 +4496,12 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         ? "Review Request Email"
         : parsed.assets.emailCampaign.subjectLine ?? "Email Campaign",
       content: buildEmailAssetFromAction({
-        actionTitle: effectiveActionThesis.title,
-        actionSummary: effectiveActionThesis.summary,
-        cta: effectiveActionThesis.ctaHint,
-        targetService: effectiveActionThesis.primaryService,
+        ownerObjective: routedIntent.ownerObjective,
+        offer: actionSpec.offerLabel,
+        actionTitle: finalActionThesis.title,
+        actionSummary: finalActionThesis.summary,
+        cta: finalActionThesis.ctaHint,
+        targetService: finalActionThesis.primaryService,
         serviceArea: profile.serviceArea,
         isReviewAction: reviewAction,
         isVisibilityAction: visibilityAction,
@@ -2938,21 +4519,22 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         effectiveExecutionMode === "ACTION_PACK"
           ? parsed.actionPack.actionTitle ?? "Blog Article"
           : "Blog Article",
-      content: await buildStructuredBlogAsset({
+        content: await buildStructuredBlogAsset({
+        ownerObjective: routedIntent.ownerObjective,
         title:
           effectiveExecutionMode === "ACTION_PACK"
-            ? parsed.actionPack.actionTitle ?? effectiveActionThesis.title
+            ? parsed.actionPack.actionTitle ?? finalActionThesis.title
             : effectiveActionThesis.title,
         businessName: profile.businessName,
         serviceArea: profile.serviceArea,
-        primaryService: effectiveActionThesis.primaryService,
+        primaryService: finalActionThesis.primaryService,
                 summary: cleanInternalMarketingLanguage(
-          generatedAdCopy?.googleBusiness?.description ?? effectiveActionThesis.summary
+          generatedAdCopy?.googleBusiness?.description ?? finalActionThesis.summary
         ),
-        whyBullets: effectiveActionThesis.whyThisActionBullets ?? [],
-        cta: effectiveActionThesis.ctaHint,
-        imageKey: effectiveActionThesis.imageKey,
-        imageMode: effectiveActionThesis.imageMode,
+        whyBullets: finalActionThesis.whyThisActionBullets ?? [],
+        cta: finalActionThesis.ctaHint,
+        imageKey: finalActionThesis.imageKey,
+        imageMode: finalActionThesis.imageMode,
         industry: structuredIndustry,
       }),
     });
@@ -2976,9 +4558,11 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
     });
   }
 
-  await prisma.campaignAsset.createMany({
-    data: assetData,
-  });
+  if (assetData.length > 0) {
+    await prisma.campaignAsset.createMany({
+      data: assetData,
+    });
+  }
 
   if (consumesRecommendationSlot) {
     const shouldInvalidateOnCreate = shouldInvalidateOpportunitySnapshotOnCampaignCreate(

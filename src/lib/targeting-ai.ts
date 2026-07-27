@@ -1,6 +1,8 @@
 import { openai } from "@/lib/openai";
+import type { ResidentialOwnerObjective } from "@/lib/action-spec";
 
 export async function refineTargetingWithAI(params: {
+  ownerObjective: ResidentialOwnerObjective;
   service: string;
   serviceArea: string;
   demandType: string;
@@ -21,7 +23,10 @@ Your job is to REFINE targeting — not expand it broadly.
 
 STRICT RULES:
 
-- Keep keyword themes HIGH-INTENT only
+- For STANDARD_SERVICE_GROWTH, keep keyword themes high-intent.
+- For COMPETITIVE_ACQUISITION, keep targeting service-first and use truthful provider-comparison context only.
+- For POSITIONING_TRUST, keep targeting service-first and do not create unsupported superiority language.
+- Do not create competitor attack keywords or competitor-name conquest keywords unless explicitly supplied and operationally approved.
 - Do NOT create awkward or unnatural phrases
 - Do NOT repeat words (e.g. "repair repair")
 - Do NOT mix unrelated concepts
@@ -34,6 +39,7 @@ STRICT RULES:
 ---
 
 INPUT:
+Owner Objective: ${params.ownerObjective}
 Service: ${params.service}
 Location: ${params.serviceArea}
 Demand Type: ${params.demandType}

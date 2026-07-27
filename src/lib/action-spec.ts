@@ -1,10 +1,20 @@
 import type { OpportunityType, CampaignType } from "@/generated/prisma";
+export type ResidentialOwnerObjective =
+  | "STANDARD_SERVICE_GROWTH"
+  | "COMPETITIVE_ACQUISITION"
+  | "EDUCATION_PREPAREDNESS"
+  | "POSITIONING_TRUST"
+  | "RETENTION_REACTIVATION"
+  | "REFERRAL_GROWTH"
+  | "CROSS_SELL_UPSELL"
+  | "REVIEW_GENERATION";
 
 export type ActionConstructType =
   | "DEMAND_CAPTURE"
   | "CAPACITY_FILL"
   | "POSITIONING"
   | "REVIEW_ACQUISITION"
+  | "REFERRAL_ACQUISITION"
   | "REACTIVATION"
   | "OFFER_PROMOTION"
   | "SERVICE_BUNDLE_UPSELL"
@@ -25,6 +35,7 @@ export type ActionBusinessGoal =
   | "fill_schedule"
   | "increase_conversion_rate"
   | "increase_reviews"
+  | "increase_referrals"
   | "reactivate_customers"
   | "increase_local_visibility"
   | "improve_search_presence"
@@ -167,6 +178,7 @@ export type ActionTargeting = {
 };
 
 export type ActionSpec = {
+  ownerObjective: ResidentialOwnerObjective;
   constructType: ActionConstructType;
   secondaryConstructType: SecondaryConstructType;
   businessGoal: ActionBusinessGoal;
@@ -353,6 +365,7 @@ function looksLikePositioningAction(params: {
 }
 
 function inferConstructType(params: {
+  ownerObjective?: ResidentialOwnerObjective | null;
   routedLane?: string | null;
   actionType?: string | null;
   opportunityType?: OpportunityType | null;
@@ -362,6 +375,30 @@ function inferConstructType(params: {
   actionSummary?: string | null;
   rawAudience?: string | null;
 }): ActionConstructType {
+    switch (params.ownerObjective) {
+    case "COMPETITIVE_ACQUISITION":
+    case "POSITIONING_TRUST":
+      return "POSITIONING";
+
+    case "EDUCATION_PREPAREDNESS":
+      return "LOCAL_VISIBILITY";
+
+    case "RETENTION_REACTIVATION":
+      return "REACTIVATION";
+
+    case "REFERRAL_GROWTH":
+      return "REFERRAL_ACQUISITION";
+
+    case "CROSS_SELL_UPSELL":
+      return "SERVICE_BUNDLE_UPSELL";
+
+    case "REVIEW_GENERATION":
+      return "REVIEW_ACQUISITION";
+
+    case "STANDARD_SERVICE_GROWTH":
+    default:
+      break;
+  }
   if (
     looksLikeReviewAction({
       routedLane: params.routedLane,
@@ -457,6 +494,8 @@ function inferBusinessGoal(
       return "fill_schedule";
     case "REVIEW_ACQUISITION":
       return "increase_reviews";
+    case "REFERRAL_ACQUISITION":
+      return "increase_referrals";
     case "REACTIVATION":
       return "reactivate_customers";
     case "LOCAL_VISIBILITY":
@@ -468,7 +507,7 @@ function inferBusinessGoal(
     case "OFFER_PROMOTION":
       return "generate_immediate_jobs";
     case "SERVICE_BUNDLE_UPSELL":
-      return "promote_higher_value_work";
+      return "increase_repeat_business";
     case "DEMAND_CAPTURE":
     default:
       return "generate_immediate_jobs";
@@ -505,6 +544,29 @@ function inferAudience(params: {
           audienceRationale:
             "This audience is appropriate because reactivation actions should target existing customer relationships or known past demand.",
           audienceSourceType: "past_customers",
+        };
+      case "REFERRAL_ACQUISITION":
+        return {
+          targetAudience: explicitAudience,
+          audienceRationale:
+            "Referral actions should be directed to satisfied existing or past customers who already know the business.",
+          audienceSourceType: "past_customers",
+        };
+
+      case "SERVICE_BUNDLE_UPSELL":
+        return {
+          targetAudience: explicitAudience,
+          audienceRationale:
+            "Cross-sell actions should target existing customers for whom the related service is genuinely relevant.",
+          audienceSourceType: "past_customers",
+        };
+
+      case "LOCAL_VISIBILITY":
+        return {
+          targetAudience: explicitAudience,
+          audienceRationale:
+            "Educational and preparedness actions are intended for broad local awareness rather than only immediate booking demand.",
+          audienceSourceType: "broad_local_visibility",
         };
       case "AEO_SEO_VISIBILITY":
         return {
@@ -738,6 +800,80 @@ function inferExecutionMechanism(params: {
           "Trigger review request automatically after completed job status.",
       };
 
+    case "REFERRAL_ACQUISITION":
+      return {
+        channelType: "customer_referral_activation",
+        triggerType: "owner_approved_referral_offer",
+        deliverySurface: "customer_facing_multi_surface",
+        operatorActionSummary:
+          "Publish and share the approved referral offer through the selected customer-facing surfaces.",
+        requiredAssets: [
+          "approved referral message",
+          "approved referral creative",
+          "confirmed referral terms",
+        ],
+        requiredAccess: [
+          "selected publishing surfaces",
+          "customer communication process",
+        ],
+        manualSteps: [
+          "Confirm the approved referral reward and qualification rules.",
+          "Publish the approved referral message on the selected surfaces.",
+          "Share the offer with eligible past customers through available customer touchpoints.",
+          "Track qualifying referrals and fulfill rewards according to the approved terms.",
+        ],
+        futureAutomationHook:
+          "Trigger and track referral invitations through customer and job-status integrations.",
+      };
+
+    case "REACTIVATION":
+    case "SERVICE_BUNDLE_UPSELL":
+      return {
+        channelType: "existing_customer_activation",
+        triggerType: "manual_customer_follow_up",
+        deliverySurface: "customer_relationship_workflow",
+        operatorActionSummary: `Share the approved ${service.toLowerCase()} follow-up with the relevant past-customer audience.`,
+        requiredAssets: [
+          "approved customer-facing message",
+          "approved supporting creative",
+        ],
+        requiredAccess: [
+          "past-customer records or available customer touchpoints",
+        ],
+        manualSteps: [
+          "Identify the relevant past-customer group.",
+          "Confirm that the follow-up service is appropriate for that group.",
+          "Use the approved message through available customer touchpoints.",
+          "Track responses, appointments, and resulting booked work.",
+        ],
+        futureAutomationHook:
+          "Trigger relevant follow-up actions from completed-job and customer-history data.",
+      };
+
+    case "LOCAL_VISIBILITY":
+      return {
+        channelType: "local_education_distribution",
+        triggerType: "content_publish",
+        deliverySurface: "local_awareness_surfaces",
+        operatorActionSummary:
+          "Publish the approved educational or preparedness content through the selected local surfaces.",
+        requiredAssets: [
+          "approved educational copy",
+          "approved supporting visual",
+        ],
+        requiredAccess: [
+          "selected local publishing surfaces",
+        ],
+        manualSteps: [
+          "Review the guidance for factual accuracy.",
+          "Confirm that no unsupported weather or emergency claims were added.",
+          "Publish the approved content through the selected local surfaces.",
+          "Use a restrained CTA consistent with education and preparedness.",
+        ],
+        futureAutomationHook:
+          "Publish approved educational content through connected local channels.",
+      };
+
     case "AEO_SEO_VISIBILITY":
       return {
         channelType: "website_content",
@@ -761,7 +897,6 @@ function inferExecutionMechanism(params: {
     case "OFFER_PROMOTION":
     case "POSITIONING":
     case "DEMAND_CAPTURE":
-    case "REACTIVATION":
     default:
       return {
         channelType: "manual_multi_channel_campaign",
@@ -815,6 +950,42 @@ function inferOperationalDependencies(params: {
     );
   }
 
+  if (params.constructType === "REFERRAL_ACQUISITION") {
+    base.business_readiness.push(
+      "Referral reward, qualification event, recipient, and fulfillment timing are confirmed"
+    );
+    base.offer_readiness.push(
+      "The approved referral incentive can be honored operationally"
+    );
+    base.staff_behavior.push(
+      "The team understands how qualifying referrals are tracked and fulfilled"
+    );
+    base.tracking_readiness.push(
+      "A process exists to identify the referring customer and qualifying referred job"
+    );
+  }
+
+  if (
+    params.constructType === "REACTIVATION" ||
+    params.constructType === "SERVICE_BUNDLE_UPSELL"
+  ) {
+    base.business_readiness.push(
+      "The relevant past-customer audience can be identified"
+    );
+    base.staff_behavior.push(
+      "The team understands which customers should receive the follow-up"
+    );
+  }
+
+  if (params.constructType === "LOCAL_VISIBILITY") {
+    base.business_readiness.push(
+      "Educational or preparedness guidance has been reviewed for factual accuracy"
+    );
+    base.tracking_readiness.push(
+      "Success will be evaluated using awareness or engagement signals rather than only immediate bookings"
+    );
+  }
+
   if (params.constructType === "AEO_SEO_VISIBILITY") {
     base.website_or_landing_readiness.push(
       "Target website page or content surface is identified"
@@ -835,8 +1006,24 @@ function inferServiceDemandType(params: {
     .join(" ");
 
   if (params.constructType === "REVIEW_ACQUISITION") return "review";
-  if (params.constructType === "REACTIVATION") return "reactivation";
-  if (params.constructType === "AEO_SEO_VISIBILITY") return "visibility";
+
+  if (
+    params.constructType === "REACTIVATION" ||
+    params.constructType === "SERVICE_BUNDLE_UPSELL"
+  ) {
+    return "reactivation";
+  }
+
+  if (params.constructType === "REFERRAL_ACQUISITION") {
+    return "reactivation";
+  }
+
+  if (
+    params.constructType === "AEO_SEO_VISIBILITY" ||
+    params.constructType === "LOCAL_VISIBILITY"
+  ) {
+    return "visibility";
+  }
 
   if (
     haystack.includes("emergency") ||
@@ -884,6 +1071,36 @@ function inferIntentProfile(params: {
       conversionLikelihood: 8,
       rationale:
         "These are real completed-job customers, so the conversion target is review completion rather than new paid demand capture.",
+    };
+  }
+
+  if (params.constructType === "REFERRAL_ACQUISITION") {
+    return {
+      level: "low" as ActionIntentLevel,
+      purchaseUrgency: 2,
+      conversionLikelihood: 6,
+      rationale:
+        "Referral actions activate existing customer relationships rather than capture active search demand.",
+    };
+  }
+
+  if (params.constructType === "SERVICE_BUNDLE_UPSELL") {
+    return {
+      level: "medium" as ActionIntentLevel,
+      purchaseUrgency: 4,
+      conversionLikelihood: 7,
+      rationale:
+        "Existing customers may respond well when the related service is relevant, but the action should not be treated as urgent cold demand.",
+    };
+  }
+
+  if (params.constructType === "LOCAL_VISIBILITY") {
+    return {
+      level: "low" as ActionIntentLevel,
+      purchaseUrgency: 2,
+      conversionLikelihood: 4,
+      rationale:
+        "Educational and preparedness content supports awareness, trust, and future consideration rather than immediate purchase intent.",
     };
   }
 
@@ -1123,10 +1340,19 @@ function buildTargeting(params: {
   const excludeRenters =
     demandType === "install" || economics.jobValueTier === "high";
 
-  const googleKeywordThemes = buildKeywordThemes({
-    targetService: service,
-    demandType,
-  });
+  const suppressGoogleSearchTargeting =
+    params.constructType === "REFERRAL_ACQUISITION" ||
+    params.constructType === "REACTIVATION" ||
+    params.constructType === "SERVICE_BUNDLE_UPSELL" ||
+    params.constructType === "LOCAL_VISIBILITY" ||
+    params.constructType === "REVIEW_ACQUISITION";
+
+  const googleKeywordThemes = suppressGoogleSearchTargeting
+    ? []
+    : buildKeywordThemes({
+        targetService: service,
+        demandType,
+      });
 
     const metaAgeRange: [number, number] | null =
     demandType === "install" || demandType === "maintenance"
@@ -1135,30 +1361,67 @@ function buildTargeting(params: {
 
   const metaInterests = buildMetaInterests(demandType);
 
-  const googleAdsNotes = [
-    "Keep location targeting limited to the real service area.",
-    "Use the keyword themes as tightly scoped ad-group direction, not as a broad expansion list.",
-    "Do not loosen intent with generic research or education-heavy traffic.",
-  ];
+  const googleAdsNotes = suppressGoogleSearchTargeting
+    ? [
+        "Google Search targeting is not recommended for this owner objective.",
+        "Do not create paid-search keywords for existing-customer, referral, review, or educational actions.",
+      ]
+    : [
+        "Keep location targeting limited to the real service area.",
+        "Use the keyword themes as tightly scoped ad-group direction, not as a broad expansion list.",
+        "Do not loosen intent with generic research or education-heavy traffic.",
+      ];
 
   const metaNotes =
-    metaInterests.length > 0
+    params.constructType === "REFERRAL_ACQUISITION"
       ? [
-          "Use the service area only.",
-          "Keep targeting broad enough for delivery, but use homeowner-oriented filters where they support the service.",
-          "Do not over-narrow with too many layered interests.",
+          "Use customer-list or past-customer audiences when available.",
+          "Do not treat this as cold homeowner acquisition.",
+          "The creative must clearly state the approved referral value exchange.",
         ]
-      : [
-          "Use the service area only.",
-          "Go broader on Meta and let the creative plus geography do most of the qualification work.",
-          "Do not force weak interest targeting for emergency or urgent demand.",
-        ];
+      : params.constructType === "REACTIVATION" ||
+          params.constructType === "SERVICE_BUNDLE_UPSELL"
+        ? [
+            "Use past-customer or customer-list audiences when available.",
+            "Do not broaden this into generic cold homeowner acquisition.",
+            "Keep the message relationship-aware and relevant to prior service.",
+          ]
+        : params.constructType === "LOCAL_VISIBILITY"
+          ? [
+              "Use service-area targeting for broad local distribution.",
+              "Let useful educational creative do most of the qualification.",
+              "Do not use aggressive urgency or high-intent acquisition framing.",
+            ]
+          : metaInterests.length > 0
+            ? [
+                "Use the service area only.",
+                "Keep targeting broad enough for delivery, but use homeowner-oriented filters where they support the service.",
+                "Do not over-narrow with too many layered interests.",
+              ]
+            : [
+                "Use the service area only.",
+                "Go broader on Meta and let the creative plus geography do most of the qualification work.",
+                "Do not force weak interest targeting for emergency or urgent demand.",
+              ];
 
-  const gbpNotes = [
-    "Keep the post local and service-specific.",
-    "Use service-area language naturally inside the copy.",
-    "Match the CTA to the actual booking or phone destination.",
-  ];
+  const gbpNotes =
+    params.constructType === "LOCAL_VISIBILITY"
+      ? [
+          "Keep the content useful, local, and factually restrained.",
+          "Do not invent weather severity, timing, damage, or emergency declarations.",
+          "Use an educational CTA rather than forcing immediate booking.",
+        ]
+      : params.constructType === "REFERRAL_ACQUISITION"
+        ? [
+            "Use only the approved referral reward and qualification terms.",
+            "Make the referral process easy to understand.",
+            "Do not imply additional rewards or eligibility rules.",
+          ]
+        : [
+            "Keep the post local and service-specific.",
+            "Use service-area language naturally inside the copy.",
+            "Match the CTA to the actual booking or phone destination.",
+          ];
 
   return {
     mode,
@@ -1288,6 +1551,7 @@ function buildTargeting(params: {
 }
 
 export function buildActionSpec(params: {
+  ownerObjective?: ResidentialOwnerObjective | null;
   actionName: string;
   targetService: string;
   rawOffer?: string | null;
@@ -1306,6 +1570,7 @@ export function buildActionSpec(params: {
   const hasRealOffer = !looksLikePlaceholderOffer(normalizedOffer);
 
   const constructType = inferConstructType({
+    ownerObjective: params.ownerObjective,
     routedLane: params.routedLane,
     actionType: params.actionType,
     opportunityType: params.opportunityType,
@@ -1357,6 +1622,8 @@ export function buildActionSpec(params: {
   });
 
   return {
+    ownerObjective:
+      params.ownerObjective ?? "STANDARD_SERVICE_GROWTH",
     constructType,
     secondaryConstructType,
     businessGoal: inferBusinessGoal(constructType),

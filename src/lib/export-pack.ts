@@ -29,6 +29,7 @@ type BuildExportPackParams = {
 
 type BriefJsonShape = {
   userPrompt?: string;
+  ownerObjective?: string;
   parsedIntent?: {
     serviceCategory?: string;
     intent?: string;
@@ -49,6 +50,7 @@ type BriefJsonShape = {
     constructType?: string;
     secondaryConstructType?: string | null;
     businessGoal?: string;
+    ownerObjective?: string;
     actionName?: string;
     targetService?: string;
     targetAudience?: string;
@@ -176,6 +178,192 @@ type BriefJsonShape = {
   };
 };
 
+type CommercialVendorReadinessStatus =
+  | "AVAILABLE"
+  | "NEEDS_PREPARATION"
+  | "NOT_APPLICABLE";
+
+type CommercialVendorReadinessItem = {
+  status?: CommercialVendorReadinessStatus;
+  notes?: string;
+};
+
+type CommercialReusableInputsShape = {
+  sender?: {
+    name?: string;
+    title?: string;
+    email?: string;
+    phone?: string;
+  };
+
+  targetAccount?: {
+    accountName?: string;
+    contactName?: string;
+    contactTitle?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+  };
+
+  capabilities?: {
+    selectedServices?: string[];
+    serviceArea?: string;
+    capacityStatement?: string;
+    commercialExperience?: string;
+    referenceSummary?: string;
+    availabilityModel?: string;
+    differentiators?: string;
+  };
+};
+
+type CommercialBriefShape = {
+  market?: string;
+  userPrompt?: string;
+  generatedAt?: string;
+  strategyVersion?: string;
+
+  commercialReusableInputs?:
+    CommercialReusableInputsShape;
+
+  commercialVendorReadiness?: {
+    w9?: CommercialVendorReadinessItem;
+    insurance?: CommercialVendorReadinessItem;
+    businessLicense?: CommercialVendorReadinessItem;
+    references?: CommercialVendorReadinessItem;
+    safetyDocumentation?: CommercialVendorReadinessItem;
+    pricingSheet?: CommercialVendorReadinessItem;
+  };
+
+  interpretedIntent?: {
+    ownerObjective?: string;
+    confidence?: string;
+    targetAccountName?: string | null;
+    targetAccountType?: string;
+    namedIncumbent?: string | null;
+    targetService?: string | null;
+    relationshipState?: string;
+    relationshipGoal?: string;
+    revenueModel?: string;
+    requestedTimeframe?: string | null;
+    ownerProvidedFacts?: string[];
+    assumptions?: string[];
+    unknowns?: string[];
+  };
+
+  commercialActionSpec?: {
+    actionType?: string;
+    actionName?: string;
+    actionSummary?: string;
+    ownerObjective?: string;
+    targetService?: string | null;
+    revenueModel?: string;
+    launchMode?: string;
+    primaryCallToAction?: string;
+    expectedOutcome?: string;
+    pursuitThesis?: string;
+
+    target?: {
+      accountName?: string | null;
+      accountType?: string;
+      displayLabel?: string;
+      namedIncumbent?: string | null;
+      relationshipState?: string;
+      relationshipGoal?: string;
+    };
+
+    executionTasks?: Array<{
+      id?: string;
+      sequence?: number;
+      phase?: string;
+      title?: string;
+      description?: string;
+      ownerAction?: string;
+      marketForgeSupport?: string;
+      completionSignal?: string;
+      blockedByOwnerInputKeys?: string[];
+    }>;
+
+    ownerInputRequirements?: Array<{
+      key?: string;
+      label?: string;
+      reason?: string;
+      requiredBefore?: string;
+      valueType?: string;
+      currentValue?: string | null;
+      example?: string;
+    }>;
+
+    assumptions?: string[];
+
+    risks?: Array<{
+      risk?: string;
+      mitigation?: string;
+    }>;
+
+    successSignals?: string[];
+  };
+
+  commercialStrategy?: {
+    executiveSummary?: string;
+    desiredCommercialOutcome?: string;
+    entryStrategy?: string;
+    differentiationStrategy?: string;
+    incumbentStrategy?: string | null;
+    accountResearchPriorities?: string[];
+    discoveryObjectives?: string[];
+    qualificationCriteria?: string[];
+    proposalPriorities?: string[];
+    objectionThemes?: string[];
+
+    likelyStakeholders?: Array<{
+      role?: string;
+      influence?: string;
+      likelyPriority?: string;
+      engagementGoal?: string;
+    }>;
+
+    positioningPillars?: Array<{
+      title?: string;
+      message?: string;
+      proofNeeded?: string[];
+    }>;
+  };
+
+  commercialAssetPackage?: {
+    packageVersion?: string;
+    executiveSummary?: string;
+    assetCount?: number;
+    readyNowAssetIds?: string[];
+    ownerInputRequiredAssetIds?: string[];
+    accountDiscoveryRequiredAssetIds?: string[];
+    unresolvedAccountDiscoveryItems?: string[];
+    assumptions?: string[];
+  };
+
+  execution?: {
+    scheduledLaunchDate?: string | null;
+    launchOwner?: string | null;
+    launchNotes?: string | null;
+  };
+};
+
+type CommercialAssetMetadataShape = {
+  market?: string;
+  commercialAssetId?: string;
+  commercialCategory?: string;
+  commercialCategoryLabel?: string;
+  readiness?:
+    | "READY_NOW"
+    | "OWNER_INPUT_REQUIRED"
+    | "ACCOUNT_DISCOVERY_REQUIRED";
+  purpose?: string;
+  requiredOwnerInputKeys?: string[];
+  requiredAccountDiscoveryItems?: string[];
+  usageInstructions?: string;
+  completionSignal?: string;
+  packageVersion?: string;
+  generatedAt?: string;
+};
+
 type GoogleBusinessAssetPayload = {
   kind: "GOOGLE_BUSINESS";
   title: string;
@@ -226,6 +414,95 @@ function safeBriefJson(value: Prisma.JsonValue | null): BriefJsonShape | null {
   }
 
   return value as BriefJsonShape;
+}
+
+function safeCommercialBriefJson(
+  value: Prisma.JsonValue | null
+): CommercialBriefShape | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  const brief =
+    value as CommercialBriefShape;
+
+  return brief.market ===
+    "COMMERCIAL"
+    ? brief
+    : null;
+}
+
+function safeCommercialAssetMetadata(
+  value: Prisma.JsonValue | null
+): CommercialAssetMetadataShape {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return {};
+  }
+
+  return value as CommercialAssetMetadataShape;
+}
+
+function nonEmptyValue(
+  value?: string | null,
+  fallback = "Not recorded"
+) {
+  const trimmed =
+    value?.trim() ?? "";
+
+  return trimmed ||
+    fallback;
+}
+
+function checklistStatusLabel(
+  status?:
+    CommercialVendorReadinessStatus
+) {
+  switch (status) {
+    case "AVAILABLE":
+      return "Available";
+
+    case "NOT_APPLICABLE":
+      return "Not applicable";
+
+    case "NEEDS_PREPARATION":
+    default:
+      return "Needs preparation";
+  }
+}
+
+function checklistMark(
+  status?:
+    CommercialVendorReadinessStatus
+) {
+  switch (status) {
+    case "AVAILABLE":
+      return "[x]";
+
+    case "NOT_APPLICABLE":
+      return "[-]";
+
+    case "NEEDS_PREPARATION":
+    default:
+      return "[ ]";
+  }
+}
+
+function markdownSection(
+  heading: string,
+  value?: string | null
+) {
+  return `## ${heading}
+
+${nonEmptyValue(value)}
+`;
 }
 
 function extractEstimatedRange(
@@ -364,6 +641,62 @@ function sanitizeForFileName(value: string) {
     .replace(/[^a-zA-Z0-9-_ ]+/g, "")
     .trim()
     .replace(/\s+/g, "-");
+}
+
+const COMMERCIAL_CATEGORY_ORDER = [
+  "ACCOUNT_BRIEF",
+  "CAPABILITY_STATEMENT",
+  "INITIAL_OUTREACH",
+  "PHONE_SCRIPT",
+  "VOICEMAIL",
+  "DIRECT_MESSAGE",
+  "OFFICE_VISIT",
+  "FOLLOW_UP",
+  "DISCOVERY",
+  "PROPOSAL",
+  "OBJECTIONS",
+  "CONTRACT",
+  "ONBOARDING",
+] as const;
+
+function commercialCategorySortIndex(
+  category?: string
+) {
+  const index =
+    COMMERCIAL_CATEGORY_ORDER.indexOf(
+      category as
+        (typeof COMMERCIAL_CATEGORY_ORDER)[number]
+    );
+
+  return index === -1
+    ? COMMERCIAL_CATEGORY_ORDER.length
+    : index;
+}
+
+function commercialCategoryFolderName(
+  category?: string,
+  label?: string
+) {
+  const resolvedLabel =
+    label ??
+    formatLabel(category);
+
+  return sanitizeForFileName(
+    resolvedLabel
+  ).toLowerCase();
+}
+
+function commercialMaterialFileName(
+  title: string,
+  index: number
+) {
+  const safeTitle =
+    sanitizeForFileName(title)
+      .toLowerCase();
+
+  return `${String(
+    index + 1
+  ).padStart(2, "0")}-${safeTitle || "material"}.md`;
 }
 
 function getImageExtensionFromMimeType(mimeType?: string | null) {
@@ -816,7 +1149,45 @@ ${buildAfterLaunchSection({
 `;
 }
 
+function getMetaObjectiveGuidance(ownerObjective: string) {
+  switch (ownerObjective) {
+    case "EDUCATION_PREPAREDNESS":
+      return {
+        recommended:
+          "Use organic publishing first. For paid distribution, use Awareness or Engagement rather than forcing a lead objective.",
+        avoid:
+          "Do not optimize educational or public-service content as an aggressive lead-generation ad.",
+      };
+
+    case "REFERRAL_GROWTH":
+      return {
+        recommended:
+          "Use organic publishing or an existing-customer audience. If paid distribution is used, choose Engagement or Traffic unless a working referral form supports Leads.",
+        avoid:
+          "Do not target a broad cold homeowner audience for a past-customer referral offer.",
+      };
+
+    case "RETENTION_REACTIVATION":
+    case "CROSS_SELL_UPSELL":
+      return {
+        recommended:
+          "Use an existing-customer or customer-list audience when available. Use Traffic or Leads only when the destination and audience process support it.",
+        avoid:
+          "Do not broaden this existing-customer action into generic cold homeowner acquisition.",
+      };
+
+    default:
+      return {
+        recommended:
+          "Use Leads if the destination is a form, estimate request, call workflow, or other direct conversion path.",
+        avoid:
+          "Avoid Awareness when the action is intended to generate immediate service demand.",
+      };
+  }
+}
+
 function buildFacebookOperatorNotes(params: {
+  ownerObjective: string;
   actionOffer: string;
   actionCta: string;
   actionAudience: string;
@@ -825,6 +1196,10 @@ function buildFacebookOperatorNotes(params: {
   actionSpec?: BriefJsonShape["actionSpec"] | null;
   utm: string;
 }) {
+
+  const objectiveGuidance =
+    getMetaObjectiveGuidance(params.ownerObjective);
+
   return `# Facebook Operator Notes
 
 Use this folder for a Facebook ad or boosted-post style execution. If you are using Ads Manager, follow the ad setup path below. If the client only uses page posting, use the same approved copy and creative but understand performance tracking may be weaker.
@@ -843,14 +1218,13 @@ A Facebook campaign promoting:
 - CTA: ${params.actionCta}
 
 ## Recommended Objective
-- Use Leads if the destination is a form, estimate request, or lead workflow.
-- Use Traffic only if the business specifically needs website clicks and no lead setup is available.
-- If the platform forces a different label because of interface changes, choose the closest objective focused on leads or conversions, not awareness.
+- ${objectiveGuidance.recommended}
+- ${objectiveGuidance.avoid}
 
 ## Exact Steps In Meta Ads Manager
 1. Open Meta Ads Manager.
 2. Click Create.
-3. Choose the Leads objective if available. If Leads is unavailable, choose the closest conversion-focused objective. Avoid Awareness for this pack unless the action explicitly says otherwise.
+3. Choose the platform objective that follows the Recommended Objective guidance above. Do not automatically choose Leads for an educational, referral, retention, or cross-sell action.
 4. Name the campaign using the campaign name from \`01-campaign-brief/campaign-summary.md\`.
 5. At the campaign level, do not turn on extra campaign options unless the client specifically requires them.
 6. Move to the Ad Set level.
@@ -881,7 +1255,7 @@ A Facebook campaign promoting:
 6. Publish or schedule the post.
 
 ## Do Not Change These Settings
-- Do not choose Awareness as the objective unless the action explicitly requires awareness.
+- Do not override the objective guidance stored for this action.
 - Do not target outside the service area.
 - Do not layer many extra interests.
 - Do not change the offer.
@@ -919,6 +1293,7 @@ ${buildAfterLaunchSection({
 }
 
 function buildInstagramOperatorNotes(params: {
+  ownerObjective: string;
   actionOffer: string;
   actionCta: string;
   actionAudience: string;
@@ -928,6 +1303,10 @@ function buildInstagramOperatorNotes(params: {
   utmFeed: string;
   utmStory: string;
 }) {
+
+  const objectiveGuidance =
+    getMetaObjectiveGuidance(params.ownerObjective);
+
   return `# Instagram Operator Notes
 
 Use this folder for Instagram execution through Meta Ads Manager or Meta Business Suite.
@@ -945,6 +1324,10 @@ An Instagram ad or published post promoting:
 - Offer: ${params.actionOffer}
 - CTA: ${params.actionCta}
 
+## Recommended Objective
+- ${objectiveGuidance.recommended}
+- ${objectiveGuidance.avoid}
+
 ## Recommended Placement Logic
 - Feed: use for the square or vertical feed image.
 - Story: use only if the creative is easy to read in a tall mobile format.
@@ -952,7 +1335,7 @@ An Instagram ad or published post promoting:
 
 ## Exact Steps In Meta Ads Manager
 1. Open Meta Ads Manager.
-2. Create a campaign using the Leads objective when possible.
+2. Choose the platform objective that follows the Recommended Objective guidance above. Do not automatically use Leads for an educational, referral, retention, or cross-sell action.
 3. Set the service area and approved audience settings at the Ad Set level.
 4. Keep placements automatic unless there is a clear reason to restrict.
 5. At the Ad level, open \`instagram-caption.txt\`.
@@ -1508,6 +1891,1106 @@ ${
 `;
 }
 
+function buildIncludedFolderList(
+  approvedAssetTypes: CampaignAsset["assetType"][]
+) {
+  const folders = ["- 01-campaign-brief"];
+
+  if (approvedAssetTypes.includes("GOOGLE_BUSINESS")) {
+    folders.push("- 02-google-business");
+  }
+
+  if (approvedAssetTypes.includes("META")) {
+    folders.push("- 03-facebook");
+    folders.push("- 04-instagram");
+  }
+
+  if (approvedAssetTypes.includes("GOOGLE_ADS")) {
+    folders.push("- 05-google-ads");
+  }
+
+  if (approvedAssetTypes.includes("YELP")) {
+    folders.push("- 06-yelp");
+  }
+
+  if (approvedAssetTypes.includes("EMAIL")) {
+    folders.push("- 07-email");
+  }
+
+  if (approvedAssetTypes.includes("BLOG")) {
+    folders.push("- 08-blog");
+  }
+
+  if (
+    approvedAssetTypes.includes("AEO_FAQ") ||
+    approvedAssetTypes.includes("ANSWER_SNIPPET")
+  ) {
+    folders.push("- 09-aeo");
+  }
+
+  if (approvedAssetTypes.includes("SEO")) {
+    folders.push("- 10-seo");
+  }
+
+  folders.push("- 11-operator-checklist");
+
+  return folders.join("\n");
+}
+
+function buildCommercialAccountMarkdown(params: {
+  campaign: CampaignWithAssets;
+  brief: CommercialBriefShape;
+  profile: BusinessProfile | null;
+}) {
+  const reusable =
+    params.brief
+      .commercialReusableInputs;
+
+  const target =
+    reusable?.targetAccount;
+
+  const sender =
+    reusable?.sender;
+
+  const spec =
+    params.brief
+      .commercialActionSpec;
+
+  const accountName =
+    target?.accountName ??
+    spec?.target?.accountName ??
+    spec?.target?.displayLabel ??
+    params.campaign.audience;
+
+  return `# Account and Contact Details
+
+## Target Account
+
+- Account Name: ${nonEmptyValue(accountName)}
+- Account Type: ${formatLabel(
+    spec?.target?.accountType ??
+      params.brief.interpretedIntent
+        ?.targetAccountType
+  )}
+- Relationship State: ${formatLabel(
+    spec?.target?.relationshipState ??
+      params.brief.interpretedIntent
+        ?.relationshipState
+  )}
+- Relationship Goal: ${formatLabel(
+    spec?.target?.relationshipGoal ??
+      params.brief.interpretedIntent
+        ?.relationshipGoal
+  )}
+- Named Incumbent: ${nonEmptyValue(
+    spec?.target?.namedIncumbent ??
+      params.brief.interpretedIntent
+        ?.namedIncumbent,
+    "None recorded"
+  )}
+
+## Target Contact
+
+- Name: ${nonEmptyValue(
+    target?.contactName
+  )}
+- Title or Role: ${nonEmptyValue(
+    target?.contactTitle
+  )}
+- Email: ${nonEmptyValue(
+    target?.contactEmail
+  )}
+- Phone: ${nonEmptyValue(
+    target?.contactPhone
+  )}
+
+## Pursuit Sender
+
+- Name: ${nonEmptyValue(
+    sender?.name
+  )}
+- Title: ${nonEmptyValue(
+    sender?.title
+  )}
+- Email: ${nonEmptyValue(
+    sender?.email
+  )}
+- Phone: ${nonEmptyValue(
+    sender?.phone ??
+      params.profile?.phone
+  )}
+
+## Business
+
+- Business Name: ${nonEmptyValue(
+    params.profile?.businessName
+  )}
+- Website: ${nonEmptyValue(
+    params.profile?.website
+  )}
+- Main Phone: ${nonEmptyValue(
+    params.profile?.phone
+  )}
+- Service Area: ${nonEmptyValue(
+    reusable?.capabilities
+      ?.serviceArea ??
+      params.campaign.serviceArea ??
+      params.profile?.serviceArea
+  )}
+`;
+}
+
+function buildCommercialCapabilitiesMarkdown(params: {
+  brief: CommercialBriefShape;
+  campaign: CampaignWithAssets;
+  profile: BusinessProfile | null;
+}) {
+  const capabilities =
+    params.brief
+      .commercialReusableInputs
+      ?.capabilities;
+
+  const selectedServices =
+    capabilities
+      ?.selectedServices ??
+    [];
+
+  return `# Commercial Capabilities
+
+## Services for This Pursuit
+
+${bulletLines(
+  selectedServices,
+  params.campaign.targetService ??
+    "No services selected"
+)}
+
+${markdownSection(
+  "Service Area or Travel Coverage",
+  capabilities?.serviceArea ??
+    params.campaign.serviceArea ??
+    params.profile?.serviceArea
+)}
+
+${markdownSection(
+  "Capacity Statement",
+  capabilities?.capacityStatement
+)}
+
+${markdownSection(
+  "Verified Commercial Experience",
+  capabilities?.commercialExperience
+)}
+
+${markdownSection(
+  "Approved Reference or Proof Summary",
+  capabilities?.referenceSummary
+)}
+
+${markdownSection(
+  "Availability or Response Model",
+  capabilities?.availabilityModel
+)}
+
+${markdownSection(
+  "Approved Differentiators",
+  capabilities?.differentiators
+)}
+
+> Use only facts the business can support. Do not add experience, capacity,
+> coverage, availability, certifications, or proof that has not been verified.
+`;
+}
+
+function buildCommercialVendorReadinessMarkdown(
+  brief: CommercialBriefShape
+) {
+  const readiness =
+    brief
+      .commercialVendorReadiness ??
+    {};
+
+  const rows: Array<{
+    label: string;
+    item?: CommercialVendorReadinessItem;
+    stage: string;
+  }> = [
+    {
+      label: "Completed W-9",
+      item: readiness.w9,
+      stage:
+        "Vendor qualification or onboarding",
+    },
+    {
+      label:
+        "Certificate of Insurance",
+      item:
+        readiness.insurance,
+      stage:
+        "Vendor qualification",
+    },
+    {
+      label:
+        "Business License",
+      item:
+        readiness.businessLicense,
+      stage:
+        "When required by the account or jurisdiction",
+    },
+    {
+      label:
+        "Commercial References Package",
+      item:
+        readiness.references,
+      stage:
+        "Vendor review or proposal evaluation",
+    },
+    {
+      label:
+        "Safety Documentation",
+      item:
+        readiness.safetyDocumentation,
+      stage:
+        "When required by the account",
+    },
+    {
+      label:
+        "Commercial Pricing Information",
+      item:
+        readiness.pricingSheet,
+      stage:
+        "Proposal or pricing review",
+    },
+  ];
+
+  return `# Vendor-Readiness Checklist
+
+This checklist records whether supporting artifacts are ready. The files
+themselves are not stored in MarketForge.
+
+${rows
+  .map(
+    ({ label, item, stage }) =>
+      `## ${checklistMark(
+        item?.status
+      )} ${label}
+
+- Status: ${checklistStatusLabel(
+        item?.status
+      )}
+- Usually Needed: ${stage}
+- Notes: ${nonEmptyValue(
+        item?.notes,
+        "None"
+      )}`
+  )
+  .join("\n\n")}
+`;
+}
+
+function buildCommercialDiscoveryMarkdown(
+  brief: CommercialBriefShape
+) {
+  const strategy =
+    brief.commercialStrategy;
+
+  const unresolved =
+    brief
+      .commercialAssetPackage
+      ?.unresolvedAccountDiscoveryItems ??
+    [];
+
+  return `# Account Discovery
+
+## Unresolved Account Discovery Items
+
+${bulletLines(
+  unresolved,
+  "No unresolved account-discovery items recorded."
+)}
+
+## Account Research Priorities
+
+${bulletLines(
+  strategy?.accountResearchPriorities
+)}
+
+## Discovery Objectives
+
+${bulletLines(
+  strategy?.discoveryObjectives
+)}
+
+## Qualification Criteria
+
+${bulletLines(
+  strategy?.qualificationCriteria
+)}
+
+## Proposal Priorities
+
+${bulletLines(
+  strategy?.proposalPriorities
+)}
+
+## Likely Objection Themes
+
+${bulletLines(
+  strategy?.objectionThemes
+)}
+
+## Important Rule
+
+Do not invent account-specific facts. Confirm scope, stakeholders,
+requirements, pricing expectations, procurement steps, insurance limits,
+service frequency, contract terms, and billing requirements during the
+actual pursuit.
+`;
+}
+
+function buildCommercialPursuitOverviewMarkdown(params: {
+  campaign: CampaignWithAssets;
+  brief: CommercialBriefShape;
+  profile: BusinessProfile | null;
+}) {
+  const spec =
+    params.brief
+      .commercialActionSpec;
+
+  const strategy =
+    params.brief
+      .commercialStrategy;
+
+  const reusable =
+    params.brief
+      .commercialReusableInputs;
+
+  const targetAccount =
+    reusable
+      ?.targetAccount
+      ?.accountName ??
+    spec?.target?.accountName ??
+    spec?.target?.displayLabel ??
+    params.campaign.audience;
+
+  const tasks =
+    [...(
+      spec?.executionTasks ??
+      []
+    )].sort(
+      (left, right) =>
+        (left.sequence ?? 0) -
+        (right.sequence ?? 0)
+    );
+
+  return `# Commercial Pursuit Overview
+
+## Action
+
+- Name: ${params.campaign.name}
+- Business: ${nonEmptyValue(
+    params.profile?.businessName
+  )}
+- Target Account: ${nonEmptyValue(
+    targetAccount
+  )}
+- Target Service: ${nonEmptyValue(
+    spec?.targetService ??
+      params.campaign.targetService
+  )}
+- Owner Objective: ${formatLabel(
+    spec?.ownerObjective ??
+      params.brief
+        .interpretedIntent
+        ?.ownerObjective
+  )}
+- Relationship Goal: ${formatLabel(
+    spec?.target?.relationshipGoal
+  )}
+- Revenue Model: ${formatLabel(
+    spec?.revenueModel ??
+      params.brief
+        .interpretedIntent
+        ?.revenueModel
+  )}
+- Launch Mode: ${formatLabel(
+    spec?.launchMode
+  )}
+
+## Action Summary
+
+${nonEmptyValue(
+  spec?.actionSummary ??
+    strategy?.executiveSummary
+)}
+
+## Expected Commercial Outcome
+
+${nonEmptyValue(
+  spec?.expectedOutcome ??
+    strategy?.desiredCommercialOutcome
+)}
+
+## Primary Next Step
+
+${nonEmptyValue(
+  spec?.primaryCallToAction
+)}
+
+## Pursuit Thesis
+
+${nonEmptyValue(
+  spec?.pursuitThesis
+)}
+
+## Entry Strategy
+
+${nonEmptyValue(
+  strategy?.entryStrategy
+)}
+
+## Differentiation Strategy
+
+${nonEmptyValue(
+  strategy?.differentiationStrategy
+)}
+
+## Incumbent Strategy
+
+${nonEmptyValue(
+  strategy?.incumbentStrategy,
+  "No named-incumbent strategy recorded."
+)}
+
+## Execution Plan
+
+${
+  tasks.length > 0
+    ? tasks
+        .map(
+          (task, index) =>
+            `### ${task.sequence ?? index + 1}. ${nonEmptyValue(
+              task.title,
+              "Commercial pursuit step"
+            )}
+
+- Phase: ${formatLabel(
+              task.phase
+            )}
+- Owner Action: ${nonEmptyValue(
+              task.ownerAction
+            )}
+- MarketForge Support: ${nonEmptyValue(
+              task.marketForgeSupport
+            )}
+- Complete When: ${nonEmptyValue(
+              task.completionSignal
+            )}
+
+${nonEmptyValue(
+  task.description,
+  ""
+)}`
+        )
+        .join("\n\n")
+    : "No execution tasks recorded."
+}
+
+## Success Signals
+
+${bulletLines(
+  spec?.successSignals
+)}
+
+## Risks and Guardrails
+
+${
+  spec?.risks?.length
+    ? spec.risks
+        .map(
+          (item) =>
+            `- **Risk:** ${nonEmptyValue(
+              item.risk
+            )}\n  **Mitigation:** ${nonEmptyValue(
+              item.mitigation
+            )}`
+        )
+        .join("\n")
+    : "- No risks recorded."
+}
+
+## Original Owner Request
+
+${nonEmptyValue(
+  params.brief.userPrompt
+)}
+`;
+}
+
+function buildCommercialStartHereMarkdown(params: {
+  campaign: CampaignWithAssets;
+  brief: CommercialBriefShape;
+  profile: BusinessProfile | null;
+  approvedAssets: CampaignAssetWithAiImage[];
+}) {
+  const spec =
+    params.brief
+      .commercialActionSpec;
+
+  const targetAccount =
+    params.brief
+      .commercialReusableInputs
+      ?.targetAccount
+      ?.accountName ??
+    spec?.target?.accountName ??
+    spec?.target?.displayLabel ??
+    params.campaign.audience;
+
+  const categories =
+    Array.from(
+      new Set(
+        params.approvedAssets.map(
+          (asset) => {
+            const metadata =
+              safeCommercialAssetMetadata(
+                asset.metadataJson
+              );
+
+            return (
+              metadata
+                .commercialCategoryLabel ??
+              formatLabel(
+                metadata
+                  .commercialCategory
+              )
+            );
+          }
+        )
+      )
+    );
+
+  return `# MarketForge Commercial Pursuit Pack
+
+This pack contains the exact approved materials and persisted pursuit details
+for beginning and advancing a Commercial account relationship.
+
+## Pursuit Summary
+
+- Business: ${nonEmptyValue(
+    params.profile?.businessName
+  )}
+- Action: ${params.campaign.name}
+- Target Account: ${nonEmptyValue(
+    targetAccount
+  )}
+- Target Service: ${nonEmptyValue(
+    spec?.targetService ??
+      params.campaign.targetService
+  )}
+- Relationship Goal: ${formatLabel(
+    spec?.target?.relationshipGoal
+  )}
+- Primary Next Step: ${nonEmptyValue(
+    spec?.primaryCallToAction
+  )}
+- Approved Materials: ${
+    params.approvedAssets.length
+  }
+
+## Start Here
+
+1. Read \`01-PURSUIT-OVERVIEW.md\`.
+2. Confirm the people and account information in \`02-ACCOUNT-AND-CONTACTS.md\`.
+3. Review the verified facts in \`03-CAPABILITIES.md\`.
+4. Review \`04-VENDOR-READINESS.md\` before vendor qualification.
+5. Review unresolved account facts in \`05-ACCOUNT-DISCOVERY.md\`.
+6. Use the approved materials inside the \`Materials\` folder.
+7. Record pursuit activity and outcomes in MarketForge.
+
+## Approved Material Categories
+
+${bulletLines(
+  categories,
+  "No approved Commercial materials were included."
+)}
+
+## Commercial Launch Meaning
+
+For a Commercial action, launch means beginning the approved pursuit. It does
+not mean publishing an advertisement. Depending on the action, launch may mean:
+
+- researching the account,
+- sending the initial outreach,
+- making the first call,
+- leaving a voicemail,
+- sending a direct message,
+- visiting the office,
+- beginning structured follow-up.
+
+## Guardrails
+
+- Use the exact approved material unless a real account fact requires an edit.
+- Do not invent the contact name, title, account requirements, pricing, scope,
+  incumbent relationship, insurance requirements, or procurement process.
+- Do not claim experience, certifications, capacity, references, availability,
+  or coverage that the business cannot verify.
+- Do not treat vendor-readiness checklist statuses as uploaded documents.
+- Do not use Residential ad budgets, platform allocations, or estimated-job
+  assumptions for this pursuit.
+`;
+}
+
+async function buildCommercialCampaignExportPack(params: {
+  campaign: CampaignWithAssets;
+  profile: BusinessProfile | null;
+  brief: CommercialBriefShape;
+}): Promise<{
+  zipBuffer: Buffer;
+  fileName: string;
+  exportType: ExportType;
+}> {
+  const {
+    campaign,
+    profile,
+    brief,
+  } = params;
+
+  const zip =
+    new JSZip();
+
+  const approvedAssets =
+    campaign.assets
+      .filter(
+        (asset) =>
+          asset.isApproved
+      )
+      .sort(
+        (left, right) => {
+          const leftMetadata =
+            safeCommercialAssetMetadata(
+              left.metadataJson
+            );
+
+          const rightMetadata =
+            safeCommercialAssetMetadata(
+              right.metadataJson
+            );
+
+          return (
+            commercialCategorySortIndex(
+              leftMetadata
+                .commercialCategory
+            ) -
+              commercialCategorySortIndex(
+                rightMetadata
+                  .commercialCategory
+              ) ||
+            (
+              left.title ??
+              ""
+            ).localeCompare(
+              right.title ??
+                ""
+            )
+          );
+        }
+      );
+
+  const businessName =
+    profile?.businessName ??
+    "Business";
+
+  const accountName =
+    brief
+      .commercialReusableInputs
+      ?.targetAccount
+      ?.accountName ??
+    brief
+      .commercialActionSpec
+      ?.target
+      ?.accountName ??
+    brief
+      .commercialActionSpec
+      ?.target
+      ?.displayLabel ??
+    campaign.audience ??
+    "Commercial Account";
+
+  const exportBaseName = [
+    sanitizeForFileName(
+      businessName
+    ),
+    sanitizeForFileName(
+      accountName
+    ),
+    "Commercial-Pursuit",
+  ]
+    .filter(Boolean)
+    .join("-");
+
+  const root =
+    zip.folder(
+      exportBaseName
+    );
+
+  if (!root) {
+    throw new Error(
+      "Failed to create Commercial export root folder."
+    );
+  }
+
+  root.file(
+    "00-START-HERE.md",
+    buildCommercialStartHereMarkdown({
+      campaign,
+      brief,
+      profile,
+      approvedAssets,
+    })
+  );
+
+  root.file(
+    "01-PURSUIT-OVERVIEW.md",
+    buildCommercialPursuitOverviewMarkdown({
+      campaign,
+      brief,
+      profile,
+    })
+  );
+
+  root.file(
+    "02-ACCOUNT-AND-CONTACTS.md",
+    buildCommercialAccountMarkdown({
+      campaign,
+      brief,
+      profile,
+    })
+  );
+
+  root.file(
+    "03-CAPABILITIES.md",
+    buildCommercialCapabilitiesMarkdown({
+      brief,
+      campaign,
+      profile,
+    })
+  );
+
+  root.file(
+    "04-VENDOR-READINESS.md",
+    buildCommercialVendorReadinessMarkdown(
+      brief
+    )
+  );
+
+  root.file(
+    "05-ACCOUNT-DISCOVERY.md",
+    buildCommercialDiscoveryMarkdown(
+      brief
+    )
+  );
+
+  root.file(
+    "manifest.json",
+    JSON.stringify(
+      {
+        market:
+          "COMMERCIAL",
+
+        campaignId:
+          campaign.id,
+
+        campaignCode:
+          campaign.campaignCode,
+
+        campaignName:
+          campaign.name,
+
+        businessName,
+
+        targetAccount:
+          accountName,
+
+        targetService:
+          campaign.targetService,
+
+        audience:
+          campaign.audience,
+
+        status:
+          campaign.status,
+
+        exportGeneratedAt:
+          new Date().toISOString(),
+
+        strategyVersion:
+          brief.strategyVersion ??
+          null,
+
+        commercialReusableInputs:
+          brief
+            .commercialReusableInputs ??
+          null,
+
+        commercialVendorReadiness:
+          brief
+            .commercialVendorReadiness ??
+          null,
+
+        commercialActionSpec:
+          brief
+            .commercialActionSpec ??
+          null,
+
+        commercialStrategy:
+          brief
+            .commercialStrategy ??
+          null,
+
+        execution:
+          brief.execution ??
+          null,
+
+        assetsIncluded:
+          approvedAssets.map(
+            (asset) => {
+              const metadata =
+                safeCommercialAssetMetadata(
+                  asset.metadataJson
+                );
+
+              return {
+                id:
+                  asset.id,
+
+                title:
+                  asset.title,
+
+                category:
+                  metadata
+                    .commercialCategory ??
+                  null,
+
+                categoryLabel:
+                  metadata
+                    .commercialCategoryLabel ??
+                  null,
+
+                readiness:
+                  metadata.readiness ??
+                  null,
+              };
+            }
+          ),
+      },
+      null,
+      2
+    )
+  );
+
+  const materialsRoot =
+    root.folder(
+      "Materials"
+    );
+
+  const groupedAssets =
+    new Map<
+      string,
+      CampaignAssetWithAiImage[]
+    >();
+
+  for (
+    const asset of
+    approvedAssets
+  ) {
+    const metadata =
+      safeCommercialAssetMetadata(
+        asset.metadataJson
+      );
+
+    const category =
+      metadata
+        .commercialCategory ??
+      "OTHER";
+
+    const existing =
+      groupedAssets.get(
+        category
+      ) ?? [];
+
+    existing.push(
+      asset
+    );
+
+    groupedAssets.set(
+      category,
+      existing
+    );
+  }
+
+  const groupedEntries =
+    Array.from(
+      groupedAssets.entries()
+    ).sort(
+      ([leftCategory], [
+        rightCategory,
+      ]) =>
+        commercialCategorySortIndex(
+          leftCategory
+        ) -
+        commercialCategorySortIndex(
+          rightCategory
+        )
+    );
+
+  for (
+    const [
+      category,
+      assets,
+    ] of groupedEntries
+  ) {
+    const firstMetadata =
+      safeCommercialAssetMetadata(
+        assets[0]
+          ?.metadataJson ??
+          null
+      );
+
+    const categoryFolder =
+      materialsRoot?.folder(
+        commercialCategoryFolderName(
+          category,
+          firstMetadata
+            .commercialCategoryLabel
+        )
+      );
+
+    assets.forEach(
+      (
+        asset,
+        index
+      ) => {
+        const metadata =
+          safeCommercialAssetMetadata(
+            asset.metadataJson
+          );
+
+        const materialContent =
+          `# ${asset.title ?? formatLabel(category)}
+
+## Category
+
+${metadata
+  .commercialCategoryLabel ??
+  formatLabel(category)}
+
+## Purpose
+
+${nonEmptyValue(
+  metadata.purpose
+)}
+
+## Approved Material
+
+${asset.content}
+
+## How to Use It
+
+${nonEmptyValue(
+  metadata.usageInstructions
+)}
+
+## Complete When
+
+${nonEmptyValue(
+  metadata.completionSignal
+)}
+
+## Readiness
+
+${formatLabel(
+  metadata.readiness
+)}
+
+## Account Discovery Still Required
+
+${bulletLines(
+  metadata
+    .requiredAccountDiscoveryItems,
+  "No additional account-discovery items are attached to this material."
+)}
+`;
+
+        categoryFolder?.file(
+          commercialMaterialFileName(
+            asset.title ??
+              formatLabel(
+                category
+              ),
+            index
+          ),
+          materialContent
+        );
+      }
+    );
+  }
+
+  if (
+    approvedAssets.length ===
+    0
+  ) {
+    materialsRoot?.file(
+      "NO-APPROVED-MATERIALS.md",
+      `# No Approved Materials
+
+No Commercial materials were approved when this export was generated.
+
+Return to MarketForge, approve the appropriate pursuit materials, and export
+the pack again.
+`
+    );
+  }
+
+  if (
+    profile?.logoUrl
+  ) {
+    const logoBuffer =
+      await fetchAiImageBuffer(
+        profile.logoUrl
+      );
+
+    if (logoBuffer) {
+      root.file(
+        "logo.png",
+        logoBuffer
+      );
+    }
+  }
+
+  const zipBuffer =
+    await zip.generateAsync({
+      type:
+        "nodebuffer",
+
+      compression:
+        "DEFLATE",
+
+      compressionOptions: {
+        level: 6,
+      },
+    });
+
+  return {
+    zipBuffer,
+
+    fileName:
+      `${exportBaseName}.zip`,
+
+    exportType:
+      "CAMPAIGN_PACK",
+  };
+}
+
 export async function buildCampaignExportPack({
   campaign,
   profile,
@@ -1516,8 +2999,27 @@ export async function buildCampaignExportPack({
   fileName: string;
   exportType: ExportType;
 }> {
-  const zip = new JSZip();
-  const brief = safeBriefJson(campaign.briefJson);
+  const commercialBrief =
+    safeCommercialBriefJson(
+      campaign.briefJson
+    );
+
+  if (commercialBrief) {
+    return buildCommercialCampaignExportPack({
+      campaign,
+      profile,
+      brief:
+        commercialBrief,
+    });
+  }
+
+  const zip =
+    new JSZip();
+
+  const brief =
+    safeBriefJson(
+      campaign.briefJson
+    );
   const estimatedRange = extractEstimatedRange(campaign.briefJson);
   const utm = generateUtmSet(campaign);
 
@@ -1544,6 +3046,12 @@ export async function buildCampaignExportPack({
   const blog = parseStructuredAsset<BlogAssetPayload>(blogAsset);
 
   const actionSpec = brief?.actionSpec ?? null;
+
+  const ownerObjective =
+    actionSpec?.ownerObjective ??
+    brief?.ownerObjective ??
+    "STANDARD_SERVICE_GROWTH";
+
   const actionConstruct = formatLabel(actionSpec?.constructType);
   const actionAudience =
     actionSpec?.targetAudience ??
@@ -1605,6 +3113,7 @@ This pack is designed so that an operator with little or no platform experience 
 
 ## Action Summary
 - Name: ${campaign.name}
+- Owner Objective: ${formatLabel(ownerObjective)}
 - Action Type: ${actionConstruct}
 - Target Service: ${targetService}
 - Who This Is For: ${actionAudience}
@@ -1648,17 +3157,7 @@ ${budgetRecommendation.lines
 ## What Is Included In This Pack
 Only approved assets are included.
 
-- 01-campaign-brief
-- 02-google-business
-- 03-facebook
-- 04-instagram
-- 05-google-ads
-- 06-yelp
-- 07-email
-- 08-blog
-- 09-aeo
-- 10-seo
-- 11-operator-checklist
+${buildIncludedFolderList(approvedAssetTypes)}
 
 ## Recommended Launch Order
 1. Read \`01-campaign-brief/campaign-summary.md\`
@@ -1702,6 +3201,7 @@ ${buildGlobalMistakesSection()}
         campaignId: campaign.id,
         campaignCode: campaign.campaignCode,
         campaignName: campaign.name,
+        ownerObjective,
         exportGeneratedAt: new Date().toISOString(),
         serviceArea: campaign.serviceArea ?? profile?.serviceArea ?? null,
         targetService: campaign.targetService ?? null,
@@ -1773,6 +3273,7 @@ ${campaign.campaignCode}
 - Service Area: ${serviceArea}
 
 ## Action Structure
+- Owner Objective: ${formatLabel(ownerObjective)}
 - Action Type: ${actionConstruct}
 - Business Goal: ${formatLabel(actionSpec?.businessGoal)}
 - Target Service: ${
@@ -1836,7 +3337,9 @@ ${
 `
   );
 
-  const googleBusinessFolder = root.folder("02-google-business");
+  const googleBusinessFolder = googleBusinessAsset
+    ? root.folder("02-google-business")
+    : null;
   googleBusinessFolder?.file(
     "post-copy.txt",
     googleBusiness
@@ -1885,7 +3388,9 @@ CTA: ${googleBusiness.cta}`
     })
   );
 
-  const facebookFolder = root.folder("03-facebook");
+  const facebookFolder = metaAsset
+    ? root.folder("03-facebook")
+    : null;
   facebookFolder?.file(
     "facebook-copy.txt",
     meta
@@ -1911,6 +3416,7 @@ CTA: ${meta.cta}`
   facebookFolder?.file(
     "operator-notes.md",
     buildFacebookOperatorNotes({
+      ownerObjective,
       actionOffer,
       actionCta,
       actionAudience,
@@ -1941,7 +3447,9 @@ CTA: ${meta.cta}`
     })
   );
 
-  const instagramFolder = root.folder("04-instagram");
+  const instagramFolder = metaAsset
+    ? root.folder("04-instagram")
+    : null;
   instagramFolder?.file(
     "instagram-caption.txt",
     meta
@@ -1967,6 +3475,7 @@ CTA: ${meta.cta}`
   instagramFolder?.file(
     "operator-notes.md",
     buildInstagramOperatorNotes({
+      ownerObjective,
       actionOffer,
       actionCta,
       actionAudience,
@@ -2008,7 +3517,9 @@ CTA: ${meta.cta}`
     })
   );
 
-  const googleAdsFolder = root.folder("05-google-ads");
+  const googleAdsFolder = googleAdsAsset
+    ? root.folder("05-google-ads")
+    : null;
   googleAdsFolder?.file(
     "search-assets.txt",
     googleAdsAsset?.content ?? "No approved Google Ads copy found."
@@ -2037,7 +3548,9 @@ CTA: ${meta.cta}`
     })
   );
 
-  const yelpFolder = root.folder("06-yelp");
+  const yelpFolder = yelpAsset
+    ? root.folder("06-yelp")
+    : null;
   yelpFolder?.file(
     "yelp-ad-copy.txt",
     yelpAsset?.content ?? "No approved Yelp ad copy found."
@@ -2064,7 +3577,9 @@ CTA: ${meta.cta}`
     })
   );
 
-  const emailFolder = root.folder("07-email");
+  const emailFolder = emailAsset
+    ? root.folder("07-email")
+    : null;
   emailFolder?.file(
     "email-copy.txt",
     email
@@ -2088,7 +3603,9 @@ CTA: ${email.cta}`
     })
   );
 
-  const blogFolder = root.folder("08-blog");
+  const blogFolder = blogAsset
+    ? root.folder("08-blog")
+    : null;
   blogFolder?.file("blog-article.md", buildBlogArticleMarkdown(blog));
   blogFolder?.file(
     "operator-notes.md",
@@ -2100,7 +3617,10 @@ CTA: ${email.cta}`
     })
   );
 
-  const aeoFolder = root.folder("09-aeo");
+  const aeoFolder =
+    aeoFaqAsset || answerSnippetAsset
+      ? root.folder("09-aeo")
+      : null;
   aeoFolder?.file(
     "faq-content.md",
     aeoFaqAsset?.content ?? "No approved FAQ asset found."
@@ -2118,7 +3638,9 @@ CTA: ${email.cta}`
     })
   );
 
-  const seoFolder = root.folder("10-seo");
+  const seoFolder = seoAsset
+    ? root.folder("10-seo")
+    : null;
   seoFolder?.file(
     "seo-guidance.md",
     `# SEO Optimization Guidance
