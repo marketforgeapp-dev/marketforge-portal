@@ -36,6 +36,8 @@ model Workspace {
 
   status WorkspaceStatus @default(PENDING_ACTIVATION)
 
+  strategySessionLead StrategySessionLead?
+
   onboardingCompletedAt DateTime?
   activatedAt           DateTime?
 
@@ -79,24 +81,24 @@ model Workspace {
 }
 
 model WorkspaceOpportunitySnapshot {
-  id                       String    @id @default(cuid())
-  workspaceId              String    @unique
-  snapshotVersion          Int       @default(1)
+  id              String @id @default(cuid())
+  workspaceId     String @unique
+  snapshotVersion Int    @default(1)
 
-  topOpportunityJson       Json
-  backlogJson              Json
-  heroJson                 Json
+  topOpportunityJson Json
+  backlogJson        Json
+  heroJson           Json
 
   decisionSpaceJson        Json?
   aiCandidatePoolJson      Json?
   availableJobsEstimate    Int?
   decisionSpaceGeneratedAt DateTime?
 
-  generatedAt              DateTime  @default(now())
-  expiresAt                DateTime
-  invalidatedAt            DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  generatedAt   DateTime  @default(now())
+  expiresAt     DateTime
+  invalidatedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -498,6 +500,61 @@ model CampaignBaselineSnapshot {
 
   @@index([workspaceId])
   @@index([campaignId])
+}
+
+model StrategySessionLead {
+  id String @id @default(cuid())
+
+  name         String
+  email        String
+  phone        String?
+  businessName String
+  website      String
+  availability String?
+
+  normalizedBusinessName String
+  websiteDomain          String
+
+  status StrategySessionLeadStatus @default(NEW)
+
+  requestedAt DateTime  @default(now())
+  sessionAt   DateTime?
+  preparedAt  DateTime?
+  scheduledAt DateTime?
+  completedAt DateTime?
+
+  convertedWorkspaceId String?    @unique
+  convertedWorkspace   Workspace? @relation(fields: [convertedWorkspaceId], references: [id], onDelete: SetNull)
+
+  convertedAt         DateTime?
+  conversionMatchType StrategySessionConversionMatchType?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([email])
+  @@index([websiteDomain])
+  @@index([normalizedBusinessName])
+  @@index([requestedAt])
+  @@index([createdAt])
+}
+
+enum StrategySessionLeadStatus {
+  NEW
+  PREPARING
+  SCHEDULED
+  COMPLETED
+  CONVERTED
+  CLOSED
+}
+
+enum StrategySessionConversionMatchType {
+  AUTO_DOMAIN_AND_NAME
+  AUTO_DOMAIN
+  MANUAL
 }
 
 enum WorkspaceRole {

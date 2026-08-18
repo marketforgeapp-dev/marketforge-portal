@@ -12,6 +12,7 @@ import { stripe } from "@/lib/stripe";
 import { BILLING_PRICE_IDS, isDemoEmail } from "@/lib/billing";
 import { mergeAndDedupeServicesForIndustry } from "@/lib/service-normalization";
 import { sendWorkspaceCreatedNotification } from "@/lib/email/send-workspace-created-notification";
+import { attributeStrategySessionConversion } from "@/lib/public-site/strategy-session-conversion";
 
 function toNullableString(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -115,8 +116,10 @@ function getFounderOfferByEmail(
 }
 
 function getFounderCouponId(
-  _offerType: "FOUNDER_1" | "FOUNDER_2" | "FOUNDER_3"
+  offerType: "FOUNDER_1" | "FOUNDER_2" | "FOUNDER_3"
 ): string {
+  void offerType;
+
   const couponId = process.env.STRIPE_50_OFF_2_MONTH_COUPON_ID;
 
   if (!couponId) {
@@ -457,6 +460,37 @@ export async function saveOnboarding(input: unknown) {
       ...businessProfileData,
     },
   });
+
+  try {
+  const strategySessionConversion =
+    await attributeStrategySessionConversion({
+      workspaceId: workspace.id,
+      workspaceCreatedAt: workspace.createdAt,
+      isDemo: workspace.isDemo,
+      businessName: businessProfile.businessName,
+      website: businessProfile.website,
+      ownerEmail: email,
+    });
+
+  if (strategySessionConversion.matched) {
+    console.info(
+      "[strategy-session] Conversion attributed",
+      {
+        workspaceId: workspace.id,
+        leadId: strategySessionConversion.leadId,
+        matchType: strategySessionConversion.matchType,
+      },
+    );
+  }
+} catch (error) {
+  console.error(
+    "[strategy-session] Conversion attribution failed",
+    {
+      workspaceId: workspace.id,
+      error,
+    },
+  );
+}
 
   if (isNewWorkspace) {
     try {
