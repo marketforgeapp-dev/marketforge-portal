@@ -6,7 +6,7 @@ import { absolutePublicUrl } from "@/lib/public-site/site-config";
 const corePublicRoutes = [
   "/",
   "/how-growth-works",
-  "/revenue-operating-system",
+  "/growth-execution-platform",
   "/how-marketforge-works",
   "/why-marketforge",
   "/growth-strategy-session",

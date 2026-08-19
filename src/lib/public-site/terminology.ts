@@ -5,7 +5,7 @@ export const MARKETFORGE_TERMINOLOGY = {
 
   tagline: "More Jobs. Less Guesswork.",
 
-  category: "Revenue Operating System",
+  category: "Growth Execution Platform",
 
   corePromise: "You run the business. MarketForge grows it.",
 
@@ -23,6 +23,6 @@ export const MARKETFORGE_TERMINOLOGY = {
   executionDoctrine:
     "Less work for the business should never mean less visibility.",
 
-  revenueOperatingSystemDefinition:
-    "A Revenue Operating System is the business function that continuously identifies growth opportunities, recommends what deserves attention, turns chosen opportunities into execution, measures resulting business outcomes, and uses that context to improve what happens next.",
+  growthExecutionPlatformDescription:
+    "MarketForge is a Growth Execution Platform for local service businesses. It helps operationalize the continuing work of understanding business context, identifying worthwhile opportunities, deciding what deserves attention, turning decisions into execution, and learning from business outcomes.",
 } as const;

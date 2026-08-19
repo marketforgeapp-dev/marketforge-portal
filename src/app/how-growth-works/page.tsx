@@ -301,16 +301,17 @@ export default function HowGrowthWorksPage() {
           </h2>
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/68">
-            That responsibility is what leads to the idea of a Revenue
-            Operating System: a business function connecting opportunity,
-            recommendation, execution, outcomes, and the next decision.
+            That continuing responsibility is the operating model MarketForge is
+            built to support. MarketForge is a Growth Execution Platform that
+            connects opportunity, recommendation, execution, outcomes, and the
+            next decision.
           </p>
 
           <Link
-            href="/revenue-operating-system"
+            href="/growth-execution-platform"
             className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 transition hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
           >
-            Understand the Revenue Operating System
+            Understand the Growth Execution Platform
             <span aria-hidden="true">→</span>
           </Link>
         </div>

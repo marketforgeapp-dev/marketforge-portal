@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 
 export type KnowledgePillar =
-  | "Revenue Operating Systems"
+  | "Growth Execution"
   | "Growth Strategy"
   | "Opportunity Selection"
   | "Execution"
@@ -27,7 +27,7 @@ export type KnowledgeArticle = {
 };
 
 export const KNOWLEDGE_PILLAR_ORDER: KnowledgePillar[] = [
-  "Revenue Operating Systems",
+  "Growth Execution",
   "Opportunity Selection",
   "Growth Strategy",
   "Execution",

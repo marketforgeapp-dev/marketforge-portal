@@ -10,14 +10,14 @@ import { buildPublicMetadata } from "@/lib/public-site/metadata";
 import { buildWebPageSchema } from "@/lib/public-site/structured-data";
 import { MARKETFORGE_TERMINOLOGY } from "@/lib/public-site/terminology";
 
-const title = "Revenue Operating System";
+const title = "Growth Execution Platform";
 const description =
-  "A Revenue Operating System connects growth opportunities, recommendations, business choice, execution, outcomes, and the next decision into one continuous business function.";
+  "MarketForge is a Growth Execution Platform that connects business context, growth opportunities, recommendations, business choice, execution, outcomes, and the next decision.";
 
 export const metadata: Metadata = buildPublicMetadata({
   title,
   description,
-  path: "/revenue-operating-system",
+  path: "/growth-execution-platform",
 });
 
 const operatingQuestions = [
@@ -60,23 +60,23 @@ export default function RevenueOperatingSystemPage() {
         data={buildWebPageSchema({
           name: title,
           description,
-          path: "/revenue-operating-system",
+          path: "/growth-execution-platform",
         })}
       />
 
       <PublicPageHero
-        eyebrow="Revenue Operating System"
+        eyebrow="Growth Execution Platform"
         title="Growth needs an operating function, not another disconnected activity."
         description={
           <>
             <p className="font-medium text-white/88">
-              {MARKETFORGE_TERMINOLOGY.revenueOperatingSystemDefinition}
+              {MARKETFORGE_TERMINOLOGY.growthExecutionPlatformDescription}
             </p>
 
             <p className="mt-4">
-              The category exists because growth is not one channel, one tactic,
-              one recommendation, or one report. It is a continuing business
-              process.
+              Growth is not one channel, one tactic, one recommendation, or one
+              report. It is a continuing business process, and MarketForge is built
+              to help keep that process moving.
             </p>
           </>
         }
@@ -92,8 +92,8 @@ export default function RevenueOperatingSystemPage() {
           </div>
 
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            A Revenue Operating System keeps answering the questions growth
-            creates.
+            MarketForge keeps the growth process connected by repeatedly answering
+            the questions growth creates.
           </h2>
         </div>
 
@@ -117,9 +117,9 @@ export default function RevenueOperatingSystemPage() {
           </h2>
 
           <p className="mt-5 text-base leading-7 text-white/68 sm:text-lg sm:leading-8">
-            An activity-first system starts with what to run. A Revenue
-            Operating System starts with what is worth pursuing and lets the
-            business objective determine the execution method.
+            An activity-first approach starts with what to run. MarketForge starts
+            with what is worth pursuing and lets the business objective determine
+            the execution method.
           </p>
         </div>
 
@@ -187,7 +187,7 @@ export default function RevenueOperatingSystemPage() {
       <PublicSection contentClassName="max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Outcomes make the operating system continuous.
+            Outcomes keep the growth function continuous.
           </h2>
 
           <p className="mt-5 text-base leading-7 text-white/68 sm:text-lg sm:leading-8">
@@ -325,7 +325,7 @@ export default function RevenueOperatingSystemPage() {
 
               <p className="mt-2 max-w-4xl text-sm leading-6 text-white/65">
                 Outcomes and updated business conditions become the context for the
-                next decision. That keeps the operating system current instead of
+                next decision. That keeps the growth process current instead of
                 treating each action as an isolated event.
               </p>
             </div>
@@ -375,23 +375,23 @@ export default function RevenueOperatingSystemPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 sm:p-8">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/80">
-              Canonical answer
+              Knowledge answer
             </div>
 
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-              What is a Revenue Operating System?
+              What is a Growth Execution Platform?
             </h2>
 
             <p className="mt-4 text-sm leading-6 text-white/62">
-              Read the focused Knowledge answer and the reasoning behind the
-              category definition.
+              Read how MarketForge uses the term and how the platform helps
+              operationalize a continuous growth function.
             </p>
 
             <Link
-              href="/knowledge/what-is-a-revenue-operating-system"
+              href="/knowledge/what-is-a-growth-execution-platform"
               className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 transition hover:text-cyan-200"
             >
-              Read the canonical answer
+              Read the focused answer
               <span aria-hidden="true">→</span>
             </Link>
           </div>

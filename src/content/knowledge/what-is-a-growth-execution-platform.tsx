@@ -6,18 +6,23 @@ import {
 import { ShortAnswer } from "@/components/public-site/knowledge/short-answer";
 import { MARKETFORGE_TERMINOLOGY } from "@/lib/public-site/terminology";
 
-export default function WhatIsARevenueOperatingSystemArticle() {
+export default function WhatIsAGrowthExecutionPlatformArticle() {
   return (
     <>
       <div className="mt-8">
         <ShortAnswer>
           <p>
-            {MARKETFORGE_TERMINOLOGY.revenueOperatingSystemDefinition}
+            A Growth Execution Platform helps a business connect growth
+            decisions to execution. MarketForge does this by using business
+            context to identify worthwhile opportunities, recommend what
+            deserves attention, preserve business choice, turn selected
+            opportunities into executable work, and keep business outcomes
+            visible so they can inform what happens next.
           </p>
         </ShortAnswer>
       </div>
 
-      <ArticleSection title="Why does a business need this function?">
+      <ArticleSection title="Why does a business need a continuous growth function?">
         <p>
           Growth creates a recurring set of decisions. A business has to
           understand what is happening, identify opportunities, decide what
@@ -33,7 +38,7 @@ export default function WhatIsARevenueOperatingSystemArticle() {
         </p>
       </ArticleSection>
 
-      <ArticleSection title="A Revenue Operating System connects the whole growth process">
+      <ArticleSection title="A Growth Execution Platform helps operationalize the whole growth process">
         <div className="grid gap-3 sm:grid-cols-5">
           {[
             "Identify",
@@ -67,15 +72,15 @@ export default function WhatIsARevenueOperatingSystemArticle() {
 
       <ArticleSection title="It starts with the opportunity, not the activity">
         <p>
-          Many growth systems begin by choosing an activity: run an ad, publish
-          content, send an email, launch a promotion, or use a particular
-          channel.
+          Many growth approaches begin by choosing an activity: run an ad,
+          publish content, send an email, launch a promotion, or use a
+          particular channel.
         </p>
 
         <p>
-          A Revenue Operating System reverses that order. It starts by asking
-          what business opportunity is worth pursuing under current conditions.
-          The execution method follows from that objective.
+          MarketForge reverses that order. It starts by asking what business
+          opportunity is worth pursuing under current conditions. The execution
+          method follows from that objective.
         </p>
 
         <ArticleCallout>
@@ -91,9 +96,9 @@ export default function WhatIsARevenueOperatingSystemArticle() {
 
       <ArticleSection title="The recommendation does not replace business judgment">
         <p>
-          A Revenue Operating System should narrow the decision space and make
-          the strongest recommendation visible. It should not pretend that the
-          system knows every piece of context the owner knows.
+          A useful Growth Execution Platform should narrow the decision space
+          and make the strongest recommendation visible without pretending it
+          knows every piece of context the owner knows.
         </p>
 
         <ArticleCallout>
@@ -108,7 +113,7 @@ export default function WhatIsARevenueOperatingSystemArticle() {
         </p>
       </ArticleSection>
 
-      <ArticleSection title="Execution is part of the operating system">
+      <ArticleSection title="Execution is part of the platform's job">
         <p>
           Identifying a good opportunity does not create a business result.
           Something still has to happen.
@@ -122,16 +127,15 @@ export default function WhatIsARevenueOperatingSystemArticle() {
 
         <p>
           Separating recommendation from execution leaves the business with
-          another handoff to manage. A Revenue Operating System is meant to
-          reduce that burden by connecting the decision to the work that
-          follows.
+          another handoff to manage. A Growth Execution Platform should reduce
+          that burden by connecting the decision to the work that follows.
         </p>
       </ArticleSection>
 
       <ArticleSection title="Business outcomes close the loop">
         <p>
-          The system should ultimately care about business outcomes rather than
-          activity for its own sake.
+          The growth process should ultimately care about business outcomes
+          rather than activity for its own sake.
         </p>
 
         <p>
@@ -148,12 +152,12 @@ export default function WhatIsARevenueOperatingSystemArticle() {
         </p>
       </ArticleSection>
 
-      <ArticleSection title="How MarketForge applies the model">
+      <ArticleSection title="What makes MarketForge a Growth Execution Platform?">
         <p>
-          MarketForge is built around this operating model for local service
-          businesses. It evaluates business context, surfaces growth
-          opportunities, recommends what deserves attention, preserves owner
-          choice, helps turn selected opportunities or owner-directed
+          MarketForge is built around a continuous growth operating model for
+          local service businesses. It evaluates business context, surfaces
+          growth opportunities, recommends what deserves attention, preserves
+          owner choice, helps turn selected opportunities or owner-directed
           objectives into executable actions, and keeps resulting business
           outcomes visible.
         </p>

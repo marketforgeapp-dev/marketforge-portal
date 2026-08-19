@@ -14,7 +14,7 @@ import { buildPublicMetadata } from "@/lib/public-site/metadata";
 export const metadata: Metadata = buildPublicMetadata({
   title: "Knowledge",
   description:
-    "Clear answers to durable questions about growth opportunities, recommendations, execution, competitors, measurement, and Revenue Operating Systems.",
+  "Clear answers to durable questions about growth opportunities, recommendations, execution, competitors, measurement, growth execution, and continuous growth decision-making.",
   path: "/knowledge",
 });
 

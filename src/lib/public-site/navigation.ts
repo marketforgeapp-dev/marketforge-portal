@@ -9,8 +9,8 @@ export const PUBLIC_NAVIGATION: PublicNavigationItem[] = [
     href: "/how-growth-works",
   },
   {
-    label: "Revenue Operating System",
-    href: "/revenue-operating-system",
+    label: "Growth Execution Platform",
+    href: "/growth-execution-platform",
   },
   {
     label: "How MarketForge Works",

@@ -6,7 +6,7 @@ export const PUBLIC_SITE_CONFIG = {
   url: MARKETFORGE_TERMINOLOGY.domain,
 
   defaultTitle:
-    "MarketForge | Revenue Operating System for Local Service Businesses",
+    "MarketForge | Growth Execution Platform for Local Service Businesses",
 
   defaultDescription:
     "MarketForge helps local service businesses identify worthwhile growth opportunities, choose what deserves attention, turn decisions into execution, and connect the work to real business outcomes.",

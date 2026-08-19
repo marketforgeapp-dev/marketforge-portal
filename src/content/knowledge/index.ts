@@ -7,33 +7,33 @@ import GrowthWhenBusinessIsBusyArticle from "./growth-when-business-is-busy";
 import HowToChooseAGrowthOpportunityArticle from "./how-to-choose-a-growth-opportunity";
 import HowToMeasureAGrowthActionArticle from "./how-to-measure-a-growth-action";
 import OpportunityBeforeExecutionArticle from "./opportunity-before-execution";
-import WhatIsARevenueOperatingSystemArticle from "./what-is-a-revenue-operating-system";
+import WhatIsAGrowthExecutionPlatformArticle from "./what-is-a-growth-execution-platform";
 import WhyGrowthRecommendationsNeedOptionsArticle from "./why-growth-recommendations-need-options";
 import WhyRecommendationsNeedExecutionArticle from "./why-recommendations-need-execution";
 import WordOfMouthAndBusinessGrowthArticle from "./word-of-mouth-and-business-growth";
 
 export const KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
   {
-    slug: "what-is-a-revenue-operating-system",
-    title: "What Is a Revenue Operating System?",
-    question: "What Is a Revenue Operating System?",
-    description:
-      "A Revenue Operating System connects growth opportunities, recommendations, business choice, execution, and outcomes into one continuous business function.",
-    pillar: "Revenue Operating Systems",
-    status: "published",
-    publishedAt: "2026-08-16",
-    reviewedAt: "2026-08-16",
-    author: {
-      name: "Patrick Donovan",
-      role: "Founder, MarketForge",
-    },
-    relatedSlugs: [
-      "opportunity-before-execution",
-      "why-recommendations-need-execution",
-      "how-to-measure-a-growth-action",
-    ],
-    component: WhatIsARevenueOperatingSystemArticle,
+  slug: "what-is-a-growth-execution-platform",
+  title: "What Is a Growth Execution Platform?",
+  question: "What Is a Growth Execution Platform?",
+  description:
+    "A Growth Execution Platform helps connect business context, growth opportunities, recommendations, business choice, execution, and outcomes so growth decisions can move into action.",
+  pillar: "Growth Execution",
+  status: "published",
+  publishedAt: "2026-08-18",
+  reviewedAt: "2026-08-18",
+  author: {
+    name: "Patrick Donovan",
+    role: "Founder, MarketForge",
   },
+  relatedSlugs: [
+    "opportunity-before-execution",
+    "why-recommendations-need-execution",
+    "how-to-measure-a-growth-action",
+  ],
+  component: WhatIsAGrowthExecutionPlatformArticle,
+},
   {
     slug: "how-to-choose-a-growth-opportunity",
     title: "How Do You Choose a Growth Opportunity?",
@@ -72,7 +72,7 @@ export const KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     relatedSlugs: [
       "how-to-choose-a-growth-opportunity",
       "why-recommendations-need-execution",
-      "what-is-a-revenue-operating-system",
+      "what-is-a-growth-execution-platform",
     ],
     component: OpportunityBeforeExecutionArticle,
   },
@@ -114,7 +114,7 @@ export const KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     relatedSlugs: [
       "how-to-choose-a-growth-opportunity",
       "business-context-and-growth-recommendations",
-      "what-is-a-revenue-operating-system",
+      "what-is-a-growth-execution-platform",
     ],
     component: WhyGrowthRecommendationsNeedOptionsArticle,
   },
@@ -156,7 +156,7 @@ export const KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     relatedSlugs: [
       "opportunity-before-execution",
       "how-to-measure-a-growth-action",
-      "what-is-a-revenue-operating-system",
+      "what-is-a-growth-execution-platform",
     ],
     component: WhyRecommendationsNeedExecutionArticle,
   },
@@ -177,7 +177,7 @@ export const KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     relatedSlugs: [
       "booked-revenue-and-future-growth-decisions",
       "why-recommendations-need-execution",
-      "what-is-a-revenue-operating-system",
+      "what-is-a-growth-execution-platform",
     ],
     component: HowToMeasureAGrowthActionArticle,
   },

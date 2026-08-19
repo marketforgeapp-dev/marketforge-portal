@@ -148,7 +148,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="w-fit rounded-full border border-cyan-300/15 bg-cyan-300/[0.08] px-3 py-1 text-xs font-semibold text-cyan-200">
-                    Revenue Operating System
+                    Growth Execution Platform
                   </div>
                 </div>
 
@@ -274,7 +274,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
         <div className="mx-auto max-w-4xl text-center">
           <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">
-            Revenue Operating System
+            Growth Execution Platform
           </div>
 
           <h2 className="mt-4 text-4xl font-bold tracking-[-0.03em] text-white sm:text-5xl">
@@ -282,17 +282,18 @@ export default function HomePage() {
           </h2>
 
           <p className="mx-auto mt-6 max-w-3xl text-base leading-7 text-white/66 sm:text-lg sm:leading-8">
-            A Revenue Operating System continuously identifies growth
-            opportunities, recommends what deserves attention, turns chosen
-            opportunities into execution, measures resulting business
-            outcomes, and uses that context to improve what happens next.
+            MarketForge is a Growth Execution Platform built to operationalize the
+            continuing work of growth: understand the business, identify worthwhile
+            opportunities, recommend what deserves attention, turn chosen
+            opportunities into execution, measure business outcomes, and use that
+            context to improve what happens next.
           </p>
 
           <Link
-            href="/revenue-operating-system"
+            href="/growth-execution-platform"
             className="mt-7 inline-flex text-sm font-semibold text-cyan-300 transition hover:text-cyan-200"
           >
-            Understand the Revenue Operating System →
+            Understand the Growth Execution Platform →
           </Link>
         </div>
 
@@ -537,8 +538,8 @@ export default function HomePage() {
               <p className="mt-6 max-w-2xl text-base leading-7 text-white/66 sm:text-lg sm:leading-8">
                 The Knowledge Center explains the principles behind opportunity
                 selection, recommendations, execution, measurement, competitor
-                context, busy-season growth, and the Revenue Operating System
-                itself.
+                context, busy-season growth, and how MarketForge connects those
+                responsibilities into a continuous growth process.
               </p>
 
               <Link
