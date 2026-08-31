@@ -36,6 +36,9 @@ export type PromptReadinessResult =
       message: string;
       requirements: string[];
       examplePrompt: string;
+      redirectHref?: string;
+      redirectLabel?: string;
+      isRoutingNotice?: boolean;
     };
 
 type CreateCampaignResult =
@@ -67,7 +70,6 @@ type EngineOpportunity = Awaited<
 type PromptLane =
   | "SERVICE"
   | "CAPACITY_FILL"
-  | "AEO_SEO"
   | "REVIEWS"
   | "GENERAL";
 
@@ -377,57 +379,226 @@ function toTitleCase(value: string): string {
     .join(" ");
 }
 
-async function generateBlogWithAI(params: {
+type GeneratedArticle = {
+  title: string;
+  excerpt: string;
+  introduction: string;
+  sections: Array<{
+    heading: string;
+    body: string;
+  }>;
+  cta: string;
+};
+
+type ActionSeoStrategy = {
+  primarySearchTheme: string;
+  secondaryKeywordThemes: string[];
+  searchIntent: string;
+  targetService: string;
+  targetGeography: string;
+  offerContext: string | null;
+  recommendedPageFocus: string;
+  titleTag: string;
+  metaDescription: string;
+  h1Recommendation: string;
+  suggestedSlug: string;
+  internalLinkTargets: string[];
+  supportingQuestions: string[];
+  contentSupportNotes: string[];
+};
+
+type GeneratedRevenueContentPackage = {
+  actionSeoStrategy: ActionSeoStrategy;
+  consumerArticle: GeneratedArticle;
+  knowledgeArticle: GeneratedArticle;
+};
+
+async function generateRevenueContentPackageWithAI(params: {
   ownerObjective: ResidentialOwnerObjective;
   businessName: string;
   serviceName: string;
   serviceArea: string;
+  actionTitle: string;
+  actionSummary: string;
+  targetAudience: string;
   offer?: string | null;
-}) {
+  cta?: string | null;
+}): Promise<GeneratedRevenueContentPackage | null> {
   try {
     const prompt = `
-You are writing a helpful, local-service blog post for homeowners.
+You are creating the organic-search and website-content package that supports one revenue action for a local service business.
 
+BUSINESS
 Business: ${params.businessName}
 Service: ${params.serviceName}
-Location: ${params.serviceArea}
+Service Area: ${params.serviceArea}
+
+REVENUE ACTION
+Action Title: ${params.actionTitle}
+Action Summary: ${params.actionSummary}
+Target Audience: ${params.targetAudience}
+Offer / Promotional Context: ${params.offer ?? "None"}
+CTA: ${params.cta ?? "None"}
 Owner Objective: ${params.ownerObjective}
 
-Objective guidance:
+Owner-objective guidance:
 ${getAssetCopyGuidance(params.ownerObjective)}
 
-Write a clear, natural, homeowner-friendly blog post.
+You must create THREE DISTINCT OUTPUTS:
+
+1. ACTION-LEVEL SEO STRATEGY
+2. CONSUMER ARTICLE
+3. KNOWLEDGE / AUTHORITY ARTICLE
+
+==================================================
+1. ACTION-LEVEL SEO STRATEGY
+==================================================
+
+The SEO strategy belongs to the REVENUE ACTION itself.
+
+It does NOT belong to either article.
+
+Its purpose is to make the service, problem, offer, commercial need, and local relevance represented by the revenue action easier to discover through traditional keyword-based search engines.
+
+Base the SEO strategy on:
+- the service being promoted
+- the actual revenue action
+- the homeowner need behind the action
+- the target geography
+- the target audience
+- the offer or promotional enhancer when one exists and is safe to use
+
+The SEO strategy should determine:
+- the primary commercial search theme
+- closely related secondary keyword themes
+- the search intent being targeted
+- the service and geography being targeted
+- whether verified offer context should appear
+- which existing or new website page should carry the strongest commercial focus
+- recommended title tag
+- recommended meta description
+- recommended H1
+- suggested URL slug
+- useful internal-link targets
+- homeowner questions that support the commercial topic
+- how the Consumer Article and Knowledge / Authority Article can support the action without replacing the primary commercial page
+
+Critical SEO rules:
+- Do NOT base the SEO strategy on the Consumer Article title.
+- Do NOT base the SEO strategy on the Knowledge Article title.
+- Do NOT make the articles the primary SEO target unless the action itself genuinely calls for an informational page.
+- Prefer commercially relevant search intent when the revenue action is promotional or service-driven.
+- Do not invent keyword volume.
+- Do not invent search volume.
+- Do not invent keyword difficulty.
+- Do not invent ranking position.
+- Do not invent traffic estimates.
+- Do not claim SEO outcomes.
+- Do not create repetitive city/service keyword permutations.
+- Do not keyword-stuff.
+- Offer context must only use information supplied in the action.
+
+==================================================
+2. CONSUMER ARTICLE
+==================================================
+
+Purpose:
+Help a homeowner understand the service, recognize when they may need it, make an informed decision, and know what reasonable next step to take.
 
 Requirements:
-- No marketing jargon
-- No phrases like "high-intent", "capture demand", "generate leads"
-- No internal or strategic language
-- Write like a helpful expert, not an advertiser
-- Keep it practical and trustworthy
+- Write directly for homeowners.
+- Be practical, useful, and easy to understand.
+- Address signs, situations, decisions, tradeoffs, or next steps.
+- Support the revenue action without sounding like an advertisement.
+- Naturally answer useful homeowner questions.
+- Keep the topic tightly related to the commercial action.
+- Use a CTA appropriate to the owner objective.
 
-Return JSON ONLY in this exact format:
+==================================================
+3. KNOWLEDGE / AUTHORITY ARTICLE
+==================================================
+
+Purpose:
+Create deeper subject-matter content around the same service or problem so the website demonstrates meaningful topical depth and provides useful factual context to customers, search systems, and AI systems.
+
+Requirements:
+- Use a meaningfully different editorial angle from the Consumer Article.
+- Explain concepts, causes, decision factors, processes, technical context, or tradeoffs.
+- Be useful even to someone who is not ready to book.
+- Demonstrate knowledgeable explanation rather than promotional language.
+- Complement the Consumer Article instead of rewriting it.
+- Stay understandable to a normal homeowner.
+- Use a restrained CTA.
+
+==================================================
+GLOBAL CLAIM RULES
+==================================================
+
+- Do not invent business facts.
+- Do not invent pricing or savings.
+- Do not invent certifications or licenses.
+- Do not invent years in business.
+- Do not invent warranties.
+- Do not invent financing terms.
+- Do not invent response times.
+- Do not invent guarantees.
+- Do not invent manufacturer relationships.
+- Do not manufacture urgency.
+- Do not claim SEO rankings, AI visibility, authority gains, or traffic outcomes.
+- Do not use internal strategy language such as "high-intent", "capture demand", "generate leads", or "conversion".
+- Keep local references grounded only in the supplied service area.
+- The two articles must have meaningfully different titles and editorial angles.
+
+Return JSON ONLY in this exact shape:
 
 {
-  "title": "...",
-  "excerpt": "...",
-  "introduction": "...",
-  "sections": [
-    { "heading": "...", "body": "..." },
-    { "heading": "...", "body": "..." },
-    { "heading": "...", "body": "..." }
-  ],
-  "cta": "..."
+  "actionSeoStrategy": {
+    "primarySearchTheme": "...",
+    "secondaryKeywordThemes": ["...", "...", "..."],
+    "searchIntent": "...",
+    "targetService": "...",
+    "targetGeography": "...",
+    "offerContext": null,
+    "recommendedPageFocus": "...",
+    "titleTag": "...",
+    "metaDescription": "...",
+    "h1Recommendation": "...",
+    "suggestedSlug": "...",
+    "internalLinkTargets": ["...", "..."],
+    "supportingQuestions": ["...", "...", "..."],
+    "contentSupportNotes": ["...", "..."]
+  },
+  "consumerArticle": {
+    "title": "...",
+    "excerpt": "...",
+    "introduction": "...",
+    "sections": [
+      { "heading": "...", "body": "..." },
+      { "heading": "...", "body": "..." },
+      { "heading": "...", "body": "..." }
+    ],
+    "cta": "..."
+  },
+  "knowledgeArticle": {
+    "title": "...",
+    "excerpt": "...",
+    "introduction": "...",
+    "sections": [
+      { "heading": "...", "body": "..." },
+      { "heading": "...", "body": "..." },
+      { "heading": "...", "body": "..." }
+    ],
+    "cta": "..."
+  }
 }
 
-Guidelines:
-- Title should sound like a real blog post
-- Excerpt = 1 sentence summary
-- Introduction = 2–3 sentences
-- Each section body = 2–4 sentences
-- CTA must match the owner objective.
-- For education or preparedness, use a restrained educational CTA.
-- For standard service growth, a call or scheduling CTA is appropriate.
-- Do not force immediate booking language into an educational article.
+Article guidelines:
+- Excerpt = one sentence.
+- Introduction = 2-3 sentences.
+- Each section body = 2-4 sentences.
+- Consumer Article should help move a homeowner toward an informed service decision.
+- Knowledge / Authority Article should deepen understanding of the topic.
+- Do not make the Knowledge Article simply a longer version of the Consumer Article.
 `;
 
     const response = await openai.chat.completions.create({
@@ -445,9 +616,24 @@ Guidelines:
 
     if (!content) return null;
 
-    return JSON.parse(content);
-  } catch (err) {
-    console.error("[blog-generation] failed, falling back", err);
+    const parsed =
+      JSON.parse(content) as GeneratedRevenueContentPackage;
+
+    if (
+      !parsed?.actionSeoStrategy ||
+      !parsed?.consumerArticle ||
+      !parsed?.knowledgeArticle
+    ) {
+      return null;
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error(
+      "[revenue-content-generation] failed, falling back",
+      error
+    );
+
     return null;
   }
 }
@@ -978,6 +1164,9 @@ function buildNeedsInputResult(params: {
   message: string;
   requirements: string[];
   examplePrompt: string;
+  redirectHref?: string;
+  redirectLabel?: string;
+  isRoutingNotice?: boolean;
 }): PromptReadinessResult {
   return {
     ready: false,
@@ -985,6 +1174,9 @@ function buildNeedsInputResult(params: {
     message: params.message,
     requirements: params.requirements,
     examplePrompt: params.examplePrompt,
+    redirectHref: params.redirectHref,
+    redirectLabel: params.redirectLabel,
+    isRoutingNotice: params.isRoutingNotice,
   };
 }
 
@@ -1343,6 +1535,46 @@ function resolveMembershipReadiness(
   });
 }
 
+function resolveWebsiteIntelligenceRouting(
+  prompt: string
+): PromptReadinessResult | null {
+  const lower = normalize(prompt);
+
+  const hasExplicitAeoIntent =
+    lower.includes("aeo") ||
+    lower.includes("answer engine") ||
+    lower.includes("ai search") ||
+    lower.includes("show up in chatgpt") ||
+    lower.includes("show up on chatgpt") ||
+    lower.includes("appear in chatgpt") ||
+    lower.includes("recommended by chatgpt") ||
+    lower.includes("recommend me in chatgpt") ||
+    lower.includes("show up in gemini") ||
+    lower.includes("show up on gemini") ||
+    lower.includes("show up in perplexity") ||
+    lower.includes("answer-engine");
+
+  if (!hasExplicitAeoIntent) {
+    return null;
+  }
+
+  return buildNeedsInputResult({
+    title: "AEO recommendations come from your website analysis",
+    message:
+      "MarketForge bases AEO actions on what it actually finds on your live website. Rather than creating a generic AEO action from a prompt, review your Website Intelligence recommendations to see what MarketForge recommends for your site.",
+    requirements: [
+      "Website Intelligence evaluates your live site before recommending an AEO improvement.",
+      "If MarketForge identifies an executable authority or content gap, you can create that action directly from the AEO recommendations page.",
+      "Website changes that require you or your developer are also provided there as implementation plans.",
+    ],
+    examplePrompt:
+      "Promote AC replacement and create helpful homeowner content that supports this revenue action.",
+    redirectHref: "/aeo",
+    redirectLabel: "View AEO Recommendations",
+    isRoutingNotice: true,
+  });
+}
+
 function resolvePromptReadiness(
   prompt: string
 ): PromptReadinessResult {
@@ -1363,6 +1595,7 @@ function resolvePromptReadiness(
   }
 
   const readinessChecks = [
+    resolveWebsiteIntelligenceRouting,
     resolveReferralReadiness,
     resolveFinancingReadiness,
     resolveDiscountReadiness,
@@ -1627,24 +1860,6 @@ function routePromptIntent(prompt: string): RoutedIntent {
   }
 
   if (
-    lower.includes("aeo") ||
-    lower.includes("faq") ||
-    lower.includes("seo") ||
-    lower.includes("visibility") ||
-    lower.includes("answer engine") ||
-    lower.includes("ai search")
-  ) {
-    return {
-      lane: "AEO_SEO",
-      mode: "ACTION_PACK",
-      ownerObjective: "STANDARD_SERVICE_GROWTH",
-      preferredCampaignType: "AEO_FAQ",
-      preferredActionType: "AEO_CONTENT",
-      label: "AEO / SEO intent",
-    };
-  }
-
-  if (
     resolvedOwnerObjective.objective !==
     "STANDARD_SERVICE_GROWTH"
   ) {
@@ -1685,7 +1900,6 @@ function getStrongMatchThreshold(lane: PromptLane): number {
       return 65;
     case "CAPACITY_FILL":
       return 65;
-    case "AEO_SEO":
     case "REVIEWS":
       return 60;
     default:
@@ -1724,15 +1938,6 @@ function scoreExistingOpportunityFit(
     (opportunity.opportunityType === "CAPACITY_GAP" ||
       opportunity.recommendedCampaignType === "MAINTENANCE_PUSH" ||
       normalize(opportunity.actionThesis.angle).includes("schedule"))
-  ) {
-    score += 35;
-  }
-
-  if (
-    routedIntent.lane === "AEO_SEO" &&
-    (opportunity.opportunityType === "AI_SEARCH_VISIBILITY" ||
-      opportunity.recommendedCampaignType === "AEO_FAQ" ||
-      opportunity.recommendedCampaignType === "SEO_CONTENT")
   ) {
     score += 35;
   }
@@ -1790,26 +1995,6 @@ function buildPromptRefinedActionThesis(params: {
         "The action is intentionally aligned to the owner’s stated business objective rather than being forced into a conventional service-promotion campaign.",
         "The audience, message, CTA, and supporting assets should all reflect this objective consistently.",
         "Existing residential service-growth behavior should remain unchanged for ordinary promotional requests.",
-      ],
-    };
-  }
-
-  if (
-    lower.includes("aeo") ||
-    lower.includes("faq") ||
-    lower.includes("seo") ||
-    lower.includes("visibility") ||
-    lower.includes("ai search")
-  ) {
-    return {
-      ...base,
-      imageMode: "LOGO",
-      imageKey: "company-logo",
-      whyThisActionBullets: [
-        "This request is visibility-oriented and is better handled through content, search presence, and website clarity.",
-        "A branded visual anchor is a better fit for this action than a physical service image.",
-        "The action is intended to improve discoverability and trust rather than only immediate booked jobs.",
-        "This keeps the content aligned to local visibility work instead of forcing it into a service-promo lane.",
       ],
     };
   }
@@ -2475,68 +2660,6 @@ function buildSyntheticOpportunity(params: {
     };
   }
 
-  if (routedIntent.lane === "AEO_SEO") {
-    const serviceName = requestedService ?? "AI search visibility";
-    const opportunityType: OpportunityType = "AI_SEARCH_VISIBILITY";
-    const baseAverageJobValue =
-      typeof profile.averageJobValue === "number" &&
-      Number.isFinite(profile.averageJobValue)
-        ? profile.averageJobValue
-        : Number(profile.averageJobValue ?? 450);
-
-    return {
-      opportunityKey: buildSyntheticOpportunityKey({
-        serviceName,
-        opportunityType,
-        bestMove: "Improve AI Search Visibility",
-      }),
-      familyKey: "ai-search-visibility",
-      title: "AI Search Visibility Opportunity",
-      serviceName,
-      opportunityType,
-      bestMove: "Improve AI Search Visibility",
-      displayMoveLabel: "Improve AI Search Visibility",
-      displaySummary: `Strengthen local answer-engine visibility in ${profile.serviceArea}.`,
-      imageKey: "company-logo",
-      imageMode: "LOGO",
-      actionThesis: {
-        familyKey: "ai-search-visibility",
-        primaryService: serviceName,
-        angle: "answer-engine visibility",
-        title: "Improve AI Search Visibility",
-        summary:
-          "Improve discoverability through FAQ, GBP, and service-page upgrades.",
-        audience: `Homeowners searching for service help in ${profile.serviceArea}`,
-        offerHint: "",
-        ctaHint: "Review visibility action",
-        imageKey: "company-logo",
-        imageMode: "LOGO",
-      },
-      recommendedCampaignType: "AEO_FAQ",
-      jobsLow: 1,
-      jobsHigh: 2,
-      revenueLow: Math.round(baseAverageJobValue * 1),
-      revenueHigh: Math.round(baseAverageJobValue * 2),
-      rawOpportunityScore: 68,
-      confidenceLabel: "Medium",
-      confidenceScore: 78,
-      whyNowBullets: [
-        profile.hasFaqContent
-          ? "FAQ coverage still appears improvable for stronger AI/local visibility."
-          : "The business appears to lack structured FAQ coverage.",
-        profile.servicePageUrls.length < 3
-          ? "Service-page coverage looks thin, which weakens answer visibility."
-          : "Service-page coverage can still support stronger answer-engine relevance.",
-        "The request is explicitly asking for AEO / FAQ / visibility work.",
-      ],
-      whyThisMatters:
-        "This is the most direct match to a visibility-oriented request and should not be forced through an unrelated service opportunity.",
-      sourceTags: ["AEO", "Demand"],
-      source: "generated",
-      fitScore: 95,
-    };
-  }
-
   if (routedIntent.lane === "REVIEWS") {
     const serviceName = "Review generation";
     const opportunityType: OpportunityType = "LOCAL_SEARCH_SPIKE";
@@ -3117,8 +3240,6 @@ function getAssetTypesForAction(params: {
         "GOOGLE_BUSINESS",
         "META",
         "BLOG",
-        "AEO_FAQ",
-        "ANSWER_SNIPPET",
       ];
 
     case "REFERRAL_GROWTH":
@@ -3158,8 +3279,6 @@ function getAssetTypesForAction(params: {
         "GOOGLE_ADS",
         "YELP",
         "BLOG",
-        "AEO_FAQ",
-        "ANSWER_SNIPPET",
       ];
 
     case "REVIEW_GENERATION":
@@ -3169,31 +3288,24 @@ function getAssetTypesForAction(params: {
       ];
 
     case "STANDARD_SERVICE_GROWTH":
+      return [
+        "GOOGLE_BUSINESS",
+        "META",
+        "GOOGLE_ADS",
+        "YELP",
+        "EMAIL",
+        "BLOG",
+      ];
+
     default:
       break;
   }
-
-  const visibilityAction = isVisibilityActionType({
-    actionType: params.actionType,
-    campaignType: params.campaignType,
-    routedLane: params.routedLane,
-    opportunityType: params.opportunityType,
-  });
 
   const reviewAction = isReviewActionType({
     actionType: params.actionType,
     campaignType: params.campaignType,
     routedLane: params.routedLane,
   });
-
-  if (visibilityAction) {
-    return [
-      "GOOGLE_BUSINESS",
-      "BLOG",
-      "AEO_FAQ",
-      "ANSWER_SNIPPET",
-    ];
-  }
 
   if (reviewAction) {
     return [
@@ -3209,8 +3321,6 @@ function getAssetTypesForAction(params: {
     "YELP",
     "EMAIL",
     "BLOG",
-    "AEO_FAQ",
-    "ANSWER_SNIPPET",
   ];
 }
 
@@ -3321,6 +3431,8 @@ function buildEmailAssetFromAction(params: {
   isReviewAction: boolean;
   isVisibilityAction: boolean;
   isOfferAction: boolean;
+  generatedSubject?: string | null;
+  generatedBody?: string | null;
   industry?: string | null;
 }) {
   if (params.isReviewAction) {
@@ -3391,26 +3503,59 @@ function buildEmailAssetFromAction(params: {
     });
   }
 
+  const generatedSubject =
+  params.generatedSubject?.trim() ||
+  params.actionTitle;
+
+  const generatedBody =
+    params.generatedBody?.trim() ||
+    params.actionSummary?.trim() ||
+    `We’re currently promoting ${params.targetService.toLowerCase()} in ${params.serviceArea}.`;
+
+  const previewLine =
+    params.actionSummary?.trim() ||
+    `Learn more about ${params.targetService.toLowerCase()} in ${params.serviceArea}.`;
+
   if (params.isOfferAction) {
+    const cleanOffer =
+      sanitizeCustomerFacingOffer(
+        params.offer
+      );
+
+    const body =
+      cleanOffer &&
+      !generatedBody
+        .toLowerCase()
+        .includes(
+          cleanOffer.toLowerCase()
+        )
+        ? `${cleanOffer}.\n\n${generatedBody}`
+        : generatedBody;
+
     return buildStructuredEmailAsset({
-      subject: params.actionTitle,
-      previewLine: params.actionSummary,
-      body:
-        params.actionSummary ??
-        `We’re currently promoting ${params.targetService.toLowerCase()} in ${params.serviceArea}.`,
-      cta: params.cta ?? "Book now",
-      industry: params.industry,
+      subject:
+        generatedSubject,
+      previewLine,
+      body,
+      cta:
+        params.cta ??
+        "Book now",
+      industry:
+        params.industry,
     });
   }
 
   return buildStructuredEmailAsset({
-    subject: params.actionTitle,
-    previewLine: params.actionSummary,
+    subject:
+      generatedSubject,
+    previewLine,
     body:
-      params.actionSummary ??
-      `We’re currently promoting ${params.targetService.toLowerCase()} in ${params.serviceArea}.`,
-    cta: params.cta ?? "Learn more",
-    industry: params.industry,
+      generatedBody,
+    cta:
+      params.cta ??
+      "Learn more",
+    industry:
+      params.industry,
   });
 }
 
@@ -3468,71 +3613,211 @@ function buildCustomerFacingBlogSections(params: {
   ];
 }
 
-async function buildStructuredBlogAsset(params: {
-  ownerObjective: ResidentialOwnerObjective;
-  title?: string | null;
-  businessName?: string | null;
-  serviceArea?: string | null;
-  primaryService?: string | null;
-  summary?: string | null;
-  whyBullets?: string[] | null;
+function buildFallbackActionSeoStrategy(params: {
+  businessName: string;
+  serviceName: string;
+  serviceArea: string;
+  actionTitle: string;
+  actionSummary: string;
+  offer?: string | null;
+}): ActionSeoStrategy {
+  const service = params.serviceName.trim();
+  const area = params.serviceArea.trim();
+  const offer = sanitizeCustomerFacingOffer(params.offer);
+
+  return {
+    primarySearchTheme:
+      `${service.toLowerCase()} ${area}`,
+
+    secondaryKeywordThemes: [
+      `${service.toLowerCase()} near me`,
+      `local ${service.toLowerCase()}`,
+      `${service.toLowerCase()} service`,
+      `${service.toLowerCase()} company`,
+    ],
+
+    searchIntent:
+      `Homeowners in ${area} looking for ${service.toLowerCase()} service or evaluating whether to hire a local provider.`,
+
+    targetService:
+      service,
+
+    targetGeography:
+      area,
+
+    offerContext:
+      offer,
+
+    recommendedPageFocus:
+      `${service} service page or the closest existing commercial service page that matches this action.`,
+
+    titleTag:
+      `${service} in ${area} | ${params.businessName}`,
+
+    metaDescription:
+      `${params.businessName} provides ${service.toLowerCase()} in ${area}. Learn about the service, common homeowner needs, and how to take the next step.`,
+
+    h1Recommendation:
+      `${service} in ${area}`,
+
+    suggestedSlug:
+      slugify(`${service}-${area}`),
+
+    internalLinkTargets: [
+      `${service} service page`,
+      "Relevant service-area or location page",
+      "Consumer Article supporting this action",
+      "Knowledge / Authority Article supporting this action",
+    ],
+
+    supportingQuestions: [
+      `When do homeowners need ${service.toLowerCase()}?`,
+      `What should homeowners consider before scheduling ${service.toLowerCase()}?`,
+      `How do homeowners choose a provider for ${service.toLowerCase()}?`,
+    ],
+
+    contentSupportNotes: [
+      "Use the Consumer Article to address homeowner decision-making and service need recognition.",
+      "Use the Knowledge / Authority Article to deepen topical understanding around the service or problem.",
+      "Keep the primary commercial service page as the strongest search target for the revenue action.",
+    ],
+  };
+}
+
+function buildStructuredRevenueArticleAssets(params: {
+  generatedPackage: GeneratedRevenueContentPackage | null;
+  businessName: string;
+  serviceArea: string;
+  primaryService: string;
   cta?: string | null;
   imageKey?: string | null;
   imageMode?: "SERVICE_IMAGE" | "LOGO" | null;
   industry?: string | null;
 }) {
-  const serviceName = params.primaryService ?? "local service";
-  const businessName = params.businessName ?? "This business";
-  const serviceArea = params.serviceArea ?? "your area";
+  const serviceName =
+    params.primaryService;
 
-  // 🔥 NEW: Try AI generation first
-  const aiBlog = await generateBlogWithAI({
-    ownerObjective: params.ownerObjective,
-    businessName,
-    serviceName,
-    serviceArea,
-  });
+  const businessName =
+    params.businessName;
 
-  // ✅ SUCCESS PATH (AI worked)
-  if (aiBlog) {
-    return JSON.stringify({
+  const serviceArea =
+    params.serviceArea;
+
+  const consumerArticle =
+    params.generatedPackage?.consumerArticle ?? {
+      title:
+        `${serviceName} Guide for Homeowners in ${serviceArea}`,
+
+      excerpt:
+        `What homeowners in ${serviceArea} should know about ${serviceName.toLowerCase()}.`,
+
+      introduction:
+        `If you need ${serviceName.toLowerCase()} in ${serviceArea}, it helps to understand the warning signs, practical considerations, and when professional help may make sense.`,
+
+      sections: [
+        {
+          heading:
+            `Common signs you may need ${serviceName.toLowerCase()}`,
+
+          body:
+            `Homeowners often notice recurring issues, reduced performance, unusual sounds, inconsistent operation, or visible warning signs before realizing they may need ${serviceName.toLowerCase()}.`,
+        },
+
+        {
+          heading:
+            "What homeowners should consider",
+
+          body:
+            `The right next step depends on the condition of the system or property, how often the problem occurs, and whether the issue is getting worse. Understanding those factors can make it easier to decide when professional help is appropriate.`,
+        },
+
+        {
+          heading:
+            `Getting help with ${serviceName.toLowerCase()} in ${serviceArea}`,
+
+          body:
+            `${businessName} helps homeowners in ${serviceArea} evaluate ${serviceName.toLowerCase()} needs and understand practical next steps.`,
+        },
+      ],
+
+      cta:
+        params.cta ?? "Learn more",
+    };
+
+  const knowledgeArticle =
+    params.generatedPackage?.knowledgeArticle ?? {
+      title:
+        `Understanding ${serviceName}: What Homeowners Should Know`,
+
+      excerpt:
+        `A deeper look at the factors homeowners should understand when evaluating ${serviceName.toLowerCase()}.`,
+
+      introduction:
+        `${serviceName} can involve several different conditions, causes, and decision factors. Understanding how those pieces fit together can help homeowners ask better questions and make more informed decisions.`,
+
+      sections: [
+        {
+          heading:
+            `What affects the need for ${serviceName.toLowerCase()}`,
+
+          body:
+            `The need for ${serviceName.toLowerCase()} can depend on age, condition, usage, maintenance history, environmental conditions, and the specific symptoms being observed. No single warning sign tells the whole story.`,
+        },
+
+        {
+          heading:
+            "Why professional evaluation can matter",
+
+          body:
+            `Some symptoms can have multiple causes, and the appropriate solution depends on what is actually happening. A professional evaluation can help distinguish a minor issue from a condition that requires repair, replacement, or another corrective step.`,
+        },
+
+        {
+          heading:
+            `Making an informed ${serviceName.toLowerCase()} decision`,
+
+          body:
+            `Homeowners should consider the condition of the property or system, the frequency and severity of the problem, available options, and the practical consequences of delaying action before deciding what to do next.`,
+        },
+      ],
+
+      cta:
+        "Contact us if you need help evaluating your options.",
+    };
+
+  return {
+    consumerArticle: JSON.stringify({
       kind: "BLOG",
-      title: aiBlog.title,
-      excerpt: aiBlog.excerpt,
-      introduction: aiBlog.introduction,
-      sections: aiBlog.sections,
-      cta: aiBlog.cta ?? "Book now",
-      imageKey: params.imageKey ?? "general-service",
-      imageMode: params.imageMode ?? "SERVICE_IMAGE",
-      industry: params.industry ?? "plumbing",
-    });
-  }
+      articleRole: "CONSUMER_ARTICLE",
+      title: consumerArticle.title,
+      excerpt: consumerArticle.excerpt,
+      introduction: consumerArticle.introduction,
+      sections: consumerArticle.sections,
+      cta: consumerArticle.cta,
+      imageKey:
+        params.imageKey ?? "general-service",
+      imageMode:
+        params.imageMode ?? "SERVICE_IMAGE",
+      industry:
+        params.industry ?? "plumbing",
+    }),
 
-  // 🛟 FALLBACK (existing deterministic logic)
-  return JSON.stringify({
-    kind: "BLOG",
-    title: `${serviceName} Guide for Homeowners in ${serviceArea}`,
-    excerpt: `What homeowners in ${serviceArea} should know about ${serviceName.toLowerCase()}.`,
-    introduction: `If you need ${serviceName.toLowerCase()} in ${serviceArea}, it helps to understand the early warning signs and when it makes sense to bring in a professional.`,
-    sections: [
-      {
-        heading: `Common signs you may need ${serviceName.toLowerCase()}`,
-        body: `Homeowners often notice recurring issues, reduced performance, unusual sounds, or visible warning signs before realizing they need ${serviceName.toLowerCase()}.`,
-      },
-      {
-        heading: `Why acting early matters`,
-        body: `When issues are ignored, they can become more disruptive and more expensive. Acting early usually helps protect your home and avoid bigger repairs.`,
-      },
-      {
-        heading: `How ${businessName} helps homeowners in ${serviceArea}`,
-        body: `${businessName} helps homeowners across ${serviceArea} with professional ${serviceName.toLowerCase()} service and clear next steps.`,
-      },
-    ],
-    cta: params.cta ?? "Book now",
-    imageKey: params.imageKey ?? "general-service",
-    imageMode: params.imageMode ?? "SERVICE_IMAGE",
-    industry: params.industry ?? "plumbing",
-  });
+    knowledgeArticle: JSON.stringify({
+      kind: "BLOG",
+      articleRole: "KNOWLEDGE_AUTHORITY_ARTICLE",
+      title: knowledgeArticle.title,
+      excerpt: knowledgeArticle.excerpt,
+      introduction: knowledgeArticle.introduction,
+      sections: knowledgeArticle.sections,
+      cta: knowledgeArticle.cta,
+      imageKey:
+        params.imageKey ?? "general-service",
+      imageMode:
+        params.imageMode ?? "SERVICE_IMAGE",
+      industry:
+        params.industry ?? "plumbing",
+    }),
+  };
 }
 
 function shouldInvalidateOpportunitySnapshotOnCampaignCreate(_: {
@@ -4187,6 +4472,64 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
     opportunityType: resolvedOpportunity.opportunityType,
   });
 
+  const revenueContentPackage =
+  includedAssetTypes.includes("BLOG")
+    ? await generateRevenueContentPackageWithAI({
+        ownerObjective:
+          routedIntent.ownerObjective,
+
+        businessName:
+          profile.businessName,
+
+        serviceName:
+          finalActionThesis.primaryService,
+
+        serviceArea:
+          profile.serviceArea,
+
+        actionTitle:
+          finalActionThesis.title,
+
+        actionSummary:
+          finalActionThesis.summary,
+
+        targetAudience:
+          actionSpec.targetAudience,
+
+        offer:
+          sanitizeCustomerFacingOffer(
+            actionSpec.offerLabel
+          ),
+
+        cta:
+          finalActionThesis.ctaHint,
+      })
+    : null;
+
+  const actionSeoStrategy =
+    includedAssetTypes.includes("BLOG")
+      ? revenueContentPackage?.actionSeoStrategy ??
+        buildFallbackActionSeoStrategy({
+          businessName:
+            profile.businessName,
+
+          serviceName:
+            finalActionThesis.primaryService,
+
+          serviceArea:
+            profile.serviceArea,
+
+          actionTitle:
+            finalActionThesis.title,
+
+          actionSummary:
+            finalActionThesis.summary,
+
+          offer:
+            actionSpec.offerLabel,
+        })
+      : null;
+
   const generatedAdCopy = await generateAdCopyWithAI({
     ownerObjective: routedIntent.ownerObjective,
     businessName: profile.businessName,
@@ -4255,6 +4598,14 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
         },
         actionPack: parsed.actionPack,
         actionSpec: toPrismaJsonValue(actionSpec),
+
+        actionSeoStrategy:
+          actionSeoStrategy
+            ? toPrismaJsonValue(
+                actionSeoStrategy
+              )
+            : null,
+
         campaignDraft: {
           ...campaignDraft,
           offer: actionSpec.offerLabel,
@@ -4489,54 +4840,119 @@ if (Array.isArray(refinedTargeting.keywordThemes)) {
   }
 
     if (includedAssetTypes.includes("EMAIL")) {
-    assetData.push({
-      campaignId: campaign.id,
-      assetType: "EMAIL",
-      title: reviewAction
-        ? "Review Request Email"
-        : parsed.assets.emailCampaign.subjectLine ?? "Email Campaign",
-      content: buildEmailAssetFromAction({
-        ownerObjective: routedIntent.ownerObjective,
-        offer: actionSpec.offerLabel,
-        actionTitle: finalActionThesis.title,
-        actionSummary: finalActionThesis.summary,
-        cta: finalActionThesis.ctaHint,
-        targetService: finalActionThesis.primaryService,
-        serviceArea: profile.serviceArea,
-        isReviewAction: reviewAction,
-        isVisibilityAction: visibilityAction,
-        isOfferAction,
-        industry: structuredIndustry,
-      }),
-    });
-  }
+      assetData.push({
+        campaignId:
+          campaign.id,
+
+        assetType:
+          "EMAIL",
+
+        title:
+          reviewAction
+            ? "Review Request Email"
+            : parsed.assets.emailCampaign
+                .subjectLine ??
+              "Email Campaign",
+
+        content:
+          buildEmailAssetFromAction({
+            ownerObjective:
+              routedIntent.ownerObjective,
+
+            offer:
+              actionSpec.offerLabel,
+
+            actionTitle:
+              finalActionThesis.title,
+
+            actionSummary:
+              finalActionThesis.summary,
+
+            cta:
+              finalActionThesis.ctaHint,
+
+            targetService:
+              finalActionThesis.primaryService,
+
+            serviceArea:
+              profile.serviceArea,
+
+            isReviewAction:
+              reviewAction,
+
+            isVisibilityAction:
+              visibilityAction,
+
+            isOfferAction,
+
+            generatedSubject:
+              parsed.assets.emailCampaign
+                .subjectLine,
+
+            generatedBody:
+              parsed.assets.emailCampaign
+                .body,
+
+            industry:
+              structuredIndustry,
+          }),
+      });
+    }
 
   if (includedAssetTypes.includes("BLOG")) {
+    const articlePackage =
+      buildStructuredRevenueArticleAssets({
+        generatedPackage:
+          revenueContentPackage,
+
+        businessName:
+          profile.businessName,
+
+        serviceArea:
+          profile.serviceArea,
+
+        primaryService:
+          finalActionThesis.primaryService,
+
+        cta:
+          finalActionThesis.ctaHint,
+
+        imageKey:
+          finalActionThesis.imageKey,
+
+        imageMode:
+          finalActionThesis.imageMode,
+
+        industry:
+          structuredIndustry,
+      });
+
     assetData.push({
-      campaignId: campaign.id,
-      assetType: "BLOG",
+      campaignId:
+        campaign.id,
+
+      assetType:
+        "BLOG",
+
       title:
-        effectiveExecutionMode === "ACTION_PACK"
-          ? parsed.actionPack.actionTitle ?? "Blog Article"
-          : "Blog Article",
-        content: await buildStructuredBlogAsset({
-        ownerObjective: routedIntent.ownerObjective,
-        title:
-          effectiveExecutionMode === "ACTION_PACK"
-            ? parsed.actionPack.actionTitle ?? finalActionThesis.title
-            : effectiveActionThesis.title,
-        businessName: profile.businessName,
-        serviceArea: profile.serviceArea,
-        primaryService: finalActionThesis.primaryService,
-                summary: cleanInternalMarketingLanguage(
-          generatedAdCopy?.googleBusiness?.description ?? finalActionThesis.summary
-        ),
-        whyBullets: finalActionThesis.whyThisActionBullets ?? [],
-        cta: finalActionThesis.ctaHint,
-        imageKey: finalActionThesis.imageKey,
-        imageMode: finalActionThesis.imageMode,
-        industry: structuredIndustry,
-      }),
+        "Consumer Article",
+
+      content:
+        articlePackage.consumerArticle,
+    });
+
+    assetData.push({
+      campaignId:
+        campaign.id,
+
+      assetType:
+        "BLOG",
+
+      title:
+        "Knowledge / Authority Article",
+
+      content:
+        articlePackage.knowledgeArticle,
     });
   }
 

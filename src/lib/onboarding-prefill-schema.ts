@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { websiteIntelligenceAssessmentSchema } from "@/lib/website-intelligence";
 
 export const onboardingPrefillSchema = z.object({
   businessName: z.string(),
@@ -21,6 +22,9 @@ export const onboardingPrefillSchema = z.object({
   hasBlog: z.boolean().optional().default(false),
   hasGoogleBusinessPage: z.boolean().optional().default(false),
   hasServicePages: z.boolean().optional().default(false),
+
+  websiteIntelligence: websiteIntelligenceAssessmentSchema,
+
   busySeason: z.string().nullable(),
   slowSeason: z.string().nullable(),
   averageJobValueHint: z.number().nullable(),

@@ -27,9 +27,28 @@ type BuildExportPackParams = {
   profile: BusinessProfile | null;
 };
 
+type ActionSeoStrategy = {
+  primarySearchTheme?: string;
+  secondaryKeywordThemes?: string[];
+  searchIntent?: string;
+  targetService?: string;
+  targetGeography?: string;
+  offerContext?: string | null;
+  recommendedPageFocus?: string;
+  titleTag?: string;
+  metaDescription?: string;
+  h1Recommendation?: string;
+  suggestedSlug?: string;
+  internalLinkTargets?: string[];
+  supportingQuestions?: string[];
+  contentSupportNotes?: string[];
+};
+
 type BriefJsonShape = {
   userPrompt?: string;
   ownerObjective?: string;
+  market?: string;
+  actionSeoStrategy?: ActionSeoStrategy | null;
   parsedIntent?: {
     serviceCategory?: string;
     intent?: string;
@@ -395,6 +414,9 @@ type EmailAssetPayload = {
 
 type BlogAssetPayload = {
   kind: "BLOG";
+  articleRole?:
+    | "CONSUMER_ARTICLE"
+    | "KNOWLEDGE_AUTHORITY_ARTICLE";
   title: string;
   excerpt: string;
   introduction: string;
@@ -555,6 +577,94 @@ function parseStructuredAsset<T>(asset: CampaignAsset | null): T | null {
   } catch {
     return null;
   }
+}
+
+function approvedBlogAssetByRole(
+  assets: CampaignAssetWithAiImage[],
+  role:
+    | "CONSUMER_ARTICLE"
+    | "KNOWLEDGE_AUTHORITY_ARTICLE"
+) {
+  return (
+    assets.find((asset) => {
+      if (
+        asset.assetType !== "BLOG" ||
+        !asset.isApproved
+      ) {
+        return false;
+      }
+
+      const parsed =
+        parseStructuredAsset<BlogAssetPayload>(
+          asset
+        );
+
+      if (parsed?.kind !== "BLOG") {
+        return false;
+      }
+
+      if (
+        parsed.articleRole === role
+      ) {
+        return true;
+      }
+
+      // Backward compatibility for Website Intelligence
+      // authority articles created before articleRole existed.
+      if (
+        role ===
+          "KNOWLEDGE_AUTHORITY_ARTICLE" &&
+        asset.title ===
+          "Knowledge / Authority Article"
+      ) {
+        return true;
+      }
+
+      return false;
+    }) ?? null
+  );
+}
+
+function approvedLegacyBlogAsset(
+  assets: CampaignAssetWithAiImage[]
+) {
+  return (
+    assets.find((asset) => {
+      if (
+        asset.assetType !== "BLOG" ||
+        !asset.isApproved
+      ) {
+        return false;
+      }
+
+      const parsed =
+        parseStructuredAsset<BlogAssetPayload>(
+          asset
+        );
+
+      if (
+        parsed?.kind !== "BLOG"
+      ) {
+        return false;
+      }
+
+      if (parsed.articleRole) {
+        return false;
+      }
+
+      // Old Website Intelligence authority articles
+      // are semantic Knowledge / Authority Articles,
+      // not legacy generic blogs.
+      if (
+        asset.title ===
+        "Knowledge / Authority Article"
+      ) {
+        return false;
+      }
+
+      return true;
+    }) ?? null
+  );
 }
 
 function svgTemplate(params: {
@@ -1597,62 +1707,327 @@ ${buildAfterLaunchSection({
 `;
 }
 
-function buildBlogOperatorNotes(params: {
+function buildArticleOperatorNotes(params: {
+  articleLabel: string;
+  articleFileName: string;
+  articlePurpose: string;
   actionCta: string;
   actionTargetService: string;
   serviceArea: string;
-  budgetLines: Array<{ label: string; percentage: number; recommendedBudget: number }>;
 }) {
-  return `# Blog Operator Notes
+  return `# ${params.articleLabel} Operator Notes
 
-Use this folder to publish the approved blog article on the client's website.
+Use this folder to publish the approved ${params.articleLabel.toLowerCase()} on the client's website.
 
-${buildPlatformBudgetSection({
-  lines: params.budgetLines,
-  labels: ["Website / SEO / AEO"],
-})}
 ${buildWordPressBasicsSection()}
 
 ## What You Are Creating
-A blog article supporting:
+
+${params.articlePurpose}
+
 - Service: ${params.actionTargetService}
 - Service Area: ${params.serviceArea}
 - CTA: ${params.actionCta}
 
 ## Exact Steps
+
 1. Open the website CMS.
-2. Go to the blog or post editor.
-3. Create a new blog post or open the correct draft.
-4. Open \`blog-article.md\`.
-5. Copy the title and place it in the post title field.
-6. Copy the rest of the article into the body editor.
-7. Format the headings as heading blocks, not bold paragraphs.
-8. Add bullet lists where the markdown shows bullet points.
-9. Add the approved image if one is part of the workflow.
-10. Add the CTA link or button near the end of the article.
-11. Preview the post on desktop and mobile.
+2. Go to the appropriate blog, article, or resource editor.
+3. Create a new article or open the correct draft.
+4. Open \`${params.articleFileName}\`.
+5. Copy the article title into the page or post title field.
+6. Copy the article body into the content editor.
+7. Format each section heading as a real heading element.
+8. Add the approved image if one is part of the website workflow.
+9. Add the CTA near the end of the article.
+10. Follow the separate SEO guidance in \`../10-seo/seo-strategy.md\` when applicable.
+11. Preview the article on desktop and mobile.
 12. Publish or schedule it.
 
-## Do Not Change These Settings
-- Do not rewrite the article unless there is a factual issue.
-- Do not remove the CTA.
-- Do not change the service or city references.
-- Do not publish with broken formatting.
+## Important Content Rules
+
+- Do not rewrite the approved article unless there is a factual issue.
+- Do not add unsupported claims, prices, guarantees, credentials, savings, or other business facts.
+- Do not force additional keywords into the article.
+- Do not change the service or geography without confirming the action still applies.
+- Do not turn the article into a sales page.
 
 ## Before Publishing
+
 - Confirm the title is correct.
 - Confirm headings are formatted correctly.
-- Confirm the article includes the CTA.
-- Confirm the service area references are accurate.
-- Confirm links work.
-- Confirm the live preview looks clean on mobile.
+- Confirm business-specific facts are accurate.
+- Confirm the CTA works.
+- Confirm internal links point to real pages.
+- Confirm the service-area references are accurate.
+- Preview on desktop and mobile.
 
 ${buildAfterLaunchSection({
-  launchDestination: "the blog / website",
+  launchDestination: "the business website",
   followUpNotes: [
-    "Open the live article after publishing and confirm the text, image, and CTA all display correctly.",
+    "Open the live article after publishing and confirm the text, image, links, and CTA all display correctly.",
   ],
 })}
+`;
+}
+
+function buildActionSeoStrategyMarkdown(params: {
+  strategy: ActionSeoStrategy;
+  campaignName: string;
+  businessName: string;
+  targetService: string;
+  serviceArea: string;
+  consumerArticleTitle?: string | null;
+  knowledgeArticleTitle?: string | null;
+}) {
+  const strategy =
+    params.strategy;
+
+  return `# SEO Strategy for This Revenue Action
+
+This SEO strategy belongs to the Revenue Action itself.
+
+The Consumer Article and Knowledge / Authority Article support this strategy,
+but neither article defines the primary SEO target.
+
+## Revenue Action
+
+- Action: ${params.campaignName}
+- Business: ${params.businessName}
+- Target Service: ${
+    strategy.targetService ??
+    params.targetService
+  }
+- Target Geography: ${
+    strategy.targetGeography ??
+    params.serviceArea
+  }
+- Offer Context: ${
+    strategy.offerContext ??
+    "No separate promotional offer is part of the SEO strategy."
+  }
+
+## Primary Search Theme
+
+${
+  strategy.primarySearchTheme ??
+  "No primary search theme stored."
+}
+
+## Secondary Keyword Themes
+
+${bulletLines(
+  strategy.secondaryKeywordThemes,
+  "No secondary keyword themes stored."
+)}
+
+## Search Intent
+
+${
+  strategy.searchIntent ??
+  "No search-intent description stored."
+}
+
+## Primary Page Focus
+
+${
+  strategy.recommendedPageFocus ??
+  "Use the closest existing commercial service page that directly represents this Revenue Action."
+}
+
+The primary commercial page should remain the strongest search target for the
+service or offer represented by the action. Supporting articles should reinforce
+that page rather than compete with it for the same primary intent.
+
+## Recommended On-Page SEO
+
+### Title Tag
+
+${
+  strategy.titleTag ??
+  "No title-tag recommendation stored."
+}
+
+### Meta Description
+
+${
+  strategy.metaDescription ??
+  "No meta-description recommendation stored."
+}
+
+### H1
+
+${
+  strategy.h1Recommendation ??
+  "No H1 recommendation stored."
+}
+
+### Suggested URL Slug
+
+${
+  strategy.suggestedSlug ??
+  "No URL-slug recommendation stored."
+}
+
+> Do not change an existing live URL solely to match this suggestion. Use the
+> suggested slug for a new page, or change an existing URL only when the change
+> is intentionally approved and the appropriate redirect can be implemented.
+
+## Internal Linking Targets
+
+${bulletLines(
+  strategy.internalLinkTargets,
+  "No internal-link targets stored."
+)}
+
+## Supporting Search Questions
+
+These questions can strengthen the commercial topic when they fit naturally
+on the service page, supporting articles, or visible FAQ content.
+
+${bulletLines(
+  strategy.supportingQuestions,
+  "No supporting questions stored."
+)}
+
+## Supporting Content Strategy
+
+${bulletLines(
+  strategy.contentSupportNotes,
+  "No supporting-content notes stored."
+)}
+
+## Supporting Articles Included In This Pack
+
+- Consumer Article: ${
+    params.consumerArticleTitle ??
+    "Not approved / not included"
+  }
+- Knowledge / Authority Article: ${
+    params.knowledgeArticleTitle ??
+    "Not approved / not included"
+  }
+
+These articles should support the commercial page through relevant internal
+links and deeper topic coverage. They should not replace the commercial page
+as the primary target for service-driven search intent.
+
+## Implementation Guidance
+
+1. Identify the real website page that best matches the Primary Page Focus.
+2. Confirm that page actually represents the service, offer, and geography in this action.
+3. Compare its current title tag, meta description, H1, body content, and internal links with the recommendations above.
+4. Apply the recommended title, meta, and H1 only where they accurately describe the page.
+5. Make sure the target service is clearly explained in visible body content.
+6. Add useful internal links from relevant existing pages.
+7. Where appropriate, link the Consumer Article and Knowledge / Authority Article back to the primary commercial page.
+8. Link from the commercial page to supporting content only where that helps a real visitor.
+9. Keep headings descriptive and structurally logical.
+10. Publish the page and verify the live result.
+
+## Technical SEO Checks
+
+- Confirm the target page is indexable.
+- Confirm it is not accidentally blocked by robots.txt or a noindex directive.
+- Confirm the page has one clear primary H1.
+- Confirm the canonical URL points to the intended page.
+- Confirm title and meta-description fields are populated in the CMS or SEO plugin.
+- Confirm internal links resolve correctly.
+- Use descriptive image alt text where images convey meaningful content.
+- Keep page content visible in the rendered HTML.
+- If structured data is already supported by the site, use only schema types that truthfully match visible page content.
+- Do not add FAQ structured data unless the corresponding questions and answers are visibly published on the page.
+- Do not create duplicate pages for trivial keyword or city variations.
+
+## SEO Guardrails
+
+- Do not invent search volume.
+- Do not invent keyword difficulty.
+- Do not invent ranking positions.
+- Do not claim future ranking or traffic gains.
+- Do not stuff exact-match keywords into every heading.
+- Do not create doorway pages.
+- Do not add geographic areas the business does not actually serve.
+- Do not change verified offer language.
+- Do not overwrite unrelated high-performing pages simply because a keyword appears relevant.
+
+## Verification After Publishing
+
+- Open the live page.
+- Confirm the title and H1 accurately describe the page.
+- Confirm the meta description is saved.
+- Confirm all internal links work.
+- Confirm the page is indexable.
+- Confirm the Consumer and Knowledge / Authority articles link appropriately when published.
+- Record the live URL as part of the execution record when your workflow supports it.
+
+MarketForge should treat this as implementation guidance. Actual site improvement
+is confirmed only when the live website reflects the changes.
+`;
+}
+
+function buildWebsiteIntelligenceSeoMarkdown(params: {
+  seoAssetContent: string;
+  campaignName: string;
+  targetService: string;
+  serviceArea: string;
+  knowledgeArticleTitle?: string | null;
+}) {
+  return `# SEO & Publishing Guidance
+
+This guidance supports a Website Intelligence action identified from the live
+website assessment.
+
+It is not a Revenue Action SEO strategy.
+
+## Website Intelligence Improvement
+
+- Improvement: ${params.campaignName}
+- Service / Topic: ${params.targetService}
+- Service Area: ${params.serviceArea}
+- Knowledge / Authority Article: ${
+    params.knowledgeArticleTitle ??
+    "Approved authority article"
+  }
+
+## Article SEO Guidance
+
+${params.seoAssetContent}
+
+## Publishing Purpose
+
+The Knowledge / Authority Article should help address the observed website
+authority or knowledge-depth weakness by adding useful, substantive information
+for customers.
+
+The article should complement existing service content rather than duplicate it.
+
+## Publishing Guidance
+
+1. Identify the most appropriate article, resource, or educational-content
+   location on the existing website.
+2. Publish the approved Knowledge / Authority Article.
+3. Use the supplied SEO title and meta description where the CMS supports them.
+4. Use the suggested slug for a new article when appropriate.
+5. Do not change an existing live URL solely to match the suggested slug.
+6. Add useful internal links between the article and relevant existing service
+   content.
+7. Keep the content visible to normal website visitors.
+8. Preview the live page on desktop and mobile.
+9. Verify the article, metadata, CTA, and internal links after publishing.
+
+## Important Guardrails
+
+- Do not invent business claims.
+- Do not add unsupported credentials, pricing, guarantees, awards, or service claims.
+- Do not stuff keywords into the article.
+- Do not create duplicate pages solely for slight keyword variations.
+- Do not claim that publication itself guarantees rankings or AI visibility.
+- Do not mark the Website Intelligence assessment as improved simply because
+  the content was generated.
+
+MarketForge should recognize improvement only after a future live-site review
+observes the implemented content.
 `;
 }
 
@@ -1708,66 +2083,142 @@ function buildSeoOperatorNotes(params: {
   actionTargetService: string;
   businessName: string;
   serviceArea: string;
-  budgetLines: Array<{ label: string; percentage: number; recommendedBudget: number }>;
 }) {
-  return `# SEO Operator Notes
+  return `# SEO Implementation Notes
 
-Use this folder to apply the approved SEO improvements to the client's website.
+Use this folder to implement the SEO strategy associated with the Revenue Action.
 
-${buildPlatformBudgetSection({
-  lines: params.budgetLines,
-  labels: ["Website / SEO / AEO"],
-})}
 ${buildWordPressBasicsSection()}
 
 ## What You Are Updating
-SEO elements for:
+
+The website page or pages that best represent:
+
 - Business: ${params.businessName}
 - Service: ${params.actionTargetService}
 - Service Area: ${params.serviceArea}
 
-## Exact Steps
-1. Open the target page in the website CMS.
-2. Open \`seo-guidance.md\`.
-3. Update the page title field or SEO plugin title field using the approved guidance if needed.
-4. Update the H1 only if the current H1 does not reflect the approved service focus.
-5. Improve body copy using the approved service wording.
-6. Add internal links from relevant pages if the guidance calls for them.
-7. Preview the page.
-8. Publish or update the page.
+The detailed recommendations are in:
 
-## Do Not Change These Settings
-- Do not change the URL slug unless the client explicitly approved that change.
-- Do not create duplicate H1 tags.
-- Do not stuff keywords unnaturally.
-- Do not edit unrelated pages.
+\`seo-strategy.md\`
+
+## Recommended Workflow
+
+1. Read \`seo-strategy.md\` completely before changing the website.
+2. Identify the existing page that most closely matches the Recommended Page Focus.
+3. If a suitable page already exists, improve that page instead of automatically creating a duplicate.
+4. If no suitable page exists, create one only when the strategy clearly calls for a new commercial page.
+5. Apply title-tag, meta-description, and H1 recommendations only when they accurately match the actual page.
+6. Add or improve visible service content where necessary.
+7. Add the recommended internal links where they make sense for a real visitor.
+8. Publish the supporting Consumer Article and Knowledge / Authority Article when they are included and approved.
+9. Connect supporting articles to the primary commercial page through relevant internal links.
+10. Preview all changed pages.
+11. Publish or update.
+12. Verify the live pages.
+
+## Important URL Rule
+
+Do not change an existing URL simply because the suggested slug is different.
+
+If an existing URL must change:
+- confirm the change is intentional,
+- preserve the correct canonical,
+- create an appropriate redirect from the old URL,
+- update important internal links.
 
 ## Before Publishing
-- Confirm the page title is correct.
-- Confirm the H1 matches the page topic.
-- Confirm internal links work.
-- Confirm no placeholder language remains.
-- Confirm the service area wording is accurate.
+
+- Confirm every business-specific fact.
+- Confirm the service and geography are accurate.
+- Confirm the offer is still valid when one is referenced.
+- Confirm the title tag is relevant and readable.
+- Confirm there is one clear H1.
+- Confirm links work.
+- Confirm the page is indexable.
+- Confirm no duplicate service page was accidentally created.
+- Confirm mobile rendering is clean.
 
 ${buildAfterLaunchSection({
-  launchDestination: "the website SEO page",
+  launchDestination: "the business website",
+  followUpNotes: [
+    "Verify all updated and newly published URLs directly on the live website.",
+  ],
 })}
 `;
 }
 
+function buildWebsiteIntelligencePublishingNotes(params: {
+  actionTargetService: string;
+  businessName: string;
+  serviceArea: string;
+}) {
+  return `# Website Intelligence Publishing Notes
+
+Use this folder to publish the approved website improvement identified by
+MarketForge's Website Intelligence analysis.
+
+${buildWordPressBasicsSection()}
+
+## What You Are Publishing
+
+- Business: ${params.businessName}
+- Service / Topic: ${params.actionTargetService}
+- Service Area: ${params.serviceArea}
+
+Read \`seo-strategy.md\` before publishing.
+
+## Recommended Workflow
+
+1. Review the approved Knowledge / Authority Article.
+2. Read the SEO & Publishing Guidance in \`seo-strategy.md\`.
+3. Identify the appropriate existing website section for the article.
+4. Publish the article using the approved title and content.
+5. Apply the supplied SEO title and meta description where supported.
+6. Add useful internal links described in the guidance.
+7. Preview the page on desktop and mobile.
+8. Publish.
+9. Open the live URL and verify the result.
+
+## Before Publishing
+
+- Confirm every business-specific fact is accurate.
+- Confirm the service and geography are accurate.
+- Confirm internal links point to real pages.
+- Confirm the article is visible to normal visitors.
+- Confirm the page can be indexed.
+- Confirm no unsupported claims were added.
+
+## After Publishing
+
+- Save the live URL.
+- Verify the article, metadata, links, and CTA.
+- Do not manually increase the Website Intelligence assessment.
+- MarketForge should reassess the live website during a future crawl.
+`;
+}
+
 function buildOperatorChecklist(params: {
-  approvedAssetTypes: CampaignAsset["assetType"][];
+  approvedAssetTypes:
+    CampaignAsset["assetType"][];
+  hasConsumerArticle: boolean;
+  hasKnowledgeArticle: boolean;
+  hasLegacyBlog: boolean;
+  hasActionSeoStrategy: boolean;
 }) {
   const hasGoogleBusiness = params.approvedAssetTypes.includes("GOOGLE_BUSINESS");
   const hasMeta = params.approvedAssetTypes.includes("META");
   const hasGoogleAds = params.approvedAssetTypes.includes("GOOGLE_ADS");
   const hasYelp = params.approvedAssetTypes.includes("YELP");
   const hasEmail = params.approvedAssetTypes.includes("EMAIL");
-  const hasBlog = params.approvedAssetTypes.includes("BLOG");
   const hasFaq =
     params.approvedAssetTypes.includes("AEO_FAQ") ||
     params.approvedAssetTypes.includes("ANSWER_SNIPPET");
-  const hasSeo = params.approvedAssetTypes.includes("SEO");
+  const hasSeo =
+  params.hasActionSeoStrategy ||
+  params.approvedAssetTypes.includes(
+    "SEO"
+  );
 
   return `# Operator Launch Checklist
 
@@ -1852,8 +2303,35 @@ ${
 }
 
 ${
-  hasBlog
-    ? `## Blog
+  params.hasConsumerArticle
+    ? `## Consumer Article
+- [ ] consumer-article.md reviewed
+- [ ] article pasted into CMS
+- [ ] headings formatted
+- [ ] CTA included
+- [ ] supporting internal links added where appropriate
+- [ ] desktop and mobile preview checked
+- [ ] article published`
+    : ""
+}
+
+${
+  params.hasKnowledgeArticle
+    ? `## Knowledge / Authority Article
+- [ ] knowledge-authority-article.md reviewed
+- [ ] article pasted into CMS
+- [ ] headings formatted
+- [ ] factual claims verified
+- [ ] relevant internal links added
+- [ ] desktop and mobile preview checked
+- [ ] article published`
+    : ""
+}
+
+${
+  params.hasLegacyBlog
+    ? `## Legacy Blog Article
+- [ ] blog-article.md reviewed
 - [ ] article pasted into CMS
 - [ ] headings formatted
 - [ ] CTA included
@@ -1875,11 +2353,18 @@ ${
 ${
   hasSeo
     ? `## SEO
-- [ ] title or meta title updated if needed
-- [ ] H1 updated if needed
-- [ ] body copy updated if needed
-- [ ] internal links added if needed
-- [ ] page published`
+- [ ] seo-strategy.md reviewed
+- [ ] primary commercial page identified
+- [ ] search intent matches the Revenue Action
+- [ ] title tag reviewed or updated
+- [ ] meta description reviewed or updated
+- [ ] H1 reviewed or updated
+- [ ] visible service content supports the target topic
+- [ ] internal links added where appropriate
+- [ ] page indexability checked
+- [ ] canonical checked
+- [ ] supporting articles connected where appropriate
+- [ ] live page verified`
     : ""
 }
 
@@ -1891,48 +2376,104 @@ ${
 `;
 }
 
-function buildIncludedFolderList(
-  approvedAssetTypes: CampaignAsset["assetType"][]
-) {
-  const folders = ["- 01-campaign-brief"];
+function buildIncludedFolderList(params: {
+  approvedAssetTypes:
+    CampaignAsset["assetType"][];
+  hasConsumerArticle: boolean;
+  hasKnowledgeArticle: boolean;
+  hasLegacyBlog: boolean;
+  hasActionSeoStrategy: boolean;
+}) {
+  const folders = [
+    "- 01-campaign-brief",
+  ];
 
-  if (approvedAssetTypes.includes("GOOGLE_BUSINESS")) {
-    folders.push("- 02-google-business");
+  if (
+    params.approvedAssetTypes.includes(
+      "GOOGLE_BUSINESS"
+    )
+  ) {
+    folders.push(
+      "- 02-google-business"
+    );
   }
 
-  if (approvedAssetTypes.includes("META")) {
+  if (
+    params.approvedAssetTypes.includes(
+      "META"
+    )
+  ) {
     folders.push("- 03-facebook");
     folders.push("- 04-instagram");
   }
 
-  if (approvedAssetTypes.includes("GOOGLE_ADS")) {
+  if (
+    params.approvedAssetTypes.includes(
+      "GOOGLE_ADS"
+    )
+  ) {
     folders.push("- 05-google-ads");
   }
 
-  if (approvedAssetTypes.includes("YELP")) {
+  if (
+    params.approvedAssetTypes.includes(
+      "YELP"
+    )
+  ) {
     folders.push("- 06-yelp");
   }
 
-  if (approvedAssetTypes.includes("EMAIL")) {
+  if (
+    params.approvedAssetTypes.includes(
+      "EMAIL"
+    )
+  ) {
     folders.push("- 07-email");
   }
 
-  if (approvedAssetTypes.includes("BLOG")) {
+  if (params.hasConsumerArticle) {
+    folders.push(
+      "- 08-consumer-article"
+    );
+  } else if (
+    params.hasLegacyBlog
+  ) {
     folders.push("- 08-blog");
   }
 
   if (
-    approvedAssetTypes.includes("AEO_FAQ") ||
-    approvedAssetTypes.includes("ANSWER_SNIPPET")
+    params.hasKnowledgeArticle
   ) {
-    folders.push("- 09-aeo");
+    folders.push(
+      "- 09-knowledge-authority"
+    );
   }
 
-  if (approvedAssetTypes.includes("SEO")) {
+  if (
+    params.approvedAssetTypes.includes(
+      "AEO_FAQ"
+    ) ||
+    params.approvedAssetTypes.includes(
+      "ANSWER_SNIPPET"
+    )
+  ) {
+    folders.push(
+      "- 09-aeo-legacy"
+    );
+  }
+
+  if (
+    params.hasActionSeoStrategy ||
+    params.approvedAssetTypes.includes(
+      "SEO"
+    )
+  ) {
     folders.push("- 10-seo");
   }
 
-  folders.push("- 11-operator-checklist");
+  folders.push(
+    "- 11-operator-checklist"
+  );
 
   return folders.join("\n");
 }
@@ -3020,6 +3561,9 @@ export async function buildCampaignExportPack({
     safeBriefJson(
       campaign.briefJson
     );
+  const isWebsiteIntelligence =
+    brief?.market ===
+    "WEBSITE_INTELLIGENCE";
   const estimatedRange = extractEstimatedRange(campaign.briefJson);
   const utm = generateUtmSet(campaign);
 
@@ -3031,21 +3575,64 @@ export async function buildCampaignExportPack({
   const googleAdsAsset = approvedAssetByType(campaign.assets, "GOOGLE_ADS");
   const yelpAsset = approvedAssetByType(campaign.assets, "YELP");
   const emailAsset = approvedAssetByType(campaign.assets, "EMAIL");
-  const blogAsset = approvedAssetByType(campaign.assets, "BLOG");
-  const aeoFaqAsset = approvedAssetByType(campaign.assets, "AEO_FAQ");
-  const answerSnippetAsset = approvedAssetByType(
-    campaign.assets,
-    "ANSWER_SNIPPET"
-  );
-  const seoAsset = approvedAssetByType(campaign.assets, "SEO");
+  const consumerArticleAsset =
+    approvedBlogAssetByRole(
+      campaign.assets,
+      "CONSUMER_ARTICLE"
+    );
+
+  const knowledgeArticleAsset =
+    approvedBlogAssetByRole(
+      campaign.assets,
+      "KNOWLEDGE_AUTHORITY_ARTICLE"
+    );
+
+  const legacyBlogAsset =
+    approvedLegacyBlogAsset(
+      campaign.assets
+    );
+
+  const aeoFaqAsset =
+    approvedAssetByType(
+      campaign.assets,
+      "AEO_FAQ"
+    );
+
+  const answerSnippetAsset =
+    approvedAssetByType(
+      campaign.assets,
+      "ANSWER_SNIPPET"
+    );
+
+  const seoAsset =
+    approvedAssetByType(
+      campaign.assets,
+      "SEO"
+    );
 
   const googleBusiness =
     parseStructuredAsset<GoogleBusinessAssetPayload>(googleBusinessAsset);
   const meta = parseStructuredAsset<MetaAssetPayload>(metaAsset);
   const email = parseStructuredAsset<EmailAssetPayload>(emailAsset);
-  const blog = parseStructuredAsset<BlogAssetPayload>(blogAsset);
+  const consumerArticle =
+    parseStructuredAsset<BlogAssetPayload>(
+      consumerArticleAsset
+    );
+
+  const knowledgeArticle =
+    parseStructuredAsset<BlogAssetPayload>(
+      knowledgeArticleAsset
+    );
+
+  const legacyBlog =
+    parseStructuredAsset<BlogAssetPayload>(
+      legacyBlogAsset
+    );
 
   const actionSpec = brief?.actionSpec ?? null;
+  const actionSeoStrategy =
+    brief?.actionSeoStrategy ??
+    null;
 
   const ownerObjective =
     actionSpec?.ownerObjective ??
@@ -3157,7 +3744,17 @@ ${budgetRecommendation.lines
 ## What Is Included In This Pack
 Only approved assets are included.
 
-${buildIncludedFolderList(approvedAssetTypes)}
+${buildIncludedFolderList({
+  approvedAssetTypes,
+  hasConsumerArticle:
+    Boolean(consumerArticleAsset),
+  hasKnowledgeArticle:
+    Boolean(knowledgeArticleAsset),
+  hasLegacyBlog:
+    Boolean(legacyBlogAsset),
+  hasActionSeoStrategy:
+    Boolean(actionSeoStrategy),
+})}
 
 ## Recommended Launch Order
 1. Read \`01-campaign-brief/campaign-summary.md\`
@@ -3168,9 +3765,10 @@ ${buildIncludedFolderList(approvedAssetTypes)}
 6. Launch Google Ads if included
 7. Launch Yelp if included
 8. Launch Email if included
-9. Publish Blog content if included
-10. Publish FAQ / AEO content if included
-11. Apply SEO updates if included
+9. Publish the Consumer Article if included
+10. Publish the Knowledge / Authority Article if included
+11. Apply the action-level SEO strategy if included
+12. Publish legacy FAQ / answer content only if this is an older action that contains those assets
 
 ## How To Use This Pack
 Each folder contains:
@@ -3208,8 +3806,16 @@ ${buildGlobalMistakesSection()}
         offer: campaign.offer ?? null,
         audience: campaign.audience ?? null,
         status: campaign.status,
-        actionSpec: brief?.actionSpec ?? null,
-        execution: brief?.execution ?? null,
+        actionSpec:
+          brief?.actionSpec ??
+          null,
+
+        actionSeoStrategy:
+          actionSeoStrategy,
+
+        execution:
+          brief?.execution ??
+          null,
         assetsIncluded: campaign.assets
           .filter((asset) => asset.isApproved)
           .map((asset) => ({
@@ -3603,23 +4209,98 @@ CTA: ${email.cta}`
     })
   );
 
-  const blogFolder = blogAsset
-    ? root.folder("08-blog")
-    : null;
-  blogFolder?.file("blog-article.md", buildBlogArticleMarkdown(blog));
-  blogFolder?.file(
+  const consumerArticleFolder =
+    consumerArticleAsset
+      ? root.folder(
+          "08-consumer-article"
+        )
+      : null;
+
+  consumerArticleFolder?.file(
+    "consumer-article.md",
+    buildBlogArticleMarkdown(
+      consumerArticle
+    )
+  );
+
+  consumerArticleFolder?.file(
     "operator-notes.md",
-    buildBlogOperatorNotes({
+    buildArticleOperatorNotes({
+      articleLabel:
+        "Consumer Article",
+      articleFileName:
+        "consumer-article.md",
+      articlePurpose:
+        "A customer-facing article that helps homeowners understand the need represented by this Revenue Action and make a more informed service decision.",
       actionCta,
-      actionTargetService: targetService,
+      actionTargetService:
+        targetService,
       serviceArea,
-      budgetLines: budgetRecommendation.lines,
+    })
+  );
+
+  const knowledgeArticleFolder =
+    knowledgeArticleAsset
+      ? root.folder(
+          "09-knowledge-authority"
+        )
+      : null;
+
+  knowledgeArticleFolder?.file(
+    "knowledge-authority-article.md",
+    buildBlogArticleMarkdown(
+      knowledgeArticle
+    )
+  );
+
+  knowledgeArticleFolder?.file(
+    "operator-notes.md",
+    buildArticleOperatorNotes({
+      articleLabel:
+        "Knowledge / Authority Article",
+      articleFileName:
+        "knowledge-authority-article.md",
+      articlePurpose:
+        "A deeper educational resource that expands topical knowledge around the service or problem represented by this Revenue Action.",
+      actionCta,
+      actionTargetService:
+        targetService,
+      serviceArea,
+    })
+  );
+
+  const legacyBlogFolder =
+    !consumerArticleAsset &&
+    legacyBlogAsset
+      ? root.folder("08-blog")
+      : null;
+
+  legacyBlogFolder?.file(
+    "blog-article.md",
+    buildBlogArticleMarkdown(
+      legacyBlog
+    )
+  );
+
+  legacyBlogFolder?.file(
+    "operator-notes.md",
+    buildArticleOperatorNotes({
+      articleLabel:
+        "Blog Article",
+      articleFileName:
+        "blog-article.md",
+      articlePurpose:
+        "Legacy approved website article associated with this action.",
+      actionCta,
+      actionTargetService:
+        targetService,
+      serviceArea,
     })
   );
 
   const aeoFolder =
     aeoFaqAsset || answerSnippetAsset
-      ? root.folder("09-aeo")
+      ? root.folder("09-aeo-legacy")
       : null;
   aeoFolder?.file(
     "faq-content.md",
@@ -3638,76 +4319,103 @@ CTA: ${email.cta}`
     })
   );
 
-  const seoFolder = seoAsset
+  const seoFolder =
+  actionSeoStrategy ||
+  seoAsset
     ? root.folder("10-seo")
     : null;
+
+if (actionSeoStrategy) {
   seoFolder?.file(
-    "seo-guidance.md",
-    `# SEO Optimization Guidance
-
-## Target Service
-${targetService}
-
-## Existing SEO Asset
-${seoAsset?.content ?? "No separate SEO asset stored."}
-
-## Suggested Keywords
-
-Primary keywords
-- ${targetService} near me
-- ${targetService} ${serviceArea}
-- local ${targetService}
-
-Secondary keywords
-- ${targetService} cost
-- ${targetService} quote
-- trusted ${targetService}
-
-## Suggested Page Updates
-
-If a page exists, update:
-
-Title Tag
-"${targetService} in ${serviceArea} | ${businessName}"
-
-H1
-"${targetService} in ${serviceArea}"
-
-## Internal Linking Suggestions
-
-Link from:
-- homepage
-- related services
-- FAQ page
-- recent blog posts
-
-Anchor text examples:
-- "${targetService}"
-- "${serviceArea} ${targetService}"
-- "${businessName}"
-
-## Local SEO
-Ensure service area is clearly stated on:
-- homepage
-- target page
-- Google Business listing
-`
-  );
-  seoFolder?.file(
-    "operator-notes.md",
-    buildSeoOperatorNotes({
-      actionTargetService: targetService,
+    "seo-strategy.md",
+    buildActionSeoStrategyMarkdown({
+      strategy:
+        actionSeoStrategy,
+      campaignName:
+        campaign.name,
       businessName,
+      targetService,
       serviceArea,
-      budgetLines: budgetRecommendation.lines,
+      consumerArticleTitle:
+        consumerArticle?.title ??
+        null,
+      knowledgeArticleTitle:
+        knowledgeArticle?.title ??
+        null,
     })
   );
+} else if (
+  isWebsiteIntelligence &&
+  seoAsset
+) {
+  seoFolder?.file(
+    "seo-strategy.md",
+    buildWebsiteIntelligenceSeoMarkdown({
+      seoAssetContent:
+        seoAsset.content,
+      campaignName:
+        campaign.name,
+      targetService,
+      serviceArea,
+      knowledgeArticleTitle:
+        knowledgeArticle?.title ??
+        null,
+    })
+  );
+} else if (seoAsset) {
+  seoFolder?.file(
+    "seo-strategy.md",
+    `# Legacy SEO Guidance
+
+This action predates the current action-level SEO strategy structure.
+
+## Stored SEO Asset
+
+${seoAsset.content}
+
+## Target Service
+
+${targetService}
+
+## Service Area
+
+${serviceArea}
+
+Review this historical guidance against the current live website before making changes.
+`
+  );
+}
+
+seoFolder?.file(
+  "operator-notes.md",
+  isWebsiteIntelligence
+    ? buildWebsiteIntelligencePublishingNotes({
+        actionTargetService:
+          targetService,
+        businessName,
+        serviceArea,
+      })
+    : buildSeoOperatorNotes({
+        actionTargetService:
+          targetService,
+        businessName,
+        serviceArea,
+      })
+);
 
   const opsFolder = root.folder("11-operator-checklist");
   opsFolder?.file(
     "launch-checklist.md",
     buildOperatorChecklist({
       approvedAssetTypes,
+      hasConsumerArticle:
+        Boolean(consumerArticleAsset),
+      hasKnowledgeArticle:
+        Boolean(knowledgeArticleAsset),
+      hasLegacyBlog:
+        Boolean(legacyBlogAsset),
+      hasActionSeoStrategy:
+        Boolean(actionSeoStrategy),
     })
   );
 

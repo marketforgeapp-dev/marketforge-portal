@@ -1324,62 +1324,88 @@ const result = await fetchBusinessCandidates({
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-bold text-gray-900">Web Presence</h2>
-            <SectionSaveButton onSave={handleSave} isPending={isPending} />
-        <p className="mt-1 text-sm text-gray-600">
-  These signals help MarketForge evaluate your digital visibility and
-  identify SEO, AEO, and local search opportunities.
-</p>
-        <div className="mt-6 grid grid-cols-1 gap-4">
-          <Field
-            label="Google Business Profile URL"
-            helpText="This helps MarketForge improve local visibility analysis and future lead attribution."
-          >
-            <input
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-              value={formData.googleBusinessProfileUrl}
-              onChange={(e) =>
-                updateField("googleBusinessProfileUrl", e.target.value)
-              }
-            />
-          </Field>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+              Website Intelligence
+            </p>
 
-          <Field label="Service Page URLs (comma separated)">
-            <input
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-              value={arrayToCommaSeparated(formData.servicePageUrls)}
-              onChange={(e) =>
-                updateField("servicePageUrls", parseCommaSeparated(e.target.value))
-              }
-            />
-          </Field>
+            <h2 className="mt-2 text-xl font-bold text-gray-900">
+              How MarketForge understands your website
+            </h2>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {[
-              ["hasServicePages", "Has service pages"],
-              ["hasFaqContent", "Has FAQ content"],
-              ["hasBlog", "Has blog"],
-              ["hasGoogleBusinessPage", "Has Google Business page"],
-            ].map(([key, label]) => (
-              <label
-                key={key}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(formData[key as keyof OnboardingFormData])}
-                  onChange={(e) =>
-                    updateField(
-                      key as keyof OnboardingFormData,
-                      e.target.checked as never
-                    )
-                  }
-                />
-                <span>{label}</span>
-              </label>
-            ))}
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+              MarketForge reviews your live website to understand how clearly your
+              services, expertise, local presence, and credibility are represented
+              online.
+            </p>
           </div>
+
+          <a
+            href="/aeo"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            View AEO Recommendations
+          </a>
         </div>
+
+        {formData.websiteIntelligence ? (
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Website reviewed
+              </p>
+              <p className="mt-2 text-sm font-medium text-gray-900">
+                {formData.websiteIntelligence.website}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Current assessment
+              </p>
+              <p className="mt-2 text-sm leading-6 text-gray-700">
+                {formData.websiteIntelligence.overallSummary}
+              </p>
+            </div>
+
+            {formData.websiteIntelligence.strongestGaps.length > 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 md:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Biggest areas to improve
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {formData.websiteIntelligence.strongestGaps
+                    .slice(0, 3)
+                    .map((gap, index) => (
+                      <span
+                        key={`${gap.type}-${gap.service ?? "general"}-${index}`}
+                        className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700"
+                      >
+                        {gap.type
+                          .toLowerCase()
+                          .split("_")
+                          .map(
+                            (word) =>
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                          )
+                          .join(" ")}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm leading-6 text-gray-600">
+              Website Intelligence has not been established for this workspace yet.
+              MarketForge will assess the live website during an upcoming intelligence
+              refresh.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

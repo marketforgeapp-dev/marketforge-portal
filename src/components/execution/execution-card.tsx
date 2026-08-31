@@ -211,6 +211,10 @@ export function ExecutionCard({ campaign }: Props) {
     commercialBrief?.market ===
     "COMMERCIAL";
 
+  const isWebsiteIntelligence =
+    commercialBrief?.market ===
+    "WEBSITE_INTELLIGENCE";
+
   const approvedPlatforms =
     isCommercial
       ? []
@@ -232,19 +236,18 @@ export function ExecutionCard({ campaign }: Props) {
     ).length;
 
   const budgetRecommendation =
-    isCommercial
+    isCommercial ||
+    isWebsiteIntelligence
       ? null
       : getBudgetAllocationRecommendation(
           approvedAssetTypes,
           {
             revenueLow:
-              estimatedRange
-                ?.revenueLow ??
+              estimatedRange?.revenueLow ??
               null,
 
             revenueHigh:
-              estimatedRange
-                ?.revenueHigh ??
+              estimatedRange?.revenueHigh ??
               (typeof campaign.estimatedRevenue ===
               "number"
                 ? campaign.estimatedRevenue
@@ -393,13 +396,15 @@ export function ExecutionCard({ campaign }: Props) {
         ) : (
           <p>
             <span className="font-semibold text-gray-900">
-              Platforms:
+              {isWebsiteIntelligence
+                ? "Materials:"
+                : "Platforms:"}
             </span>{" "}
             {approvedPlatforms.length > 0
-              ? approvedPlatforms.join(
-                  ", "
-                )
-              : "No approved platforms yet"}
+              ? approvedPlatforms.join(", ")
+              : isWebsiteIntelligence
+                ? "No approved materials yet"
+                : "No approved platforms yet"}
           </p>
         )}
         <p>

@@ -35,14 +35,12 @@ export type ServiceContextType =
   | "seasonal"
   | "event-driven"
   | "low-frequency-high-value"
-  | "emergency"
-  | "visibility";
+  | "emergency";
 
 export type ServiceContextProfile = {
   contextType: ServiceContextType;
   requiresEventSignal: boolean;
   lowFrequencyHighValue: boolean;
-  visibilityDriven: boolean;
   maxVisiblePerFamily: number;
   heroAllowedByDefault: boolean;
 };
@@ -82,8 +80,7 @@ export type CandidateContextFitInput = {
     | "premium"
     | "estimate_offer"
     | "bundle"
-    | "service_area"
-    | "visibility";
+    | "service_area";
   rawBaseScore: number;
   seasonalityRelevance: InferredSignalLevel;
   seasonalityReason: string;
@@ -93,7 +90,6 @@ export type CandidateContextFitInput = {
   homeownerIntentReason: string;
   whyNowBullets: string[];
   whyThisMatters: string;
-  visibilityGapScore?: number;
   competitorSummary?: string | null;
   contextProfile: ServiceContextProfile;
   deterministicContext: DeterministicContextEvaluation;
@@ -115,7 +111,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "event-driven",
       requiresEventSignal: true,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: false,
     },
@@ -123,7 +118,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "emergency",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -131,7 +125,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "emergency",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -139,7 +132,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "emergency",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -147,7 +139,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 2,
       heroAllowedByDefault: true,
     },
@@ -155,7 +146,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: false,
     },
@@ -163,7 +153,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: false,
     },
@@ -171,7 +160,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: false,
     },
@@ -179,7 +167,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: false,
     },
@@ -187,7 +174,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: false,
     },
@@ -195,7 +181,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: false,
     },
@@ -203,7 +188,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "low-frequency-high-value",
       requiresEventSignal: false,
       lowFrequencyHighValue: true,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -211,7 +195,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "seasonal",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 2,
       heroAllowedByDefault: true,
     },
@@ -219,7 +202,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "seasonal",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -227,7 +209,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "seasonal",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -235,7 +216,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "evergreen",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -243,7 +223,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "evergreen",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -251,7 +230,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "evergreen",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     },
@@ -259,17 +237,8 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "evergreen",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
-    },
-    "ai-search-visibility": {
-      contextType: "visibility",
-      requiresEventSignal: false,
-      lowFrequencyHighValue: false,
-      visibilityDriven: true,
-      maxVisiblePerFamily: 1,
-      heroAllowedByDefault: false,
     },
   };
 
@@ -278,7 +247,6 @@ export function getServiceContextProfile(familyKey: string): ServiceContextProfi
       contextType: "evergreen",
       requiresEventSignal: false,
       lowFrequencyHighValue: false,
-      visibilityDriven: false,
       maxVisiblePerFamily: 1,
       heroAllowedByDefault: true,
     }
@@ -291,7 +259,6 @@ export function evaluateDeterministicContext(params: {
   seasonalityRelevance: InferredSignalLevel;
   urgencyRelevance: InferredSignalLevel;
   homeownerIntentStrength: InferredSignalLevel;
-  visibilityGapScore?: number;
   baseScore: number;
   isDeprioritized: boolean;
 }): DeterministicContextEvaluation {
@@ -305,7 +272,6 @@ export function evaluateDeterministicContext(params: {
   const seasonality = averageSignalScore(params.seasonalityRelevance);
   const urgency = averageSignalScore(params.urgencyRelevance);
   const intent = averageSignalScore(params.homeownerIntentStrength);
-  const visibilityGap = params.visibilityGapScore ?? 0;
 
   if (params.isDeprioritized) {
     return {
@@ -392,28 +358,6 @@ export function evaluateDeterministicContext(params: {
     }
   }
 
-    if (profile.contextType === "visibility") {
-    if (visibilityGap >= 80) {
-      adjustment += 8;
-      preliminarySurface = "surface";
-      heroEligibleDeterministic = false;
-      deterministicReason =
-        "The visibility gap is severe enough that AI search visibility belongs in the visible set, but it still should not default to hero over direct revenue lanes.";
-    } else if (visibilityGap >= 60) {
-      adjustment += 3;
-      preliminarySurface = "surface";
-      heroEligibleDeterministic = false;
-      deterministicReason =
-        "The visibility gap is real, so AI search visibility should remain a visible strategic option.";
-    } else {
-      adjustment -= 12;
-      preliminarySurface = "reserve";
-      heroEligibleDeterministic = false;
-      deterministicReason =
-        "The visibility gap is not severe enough to compete aggressively for visible placement.";
-    }
-  }
-
   if (params.variantKind === "premium" && profile.lowFrequencyHighValue) {
     adjustment -= 6;
   }
@@ -437,8 +381,7 @@ export function evaluateDeterministicContext(params: {
   if (params.variantKind === "bundle") {
   const bundleCanCompeteForHero =
     profile.contextType !== "emergency" &&
-    profile.contextType !== "event-driven" &&
-    profile.contextType !== "visibility";
+    profile.contextType !== "event-driven";
 
   adjustment += profile.lowFrequencyHighValue ? 4 : 3;
 
@@ -448,7 +391,7 @@ export function evaluateDeterministicContext(params: {
 
   deterministicReason = bundleCanCompeteForHero
     ? "This is a bundle-style commercial play tied to services the business already offers. It can compete for hero placement when the bundle is safe, non-event-driven, and commercially stronger than a plain service push."
-    : "This is a bundle-style commercial play, but bundle hero placement is blocked for emergency, event-driven, or visibility-oriented work.";
+    : "This is a bundle-style commercial play, but bundle hero placement is blocked for emergency or event-driven work.";
 }
 
   if (params.variantKind === "service_area") {
@@ -540,7 +483,6 @@ export async function getAiContextFitBatch(params: {
             "A good visible set should include a mix of dependable demand, selective urgency, and only limited narrow high-ticket lanes.",
             "Do not allow multiple narrow high-consequence service lanes to dominate the visible opportunity set unless the evidence is unusually strong.",
             "Event-driven and low-frequency high-value services require stronger support.",
-            "AI search visibility can be strong, but should not dominate the set unless the gap is severe.",
             "Use hero only when the recommendation would feel obvious and commercially believable to a real owner-operator right now.",
             "Return only structured output.",
           ].join(" "),

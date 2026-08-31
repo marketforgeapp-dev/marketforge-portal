@@ -73,6 +73,8 @@ model Workspace {
   businessReputationSnapshots BusinessReputationSnapshot[]
   competitorMetricsSnapshots  CompetitorMetricsSnapshot[]
 
+  websiteImplementationPlans WebsiteImplementationPlan[]
+
   @@index([status])
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -168,9 +170,11 @@ model BusinessProfile {
   hasBlog                  Boolean                      @default(false)
   hasGoogleBusinessPage    Boolean                      @default(false)
 
-  aeoReadinessScore Int?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  aeoReadinessScore       Int?
+  websiteIntelligenceJson Json?
+  lastWebsiteIntelligenceRefreshAt DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -540,6 +544,26 @@ model StrategySessionLead {
   @@index([normalizedBusinessName])
   @@index([requestedAt])
   @@index([createdAt])
+}
+
+model WebsiteImplementationPlan {
+  id               String @id @default(cuid())
+  workspaceId      String
+  recommendationId String
+
+  gapType String
+  service String?
+
+  title    String
+  planJson Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, recommendationId])
+  @@index([workspaceId])
 }
 
 enum StrategySessionLeadStatus {

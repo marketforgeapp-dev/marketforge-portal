@@ -1,107 +1,120 @@
-import { getIndustryCopy } from "@/lib/industry-copy";
+import type {
+  WebsiteIntelligenceAssessment,
+  WebsiteIntelligenceStatus,
+} from "@/lib/website-intelligence";
 
 type Props = {
-  industry?: "PLUMBING" | "SEPTIC" | "TREE_SERVICE" | "HVAC" | null;
-  hasServicePages: boolean;
-  hasFaqContent: boolean;
-  hasBlog: boolean;
-  hasGoogleBusinessPage: boolean;
-  servicePageCount: number;
+  assessment: WebsiteIntelligenceAssessment;
 };
 
-export function AeoSignalList({
-  industry,
-  hasServicePages,
-  hasFaqContent,
-  hasBlog,
-  hasGoogleBusinessPage,
-  servicePageCount,
-}: Props) {
-  const copy = getIndustryCopy(industry);
+const DIMENSIONS = [
+  {
+    key: "businessUnderstanding",
+    label: "Business Understanding",
+  },
+  {
+    key: "serviceAuthority",
+    label: "Service Authority",
+  },
+  {
+    key: "knowledgeDepth",
+    label: "Knowledge Depth",
+  },
+  {
+    key: "structuredClarity",
+    label: "Structured Clarity",
+  },
+  {
+    key: "localRelevance",
+    label: "Local Relevance",
+  },
+  {
+    key: "trustCredibility",
+    label: "Trust & Credibility",
+  },
+  {
+    key: "consistency",
+    label: "Consistency",
+  },
+] as const;
 
-  const signals = [
-    {
-      label: copy.servicePageLabel,
-      value: hasServicePages ? "Present" : "Missing",
-      good: hasServicePages,
-      detail: hasServicePages
-        ? `Core ${copy.industryLabel.toLowerCase()} services are represented on the site.`
-        : `Dedicated ${copy.industryLabel.toLowerCase()} service pages are missing.`,
-    },
-    {
-      label: copy.faqLabel,
-      value: hasFaqContent ? "Present" : "Missing",
-      good: hasFaqContent,
-      detail: hasFaqContent
-        ? "Answer-ready content is available for high-intent local questions."
-        : "Structured FAQ coverage is missing or too thin.",
-    },
-    {
-      label: "Content Layer",
-      value: hasBlog ? "Present" : "Missing",
-      good: hasBlog,
-      detail: hasBlog
-        ? "Educational content supports answer depth and topic breadth."
-        : "Topical content coverage is limited.",
-    },
-    {
-      label: copy.googleBusinessLabel,
-      value: hasGoogleBusinessPage ? "Connected" : "Missing",
-      good: hasGoogleBusinessPage,
-      detail: hasGoogleBusinessPage
-        ? "Local entity signal is present."
-        : "Local profile footprint is incomplete.",
-    },
-    {
-      label: "Service Page Count",
-      value: `${servicePageCount}`,
-      good: servicePageCount >= 4,
-      detail:
-        servicePageCount >= 4
-          ? "Coverage is broad enough to support multiple service intents."
-          : "More dedicated service-page coverage would strengthen visibility.",
-    },
-  ];
+function formatStatus(status: WebsiteIntelligenceStatus): string {
+  if (status === "INSUFFICIENT_EVIDENCE") {
+    return "Not Enough Evidence";
+  }
+
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
+function getStatusClasses(status: WebsiteIntelligenceStatus): string {
+  if (status === "STRONG") {
+    return "bg-green-50 text-green-700";
+  }
+
+  if (status === "PARTIAL") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  if (status === "WEAK") {
+    return "bg-amber-50 text-amber-700";
+  }
+
+  return "bg-gray-100 text-gray-600";
+}
+
+export function AeoSignalList({ assessment }: Props) {
+  const strongCount = DIMENSIONS.filter(
+    (dimension) =>
+      assessment.dimensions[dimension.key].status === "STRONG"
+  ).length;
 
   return (
     <div className="mf-card rounded-3xl p-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
-          Readiness Signals
-        </p>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+            Website Signals
+          </p>
+
+          <p className="mt-1 text-sm text-gray-600">
+            The areas MarketForge evaluates when understanding your website.
+          </p>
+        </div>
 
         <span className="rounded-full bg-gray-100 px-3 py-1 text-[10px] font-semibold text-gray-700">
-          {signals.filter((signal) => signal.good).length}/{signals.length} strong
+          {strongCount} strong
         </span>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {signals.map((signal) => (
-          <div
-            key={signal.label}
-            className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-gray-900">
-                {signal.label}
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {DIMENSIONS.map((dimension) => {
+          const result = assessment.dimensions[dimension.key];
+
+          return (
+            <div
+              key={dimension.key}
+              className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-semibold text-gray-900">
+                  {dimension.label}
+                </p>
+
+                <span
+                  className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold ${getStatusClasses(
+                    result.status
+                  )}`}
+                >
+                  {formatStatus(result.status)}
+                </span>
+              </div>
+
+              <p className="mt-2 text-sm leading-5 text-gray-600">
+                {result.summary}
               </p>
-
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  signal.good
-                    ? "bg-green-50 text-green-700"
-                    : "bg-amber-50 text-amber-700"
-                }`}
-              >
-                {signal.value}
-              </span>
             </div>
-
-            <p className="mt-2 text-sm leading-5 text-gray-600">
-              {signal.detail}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

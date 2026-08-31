@@ -60,6 +60,9 @@ type EmailAssetPayload = {
 
 type BlogAssetPayload = {
   kind: "BLOG";
+  articleRole?:
+    | "CONSUMER_ARTICLE"
+    | "KNOWLEDGE_AUTHORITY_ARTICLE";
   title: string;
   excerpt: string;
   introduction: string;
@@ -180,9 +183,36 @@ function getCommercialAssetLabel(
 function getAssetReviewLabel(
   asset: CampaignAsset
 ) {
-  return (
-    getCommercialAssetLabel(asset) ??
-    formatAssetType(asset.assetType)
+  const commercialLabel =
+    getCommercialAssetLabel(asset);
+
+  if (commercialLabel) {
+    return commercialLabel;
+  }
+
+  if (asset.assetType === "BLOG") {
+    const structured =
+      parseStructuredAsset(asset);
+
+    if (
+      structured?.kind === "BLOG" &&
+      structured.articleRole ===
+        "CONSUMER_ARTICLE"
+    ) {
+      return "Consumer Article";
+    }
+
+    if (
+      structured?.kind === "BLOG" &&
+      structured.articleRole ===
+        "KNOWLEDGE_AUTHORITY_ARTICLE"
+    ) {
+      return "Knowledge / Authority Article";
+    }
+  }
+
+  return formatAssetType(
+    asset.assetType
   );
 }
 
@@ -198,6 +228,24 @@ function parseCommercialBrief(
   }
 
   return value as CommercialBriefShape;
+}
+
+function getBriefMarket(value: unknown): string | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  const market = (
+    value as Record<string, unknown>
+  ).market;
+
+  return typeof market === "string"
+    ? market
+    : null;
 }
 
 function normalizeRequirementKey(
@@ -295,6 +343,64 @@ function parseStructuredAsset(
   } catch {
     return null;
   }
+}
+
+function getBlogArticleRole(
+  asset: CampaignAsset
+):
+  | "CONSUMER_ARTICLE"
+  | "KNOWLEDGE_AUTHORITY_ARTICLE"
+  | null {
+  if (asset.assetType !== "BLOG") {
+    return null;
+  }
+
+  const structured =
+    parseStructuredAsset(asset);
+
+  if (
+    structured?.kind !== "BLOG"
+  ) {
+    return null;
+  }
+
+  if (
+    structured.articleRole ===
+    "CONSUMER_ARTICLE"
+  ) {
+    return "CONSUMER_ARTICLE";
+  }
+
+  if (
+    structured.articleRole ===
+    "KNOWLEDGE_AUTHORITY_ARTICLE"
+  ) {
+    return "KNOWLEDGE_AUTHORITY_ARTICLE";
+  }
+
+  return null;
+}
+
+function getBlogArticleLabel(
+  asset: CampaignAsset
+) {
+  const role =
+    getBlogArticleRole(asset);
+
+  if (
+    role === "CONSUMER_ARTICLE"
+  ) {
+    return "Consumer Article";
+  }
+
+  if (
+    role ===
+    "KNOWLEDGE_AUTHORITY_ARTICLE"
+  ) {
+    return "Knowledge / Authority Article";
+  }
+
+  return "Blog";
 }
 
 function groupAssetsForReview(
@@ -402,49 +508,155 @@ function groupAssetsForReview(
     return grouped;
   }
 
-  const orderedTypes = [
-    "GOOGLE_BUSINESS",
-    "META",
-    "GOOGLE_ADS",
-    "YELP",
-    "EMAIL",
-    "BLOG",
-    "AEO_FAQ",
-    "ANSWER_SNIPPET",
-    "SEO",
+  const orderedGroups = [
+    {
+      key: "GOOGLE_BUSINESS",
+      label: "Google Business",
+      assetType: "GOOGLE_BUSINESS",
+    },
+    {
+      key: "META",
+      label: "Meta",
+      assetType: "META",
+    },
+    {
+      key: "GOOGLE_ADS",
+      label: "Google Ads",
+      assetType: "GOOGLE_ADS",
+    },
+    {
+      key: "YELP",
+      label: "Yelp",
+      assetType: "YELP",
+    },
+    {
+      key: "EMAIL",
+      label: "Email",
+      assetType: "EMAIL",
+    },
+    {
+      key: "CONSUMER_ARTICLE",
+      label: "Consumer Article",
+      articleRole:
+        "CONSUMER_ARTICLE" as const,
+    },
+    {
+      key:
+        "KNOWLEDGE_AUTHORITY_ARTICLE",
+      label:
+        "Knowledge / Authority Article",
+      articleRole:
+        "KNOWLEDGE_AUTHORITY_ARTICLE" as const,
+    },
+    {
+      key: "BLOG",
+      label: "Blog",
+      assetType: "BLOG",
+      legacyBlogOnly: true,
+    },
+    {
+      key: "AEO_FAQ",
+      label: "AEO FAQ",
+      assetType: "AEO_FAQ",
+    },
+    {
+      key: "ANSWER_SNIPPET",
+      label: "Answer Snippet",
+      assetType: "ANSWER_SNIPPET",
+    },
+    {
+      key: "SEO",
+      label: "SEO",
+      assetType: "SEO",
+    },
   ];
 
   const buckets =
-    orderedTypes
-      .map((type) => ({
-        key:
-          type,
+    orderedGroups
+      .map((group) => {
+        let groupAssets:
+          CampaignAsset[] = [];
 
-        label:
-          formatAssetType(type),
+        if (
+          "articleRole" in group &&
+          group.articleRole
+        ) {
+          groupAssets =
+            assets.filter(
+              (asset) =>
+                getBlogArticleRole(
+                  asset
+                ) ===
+                group.articleRole
+            );
+        } else if (
+          "legacyBlogOnly" in group &&
+          group.legacyBlogOnly
+        ) {
+          groupAssets =
+            assets.filter(
+              (asset) =>
+                asset.assetType ===
+                  "BLOG" &&
+                getBlogArticleRole(
+                  asset
+                ) === null
+            );
+        } else if (
+          "assetType" in group &&
+          group.assetType
+        ) {
+          groupAssets =
+            assets.filter(
+              (asset) =>
+                asset.assetType ===
+                group.assetType
+            );
+        }
 
-        subtitle:
-          type === "META"
-            ? "One approved Meta asset is previewed as both Facebook and Instagram."
-            : "Approve only what you want included in execution and export.",
+        return {
+          key:
+            group.key,
 
-        assets:
-          assets.filter(
-            (asset) =>
-              asset.assetType ===
-              type
-          ),
-      }))
+          label:
+            group.label,
+
+          subtitle:
+            group.key === "META"
+              ? "One approved Meta asset is previewed as both Facebook and Instagram."
+              : group.key ===
+                  "CONSUMER_ARTICLE"
+                ? "Review the customer-facing article that supports this revenue action."
+                : group.key ===
+                    "KNOWLEDGE_AUTHORITY_ARTICLE"
+                  ? "Review the deeper authority content that supports this revenue action."
+                  : "Approve only what you want included in execution and export.",
+
+          assets:
+            groupAssets,
+        };
+      })
       .filter(
         (bucket) =>
           bucket.assets.length > 0
       );
 
+  const recognizedIds =
+    new Set(
+      buckets.flatMap(
+        (bucket) =>
+          bucket.assets.map(
+            (asset) =>
+              asset.id
+          )
+      )
+    );
+
   const remaining =
     assets.filter(
       (asset) =>
-        !orderedTypes.includes(
-          asset.assetType
+        !recognizedIds.has(
+          asset.id
         )
     );
 
@@ -879,16 +1091,30 @@ function BlogPreview({
   logoUrl?: string | null;
   industryLabel?: string | null;
 }) {
-const image = getActionImage({
-  industry: payload.industry,
-  workspaceIndustry: industryLabel,
-  imageKey: payload.imageKey,
-  imageMode: payload.imageMode,
-  logoUrl,
-});
+  const image = getActionImage({
+    industry: payload.industry,
+    workspaceIndustry:
+      industryLabel,
+    imageKey:
+      payload.imageKey,
+    imageMode:
+      payload.imageMode,
+    logoUrl,
+  });
+
+  const articleLabel =
+    payload.articleRole ===
+    "CONSUMER_ARTICLE"
+      ? "Consumer Article"
+      : payload.articleRole ===
+          "KNOWLEDGE_AUTHORITY_ARTICLE"
+        ? "Knowledge / Authority Article"
+        : "Blog Article";
 
   return (
-    <PlatformShell label="Blog Article Preview">
+    <PlatformShell
+      label={`${articleLabel} Preview`}
+    >
       <article className="rounded-2xl border border-gray-200 bg-white p-0 overflow-hidden">
         <div className="overflow-hidden bg-gray-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -901,7 +1127,7 @@ const image = getActionImage({
 
         <div className="p-6">
           <p className="text-xs uppercase tracking-[0.14em] text-gray-500">
-            Article
+            {articleLabel}
           </p>
           <h3 className="mt-2 text-2xl font-bold tracking-tight text-gray-900">
             {payload.title}
@@ -1559,6 +1785,9 @@ export function CampaignAssetsReview({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [editor, setEditor] = useState<AssetEditorState | null>(null);
+  const isWebsiteIntelligence =
+    getBriefMarket(briefJson) ===
+    "WEBSITE_INTELLIGENCE";
 
     const canEdit =
     status !== "LAUNCHED" &&
@@ -1745,12 +1974,14 @@ export function CampaignAssetsReview({
             <p className="mt-1 text-sm leading-6 text-amber-900">
               {hasCommercialAssets
                 ? "Only approved materials are included in execution."
-                : "Only approved platforms are available for execution."}
+                : isWebsiteIntelligence
+                  ? "Only approved materials move forward to publishing or export."
+                  : "Only approved platforms are available for execution."}
             </p>
           </div>
         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canEdit ? (
             <>
               <button

@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
+
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { AeoRecommendations } from "@/components/aeo/aeo-recommendations";
+import { AeoScoreCard } from "@/components/aeo/aeo-score-card";
+import { AeoSignalList } from "@/components/aeo/aeo-signal-list";
 import { getCurrentWorkspace } from "@/lib/get-current-workspace";
 import { prisma } from "@/lib/prisma";
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { AeoScoreCard } from "@/components/aeo/aeo-score-card";
-import { AeoRecommendations } from "@/components/aeo/aeo-recommendations";
-import { AeoSignalList } from "@/components/aeo/aeo-signal-list";
+import { parseWebsiteIntelligenceAssessment } from "@/lib/website-intelligence";
+import { buildWebsiteIntelligenceRecommendations } from "@/lib/website-intelligence-recommendations";
 
 export default async function AeoPage() {
   const workspace = await getCurrentWorkspace();
@@ -22,24 +25,13 @@ export default async function AeoPage() {
     redirect("/dashboard");
   }
 
-    const aeoScore = profile.aeoReadinessScore ?? 0;
+  const websiteIntelligence = parseWebsiteIntelligenceAssessment(
+    profile.websiteIntelligenceJson
+  );
 
-  const recommendations =
-    aeoScore >= 90
-      ? []
-      : aeoScore >= 80
-        ? [
-            "Review core answer-ready pages monthly to keep service details and local coverage current.",
-            "Refresh FAQs and service-page answers as search behavior and customer questions evolve.",
-            "Monitor your Google Business Profile and service-page consistency across top revenue services.",
-          ]
-        : [
-            "Add structured FAQ content for high-intent local service questions.",
-            "Expand service pages with answer-ready local service copy.",
-            "Publish more local educational content tied to core service problems.",
-            "Improve entity clarity across core service and location pages.",
-            "Create answer snippets for your highest-value and highest-intent service queries.",
-          ];
+  const recommendations = websiteIntelligence
+    ? buildWebsiteIntelligenceRecommendations(websiteIntelligence)
+    : [];
 
   return (
     <div className="mf-page-shell min-h-screen px-4 py-5 md:px-6 lg:px-8">
@@ -47,47 +39,54 @@ export default async function AeoPage() {
         <DashboardSidebar />
 
         <main className="min-w-0 flex-1 space-y-5">
-                    <DashboardHeader
+          <DashboardHeader
             workspaceName={profile.businessName ?? workspace.name}
             logoUrl={profile.logoUrl ?? null}
           />
+
           <section className="mf-dark-panel mf-grid-glow rounded-3xl px-5 py-5 text-white">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F5B942]">
               AEO
             </p>
 
             <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
-              AI search readiness
+              Website Intelligence
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">
-              Evaluate how well your business is positioned for AI-assisted local
-              search, answer engines, and structured question-based discovery.
+              MarketForge reviews how clearly your website communicates your
+              services, expertise, local relevance, and credibility — then
+              identifies the highest-priority improvements to strengthen
+              discoverability and customer trust.
             </p>
           </section>
 
-          <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-            <AeoScoreCard score={profile.aeoReadinessScore ?? 0} />
+          {!websiteIntelligence ? (
+            <section className="mf-card rounded-3xl p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                Website Intelligence
+              </p>
 
-            <AeoSignalList
-              hasServicePages={profile.hasServicePages}
-              hasFaqContent={profile.hasFaqContent}
-              hasBlog={profile.hasBlog}
-              hasGoogleBusinessPage={profile.hasGoogleBusinessPage}
-              servicePageCount={profile.servicePageUrls.length}
-            />
-          </div>
+              <h2 className="mt-2 text-xl font-bold text-gray-900">
+                Your website assessment is not available yet
+              </h2>
 
-                    <AeoRecommendations
-            industry={profile.industryLabel as
-              | "PLUMBING"
-              | "SEPTIC"
-              | "TREE_SERVICE"
-              | "HVAC"
-              | null}
-            score={aeoScore}
-            recommendations={recommendations}
-          />
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
+                MarketForge has not established a complete Website Intelligence
+                assessment for this workspace yet. The live website will be
+                reviewed during an upcoming intelligence refresh.
+              </p>
+            </section>
+          ) : (
+            <>
+              <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+                <AeoScoreCard assessment={websiteIntelligence} />
+                <AeoSignalList assessment={websiteIntelligence} />
+              </div>
+
+              <AeoRecommendations recommendations={recommendations} />
+            </>
+          )}
         </main>
       </div>
     </div>

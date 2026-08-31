@@ -22,7 +22,6 @@ import {
 import {
   buildCanonicalServices,
   getProfileIndustry,
-  hasStrongAeoBaseline,
   type CanonicalService,
 } from "@/lib/canonical-services";
 import {
@@ -59,8 +58,7 @@ export type OpportunitySourceTag =
   | "Demand"
   | "Competitor"
   | "Capacity"
-  | "Service Value"
-  | "AEO";
+  | "Service Value";
 
 export type OpportunityConfidenceLabel = "Low" | "Medium" | "High";
 export type OpportunityImageMode = "SERVICE_IMAGE" | "LOGO";
@@ -106,7 +104,7 @@ export type RankedOpportunity = {
   finalSurface: OpportunitySurfaceDecision;
   heroEligibleFinal: boolean;
   decisionRationale: string;
-  variantKind: RevenueVariantKind | "visibility";
+  variantKind: RevenueVariantKind;
   contextType: string;
   demandShape: DemandShape;
 
@@ -204,7 +202,7 @@ type OpportunityCandidate = {
 
   rawOpportunityScore: number;
   baseDeterministicScore: number;
-  variantKind: RevenueVariantKind | "visibility";
+  variantKind: RevenueVariantKind;
 
   deterministicContextAdjustment: number;
   deterministicContextMultiplier: number;
@@ -245,8 +243,7 @@ export type DemandShape =
   | "urgent-problem"
   | "high-value-narrow"
   | "schedule-fill"
-  | "trust-build"
-  | "visibility";
+  | "trust-build";
 
 function toOpportunityKey(params: {
   serviceName: string;
@@ -333,12 +330,8 @@ function limitCandidatesPerFamily(
 
 function getDemandShape(params: {
   familyKey: string;
-  kind: RevenueVariantKind | "visibility";
+  kind: RevenueVariantKind;
 }): DemandShape {
-  if (params.familyKey === "ai-search-visibility" || params.kind === "visibility") {
-    return "visibility";
-  }
-
   if (params.familyKey === "storm-cleanup") {
     return "urgent-problem";
   }
@@ -637,8 +630,7 @@ function shouldAllowEstimateOfferVariant(params: {
 
   if (
     contextProfile.contextType === "emergency" ||
-    contextProfile.contextType === "event-driven" ||
-    contextProfile.contextType === "visibility"
+    contextProfile.contextType === "event-driven"
   ) {
     return false;
   }
@@ -680,8 +672,7 @@ function shouldAllowBundleVariant(params: {
 
   if (
     contextProfile.contextType === "emergency" ||
-    contextProfile.contextType === "event-driven" ||
-    contextProfile.contextType === "visibility"
+    contextProfile.contextType === "event-driven"
   ) {
     return false;
   }
@@ -710,8 +701,7 @@ function shouldAllowServiceAreaVariant(params: {
   }
 
   if (
-    contextProfile.contextType === "event-driven" ||
-    contextProfile.contextType === "visibility"
+    contextProfile.contextType === "event-driven"
   ) {
     return false;
   }
@@ -936,18 +926,6 @@ function inferConfidence(profile: BusinessProfile, competitors: Competitor[]) {
   return clamp(score, 38, 92);
 }
 
-function inferVisibilityGap(profile: BusinessProfile): number {
-  let score = 30;
-
-  if (!profile.hasFaqContent) score += 24;
-  if (!profile.hasServicePages) score += 16;
-  if ((profile.servicePageUrls?.length ?? 0) < 3) score += 12;
-  if (!profile.hasGoogleBusinessPage) score += 8;
-  if ((profile.aeoReadinessScore ?? 0) < 70) score += 16;
-
-  return clamp(score, 20, 95);
-}
-
 function inferCompetitorGap(
   serviceName: string,
   competitors: Competitor[]
@@ -1075,27 +1053,6 @@ function buildDisplayContract(params: {
   const area = serviceArea?.trim() || "your service area";
   const prettyService = prettyServiceName(serviceName);
 
-  if (familyKey === "ai-search-visibility" || actionFraming === "AEO_CONTENT") {
-    return {
-      displayMoveLabel: "Make It Easier for Homeowners to Find You Online",
-      displaySummary: `Make it easier for homeowners in ${area} to find your most important services online.`,
-      imageKey: "company-logo",
-      imageMode: "LOGO",
-      actionThesis: {
-        familyKey,
-        primaryService: prettyService,
-        angle: "online visibility",
-        title: bestMove,
-        summary: `Make it easier for homeowners in ${area} to find your most important services online.`,
-        audience: `Homeowners in ${area} searching online for trusted local providers`,
-        offerHint: "",
-        ctaHint: "Review visibility action",
-        imageKey: "company-logo",
-        imageMode: "LOGO",
-      },
-    };
-  }
-
   const framingSummaryMap: Record<ActionFraming, string> = {
     PAID_CAMPAIGN: `Create more booked ${prettyService.toLowerCase()} jobs in ${area}.`,
     SCHEDULE_FILL: `Use open capacity to book more ${prettyService.toLowerCase()} work in ${area}.`,
@@ -1174,8 +1131,6 @@ function getFamilyRangeProfile(familyKey: string) {
       return { minHigh: 1, maxHigh: 3, conversionFloor: 0.9 };
     case "water-heater-service":
       return { minHigh: 3, maxHigh: 6, conversionFloor: 0.88 };
-    case "ai-search-visibility":
-      return { minHigh: 1, maxHigh: 2, conversionFloor: 0.8 };
     default:
       return { minHigh: 1, maxHigh: 4, conversionFloor: 0.88 };
   }
@@ -1184,16 +1139,8 @@ function getFamilyRangeProfile(familyKey: string) {
 function getSeasonalityVariantAdjustment(params: {
   kind: RevenueVariantKind;
   timing: ReturnType<typeof getSeasonalityTiming>;
-  familyKey: string;
 }): number {
-  const { kind, timing, familyKey } = params;
-
-  if (familyKey === "ai-search-visibility") {
-    if (timing.timing === "SLOW") return 6;
-    if (timing.timing === "SHOULDER") return 3;
-    if (timing.timing === "BUSY" || timing.timing === "PEAK") return -6;
-    return 0;
-  }
+  const { kind, timing } = params;
 
   if (kind === "capacity") {
     if (timing.timing === "SLOW") return 24;
@@ -1294,10 +1241,6 @@ function inferBaseOpportunityType(params: {
 }): OpportunityType {
   const { canonicalService, enrichment } = params;
   const familyKey = canonicalService.familyKey;
-
-  if (familyKey === "ai-search-visibility") {
-    return "AI_SEARCH_VISIBILITY";
-  }
 
   if (
     canonicalService.blueprint.defaultActionFraming === "SCHEDULE_FILL" &&
@@ -1744,7 +1687,6 @@ function buildRevenueVariantCandidates(params: {
   availableJobsEstimate: number;
   capacityFit: CapacityFit;
   capacityScore: number;
-  visibilityGapScore: number;
   performanceSignals?: CampaignPerformanceSignalMap;
   enrichment: SignalEnrichment;
   competitors: Competitor[];
@@ -2029,7 +1971,6 @@ function buildRevenueVariantCandidates(params: {
       getSeasonalityVariantAdjustment({
         kind,
         timing: seasonalityTiming,
-        familyKey: canonicalService.familyKey,
       }) +
       getReputationVariantAdjustment({
         position: reputationSignal.position,
@@ -2152,137 +2093,12 @@ function buildRevenueVariantCandidates(params: {
   });
 }
 
-function shouldGenerateVisibilityCandidate(params: {
-  profile: BusinessProfile;
-  visibilityGapScore: number;
-}): boolean {
-  const { profile, visibilityGapScore } = params;
-
-  if (hasStrongAeoBaseline(profile)) {
-    return false;
-  }
-
-  return (
-    visibilityGapScore >= 55 ||
-    !profile.hasFaqContent ||
-    !profile.hasServicePages ||
-    (profile.servicePageUrls?.length ?? 0) < 3 ||
-    (profile.aeoReadinessScore ?? 0) < 70
-  );
-}
-
-function buildVisibilityCandidate(params: {
-  profile: BusinessProfile;
-  canonicalServices: CanonicalService[];
-  visibilityGapScore: number;
-}): OpportunityCandidate | null {
-  const { profile, canonicalServices, visibilityGapScore } = params;
-
-  if (!shouldGenerateVisibilityCandidate({ profile, visibilityGapScore })) {
-    return null;
-  }
-
-  const focusServices = canonicalServices
-    .filter((service) => !service.isDeprioritized)
-    .sort((a, b) => {
-      const aScore =
-        a.blueprint.demandBias + a.blueprint.valueBias + (a.isPreferred ? 6 : 0);
-      const bScore =
-        b.blueprint.demandBias + b.blueprint.valueBias + (b.isPreferred ? 6 : 0);
-
-      return bScore - aScore;
-    })
-    .slice(0, 3)
-    .map((service) => prettyServiceName(service.canonicalName));
-
-  if (focusServices.length === 0) {
-    return null;
-  }
-
-  const serviceSummary =
-    focusServices.length === 1
-      ? focusServices[0]
-      : focusServices.length === 2
-        ? `${focusServices[0]} and ${focusServices[1]}`
-        : `${focusServices[0]}, ${focusServices[1]}, and ${focusServices[2]}`;
-
-    const bestMove = `Make It Easier for Homeowners to Find ${serviceSummary} Online`;
-
-  const displayContract = buildDisplayContract({
-    familyKey: "ai-search-visibility",
-    serviceName: serviceSummary,
-    bestMove,
-    actionFraming: "AEO_CONTENT",
-    serviceArea: profile.serviceArea,
-  });
-
-  return {
-    familyKey: "ai-search-visibility",
-    title: "AI Search Visibility Opportunity",
-    serviceName: serviceSummary,
-    opportunityType: "AI_SEARCH_VISIBILITY",
-        opportunityKey: toOpportunityKey({
-      serviceName: serviceSummary,
-      opportunityType: "AI_SEARCH_VISIBILITY",
-      bestMove,
-    }),
-    bestMove,
-    displayMoveLabel: displayContract.displayMoveLabel,
-    displaySummary: `Make it easier for homeowners to find ${serviceSummary} when they search online.`,
-    imageKey: displayContract.imageKey,
-    imageMode: displayContract.imageMode,
-    actionThesis: {
-      ...displayContract.actionThesis,
-      primaryService: serviceSummary,
-    summary: `Make it easier for homeowners to find ${serviceSummary} in ${
-       profile.serviceArea?.trim() || "your service area"
-      } when they search online.`,
-    },
-    recommendedCampaignType: "AEO_FAQ",
-    sourceTags: uniqueTags(["Demand", "AEO"]),
-        whyNowBullets: [
-      "Homeowners cannot book you if they do not find you clearly when they search online.",
-      `The biggest visibility upside right now is tied to ${serviceSummary}.`,
-      "This should be one clear visibility action, not a scattered set of filler tasks.",
-    ],
-    whyThisMatters:
-      "When homeowners have trouble finding your most important services online, you can lose jobs before they ever call.",
-    rawOpportunityScore: Math.round(clamp(32 + visibilityGapScore * 0.7, 35, 78)),
-        baseDeterministicScore: Math.round(clamp(32 + visibilityGapScore * 0.7, 35, 78)),
-    variantKind: "visibility",
-    deterministicContextAdjustment: 0,
-    deterministicContextMultiplier: 1,
-    aiContextFitScore: null,
-    aiContextAdjustment: 0,
-    finalRecommendationScore: Math.round(clamp(32 + visibilityGapScore * 0.7, 35, 78)),
-    finalSurface: "surface",
-    heroEligibleFinal: false,
-    decisionRationale: "Pending deterministic and AI context-fit evaluation.",
-    contextType: "visibility",
-        demandShape: "visibility",
-    seasonalityRelevance: "MEDIUM",
-    seasonalityReason: "Visibility improvements compound over time across important service lanes.",
-    urgencyRelevance: "LOW",
-    urgencyReason: "This is a strategic visibility move, not an emergency demand capture lane.",
-    homeownerIntentStrength: "MEDIUM",
-    homeownerIntentReason:
-      "AI search visibility matters when homeowners are comparing trusted local providers.",
-    actionFraming: "AEO_CONTENT",
-    actionFramingReason:
-      "This is a single consolidated visibility lane for the most commercially important services.",
-    eligibleForBacklog: true,
-    eligibleForHero: false,
-    isDeprioritized: false,
-  };
-}
-
 async function applyContextAndAiScoring(params: {
   profile: BusinessProfile;
   candidates: OpportunityCandidate[];
-  visibilityGapScore: number;
   competitors: Competitor[];
 }): Promise<OpportunityCandidate[]> {
-  const { profile, visibilityGapScore, competitors } = params;
+  const { profile, competitors } = params;
 
   const deterministicEvaluated = params.candidates.map((candidate) => {
     const deterministicContext = evaluateDeterministicContext({
@@ -2291,8 +2107,6 @@ async function applyContextAndAiScoring(params: {
       seasonalityRelevance: candidate.seasonalityRelevance,
       urgencyRelevance: candidate.urgencyRelevance,
       homeownerIntentStrength: candidate.homeownerIntentStrength,
-      visibilityGapScore:
-        candidate.familyKey === "ai-search-visibility" ? visibilityGapScore : undefined,
       baseScore: candidate.baseDeterministicScore,
       isDeprioritized: candidate.isDeprioritized,
     });
@@ -2343,8 +2157,6 @@ async function applyContextAndAiScoring(params: {
         seasonalityRelevance: candidate.seasonalityRelevance,
         urgencyRelevance: candidate.urgencyRelevance,
         homeownerIntentStrength: candidate.homeownerIntentStrength,
-        visibilityGapScore:
-          candidate.familyKey === "ai-search-visibility" ? visibilityGapScore : undefined,
         baseScore: candidate.baseDeterministicScore,
         isDeprioritized: candidate.isDeprioritized,
       });
@@ -2367,8 +2179,6 @@ async function applyContextAndAiScoring(params: {
         homeownerIntentReason: candidate.homeownerIntentReason,
         whyNowBullets: candidate.whyNowBullets,
         whyThisMatters: candidate.whyThisMatters,
-        visibilityGapScore:
-          candidate.familyKey === "ai-search-visibility" ? visibilityGapScore : undefined,
         competitorSummary: buildCompetitorSummaryForAi({
           serviceName: candidate.serviceName,
           competitors,
@@ -2636,7 +2446,6 @@ export async function buildRevenueOpportunityEngine(params: {
     canonicalServices.length > 0
       ? canonicalServices
       : getGuaranteedFamilyKeys(industry)
-          .filter((familyKey) => familyKey !== "ai-search-visibility")
           .slice(0, 6)
           .map((familyKey) => {
             const blueprint = getBlueprintForFamily(familyKey, industry);
@@ -2665,7 +2474,6 @@ export async function buildRevenueOpportunityEngine(params: {
 
   const { availableJobsEstimate, capacityScore, capacityFit } = inferCapacity(profile);
   const baseConfidenceScore = inferConfidence(profile, competitors);
-  const visibilityGapScore = inferVisibilityGap(profile);
 
   const enrichmentRequestNames = uniqueStrings([
     ...servicesForEngine.map((service) => service.canonicalName),
@@ -2716,7 +2524,6 @@ export async function buildRevenueOpportunityEngine(params: {
       availableJobsEstimate,
       capacityFit,
       capacityScore,
-      visibilityGapScore,
       performanceSignals,
       enrichment,
       competitors,
@@ -2729,16 +2536,35 @@ export async function buildRevenueOpportunityEngine(params: {
     },
   });
 
-  const visibilityCandidate = buildVisibilityCandidate({
-    profile,
-    canonicalServices: servicesForEngine,
-    visibilityGapScore,
-  });
+  const rawCandidates = [...candidateBuckets].sort(
+    (a, b) =>
+      b.rawOpportunityScore -
+      a.rawOpportunityScore
+  );
 
-    const rawCandidates = [
-    ...candidateBuckets,
-    ...(visibilityCandidate ? [visibilityCandidate] : []),
-  ].sort((a, b) => b.rawOpportunityScore - a.rawOpportunityScore);
+  const aeoCandidatesInRawPool =
+    rawCandidates.filter(
+      (candidate) =>
+        candidate.opportunityType ===
+          "AI_SEARCH_VISIBILITY" ||
+        candidate.familyKey ===
+          "ai-search-visibility"
+    );
+
+  console.log("[revenue-engine] REVENUE CANDIDATE POOL CHECK", {
+    workspaceId: profile.workspaceId,
+    rawCandidateCount:
+      rawCandidates.length,
+
+    aiSearchVisibilityCandidateCount:
+      aeoCandidatesInRawPool.length,
+
+    aiSearchVisibilityOpportunityKeys:
+      aeoCandidatesInRawPool.map(
+        (candidate) =>
+          candidate.opportunityKey
+      ),
+  });
 
   const governedCandidates = limitCandidatesPerFamily(rawCandidates);
 
@@ -2746,7 +2572,6 @@ export async function buildRevenueOpportunityEngine(params: {
   const contextFitCandidates = await applyContextAndAiScoring({
     profile,
     candidates: governedCandidates,
-    visibilityGapScore,
     competitors,
   });
   logEngineTiming("AFTER context and AI scoring", {
@@ -2775,10 +2600,29 @@ export async function buildRevenueOpportunityEngine(params: {
       })
     )
   );
+  const rankedAeoOpportunities =
+    rankedOpportunities.filter(
+      (opportunity) =>
+        opportunity.opportunityType ===
+          "AI_SEARCH_VISIBILITY" ||
+        opportunity.familyKey ===
+          "ai-search-visibility"
+    );
+
   logEngineTiming("AFTER ranking", {
     startedAt: rankingStartedAt,
     extra: {
-      rankedOpportunityCount: rankedOpportunities.length,
+      rankedOpportunityCount:
+        rankedOpportunities.length,
+
+      aiSearchVisibilityRankedCount:
+        rankedAeoOpportunities.length,
+
+      aiSearchVisibilityRankedKeys:
+        rankedAeoOpportunities.map(
+          (opportunity) =>
+            opportunity.opportunityKey
+        ),
     },
   });
 
@@ -2804,8 +2648,23 @@ export async function buildRevenueOpportunityEngine(params: {
   logEngineTiming("BUILD COMPLETE", {
     startedAt: engineStartedAt,
     extra: {
-      rankedOpportunityCount: rankedOpportunities.length,
-      topOpportunityKey: top.opportunityKey,
+      rankedOpportunityCount:
+        rankedOpportunities.length,
+
+      topOpportunityKey:
+        top.opportunityKey,
+
+      topOpportunityType:
+        top.opportunityType,
+
+      aiSearchVisibilityPresent:
+        rankedOpportunities.some(
+          (opportunity) =>
+            opportunity.opportunityType ===
+              "AI_SEARCH_VISIBILITY" ||
+            opportunity.familyKey ===
+              "ai-search-visibility"
+        ),
     },
   });
 

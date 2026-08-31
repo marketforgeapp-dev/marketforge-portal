@@ -29,6 +29,13 @@ type ParsedBrief = {
     };
   };
 
+  websiteIntelligence?: {
+    gapType?: string;
+    summary?: string;
+    whyItMatters?: string;
+    recommendedImprovement?: string;
+  };
+
   actionThesis?: {
     title?: string;
   };
@@ -47,6 +54,7 @@ type ParsedBrief = {
 type Props = {
   campaignId: string;
   isCommercial?: boolean;
+  isWebsiteIntelligence?: boolean;
   status: CampaignStatus;
   campaignName: string;
   estimatedBookedJobs: number | null;
@@ -81,6 +89,7 @@ function getCurrentStageLabel(status: CampaignStatus) {
 export function CampaignStatusActions({
   campaignId,
   isCommercial = false,
+  isWebsiteIntelligence = false,
   status,
   campaignName,
   estimatedBookedJobs,
@@ -142,6 +151,16 @@ export function CampaignStatusActions({
       ?.expectedOutcome ??
     "Advance this account toward a qualified Commercial relationship.";
 
+  const websiteIntelligenceOutcome =
+  brief?.websiteIntelligence
+    ?.whyItMatters ??
+  "Strengthen the website based on an observed Website Intelligence gap.";
+
+  const websiteIntelligenceNextStep =
+    brief?.websiteIntelligence
+      ?.recommendedImprovement ??
+    "Review the generated website content and supporting guidance.";
+
   const commercialNextStep =
     brief?.commercialActionSpec
       ?.primaryCallToAction ??
@@ -173,7 +192,7 @@ export function CampaignStatusActions({
               </span>
             </div>
 
-                        {isCommercial ? (
+            {isCommercial ? (
               <div className="mt-3 grid max-w-4xl gap-3 md:grid-cols-2">
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
@@ -192,6 +211,28 @@ export function CampaignStatusActions({
 
                   <p className="mt-1 text-sm font-semibold leading-6 text-gray-900">
                     {commercialNextStep}
+                  </p>
+                </div>
+              </div>
+            ) : isWebsiteIntelligence ? (
+              <div className="mt-3 grid max-w-4xl gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Website Improvement
+                  </p>
+
+                  <p className="mt-1 text-sm font-semibold leading-6 text-gray-900">
+                    {websiteIntelligenceOutcome}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    What MarketForge Is Preparing
+                  </p>
+
+                  <p className="mt-1 text-sm font-semibold leading-6 text-gray-900">
+                    {websiteIntelligenceNextStep}
                   </p>
                 </div>
               </div>
@@ -222,7 +263,9 @@ export function CampaignStatusActions({
             <p className="mt-3 text-sm leading-6 text-gray-600">
               {isCommercial
                 ? "Nothing moves into execution until you approve it. Review the pursuit materials below, then approve the action when the package is ready."
-                : "Nothing goes live until you approve. Review the assets below, then approve this action when it looks right."}
+                : isWebsiteIntelligence
+                  ? "Review the website content and publishing guidance below. Nothing is treated as implemented until you approve it and the work is actually published to the live website."
+                  : "Nothing goes live until you approve. Review the assets below, then approve this action when it looks right."}
             </p>
           </div>
 

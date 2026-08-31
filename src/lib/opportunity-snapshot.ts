@@ -5,6 +5,10 @@ import {
   type ReputationRefreshResult,
 } from "@/lib/reputation-refresh";
 import {
+  ensureWorkspaceWebsiteIntelligenceFreshForWeek,
+  type WebsiteIntelligenceRefreshResult,
+} from "@/lib/website-intelligence-refresh";
+import {
   type RevenueOpportunityHero,
   buildRevenueOpportunityHero,
   buildRevenueOpportunityEngine,
@@ -30,6 +34,7 @@ export type WeeklyWorkspaceSignalRefreshResult = {
   workspaceId: string;
   elapsedMs: number;
   reputationRefresh: ReputationRefreshResult;
+  websiteIntelligenceRefresh: WebsiteIntelligenceRefreshResult;
   snapshotInvalidated: boolean;
   invalidationReason: string | null;
 };
@@ -287,7 +292,6 @@ function isEventDrivenOpportunity(opportunity: SelectedOpportunity): boolean {
 }
 
 function getDemandShapeLimit(demandShape: string): number {
-  if (demandShape === "visibility") return 1;
   if (demandShape === "high-value-narrow") return 1;
   if (demandShape === "urgent-problem") return 2;
 
@@ -664,7 +668,6 @@ function pickBestReplacement(params: {
   const fallbackShapeOrder = [
     "everyday-core",
     "schedule-fill",
-    "visibility",
     "high-value-narrow",
     "urgent-problem",
   ];
@@ -690,10 +693,6 @@ function repairAiVisibleSet(params: {
 
   const availableEverydayCore = params.aiCandidatePool.filter(
     (opportunity) => opportunity.demandShape === "everyday-core"
-  );
-
-  const availableVisibility = params.aiCandidatePool.filter(
-    (opportunity) => opportunity.demandShape === "visibility"
   );
 
   const availableHighValueNarrow = params.aiCandidatePool.filter(
@@ -747,34 +746,14 @@ function repairAiVisibleSet(params: {
     replaceAt(indexToReplace, replacement);
   }
 
-  // Rule 3: max 1 visibility
-  while (countDemandShape(repaired, "visibility") > 1) {
-    const indexToReplace = repaired.findIndex(
-      (opportunity) => opportunity.demandShape === "visibility"
-    );
-
-    if (indexToReplace === -1) break;
-
-    const replacement = pickBestReplacement({
-      currentSet: repaired,
-      aiCandidatePool: params.aiCandidatePool,
-      excludedKeys: getExcludedKeys(),
-      disallowedShapes: new Set(["visibility"]),
-    });
-
-    if (!replacement) break;
-    replaceAt(indexToReplace, replacement);
-  }
-
-  // Rule 4: require at least 2 everyday-core if available
+  // Rule 3: require at least 2 everyday-core if available
   const targetEverydayCore = Math.min(2, availableEverydayCore.length);
 
   while (countDemandShape(repaired, "everyday-core") < targetEverydayCore) {
     const indexToReplace = repaired.findIndex(
       (opportunity, index) =>
         index > 0 &&
-        opportunity.demandShape !== "everyday-core" &&
-        opportunity.demandShape !== "visibility"
+        opportunity.demandShape !== "everyday-core"
     );
 
     if (indexToReplace === -1) break;
@@ -992,9 +971,18 @@ export async function refreshWeeklyWorkspaceSignals(
 ): Promise<WeeklyWorkspaceSignalRefreshResult> {
   const startedAt = Date.now();
 
-  const reputationRefresh = await ensureWorkspaceReputationFreshForWeek(
-    workspaceId
-  );
+  const [
+    reputationRefresh,
+    websiteIntelligenceRefresh,
+  ] = await Promise.all([
+    ensureWorkspaceReputationFreshForWeek(
+      workspaceId
+    ),
+
+    ensureWorkspaceWebsiteIntelligenceFreshForWeek(
+      workspaceId
+    ),
+  ]);
 
   let snapshotInvalidated = false;
   let invalidationReason: string | null = null;
@@ -1003,34 +991,64 @@ export async function refreshWeeklyWorkspaceSignals(
     reputationRefresh.status === "completed" &&
     reputationRefresh.materialChangeLikely
   ) {
-    await invalidateWorkspaceOpportunitySnapshot(workspaceId);
+    await invalidateWorkspaceOpportunitySnapshot(
+      workspaceId
+    );
 
     snapshotInvalidated = true;
-    invalidationReason = "material_reputation_change";
+    invalidationReason =
+      "material_reputation_change";
   }
 
   const result: WeeklyWorkspaceSignalRefreshResult = {
     workspaceId,
     elapsedMs: Date.now() - startedAt,
     reputationRefresh,
+    websiteIntelligenceRefresh,
     snapshotInvalidated,
     invalidationReason,
   };
 
-  console.log("[snapshot] WEEKLY SIGNAL REFRESH COMPLETE", {
-    workspaceId,
-    elapsedMs: result.elapsedMs,
-    reputationRefreshStatus: reputationRefresh.status,
-    googleMetricsFetchCount: reputationRefresh.googleMetricsFetchCount,
-    businessMetricsChanged: reputationRefresh.businessMetricsChanged,
-    competitorMetricsChangedCount:
-      reputationRefresh.competitorMetricsChangedCount,
-    competitorMetricsCheckedCount:
-      reputationRefresh.competitorMetricsCheckedCount,
-    materialChangeLikely: reputationRefresh.materialChangeLikely,
-    snapshotInvalidated,
-    invalidationReason,
-  });
+  console.log(
+    "[snapshot] WEEKLY SIGNAL REFRESH COMPLETE",
+    {
+      workspaceId,
+      elapsedMs: result.elapsedMs,
+
+      reputationRefreshStatus:
+        reputationRefresh.status,
+
+      googleMetricsFetchCount:
+        reputationRefresh.googleMetricsFetchCount,
+
+      businessMetricsChanged:
+        reputationRefresh.businessMetricsChanged,
+
+      competitorMetricsChangedCount:
+        reputationRefresh.competitorMetricsChangedCount,
+
+      competitorMetricsCheckedCount:
+        reputationRefresh.competitorMetricsCheckedCount,
+
+      reputationMaterialChangeLikely:
+        reputationRefresh.materialChangeLikely,
+
+      websiteIntelligenceRefreshStatus:
+        websiteIntelligenceRefresh.status,
+
+      websiteIntelligencePreviousScore:
+        websiteIntelligenceRefresh.previousScore,
+
+      websiteIntelligenceNextScore:
+        websiteIntelligenceRefresh.nextScore,
+
+      websiteIntelligenceMaterialChangeLikely:
+        websiteIntelligenceRefresh.materialChangeLikely,
+
+      snapshotInvalidated,
+      invalidationReason,
+    }
+  );
 
   return result;
 }

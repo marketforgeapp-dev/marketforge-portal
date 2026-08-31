@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { websiteIntelligenceAssessmentSchema } from "@/lib/website-intelligence";
 
 const emptyStringToNull = (value: unknown) => {
   if (typeof value !== "string") return value;
@@ -88,6 +89,10 @@ export const onboardingSchema = z.object({
   hasGoogleBusinessPage: z.boolean().optional().default(false),
   hasServicePages: z.boolean().optional().default(false),
   servicePageUrls: stringArray,
+
+  websiteIntelligence: websiteIntelligenceAssessmentSchema
+    .nullable()
+    .optional(),
 
   competitors: z
     .array(

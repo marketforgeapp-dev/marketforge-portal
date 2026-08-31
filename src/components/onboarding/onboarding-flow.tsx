@@ -8,7 +8,6 @@ import { BusinessInfoStep } from "./steps/business-info-step";
 import { ServicesStep } from "./steps/services-step";
 import { CapacityStep } from "./steps/capacity-step";
 import { CompetitorsStep } from "./steps/competitors-step";
-import { WebsiteSeoStep } from "./steps/website-seo-step";
 import { MarketInitializationStep } from "./steps/market-initialization-step";
 import { OnboardingAiPrefill } from "@/components/onboarding/onboarding-ai-prefill";
 import type { OnboardingPrefillResult } from "@/lib/onboarding-prefill-schema";
@@ -35,7 +34,6 @@ const STEP_LABELS = [
   "Services",
   "Capacity",
   "Competitors",
-  "Website & SEO",
   "Seasonality Identification",
   "Activation",
 ];
@@ -130,7 +128,7 @@ export function OnboardingFlow({
   const isLastStep = currentStep === totalSteps - 1;
 
       useEffect(() => {
-    if (currentStep !== 6) {
+    if (currentStep !== 5) {
       return;
     }
 
@@ -201,6 +199,9 @@ export function OnboardingFlow({
           prefill.hasGoogleBusinessPage || current.hasGoogleBusinessPage,
         hasServicePages: prefill.hasServicePages || current.hasServicePages,
 
+        websiteIntelligence:
+          prefill.websiteIntelligence ?? current.websiteIntelligence ?? null,
+
         busySeason: prefill.busySeason || current.busySeason,
         slowSeason: prefill.slowSeason || current.slowSeason,
         averageJobValue: prefill.averageJobValueHint ?? current.averageJobValue,
@@ -242,7 +243,7 @@ export function OnboardingFlow({
   };
 
     const handleNext = () => {
-    if (currentStep === 5) {
+    if (currentStep === 4) {
       setSubmitError(null);
       setShowSavingOverlay(true);
       setIsSavingForActivation(true);
@@ -264,7 +265,7 @@ export function OnboardingFlow({
             return;
           }
 
-          setCurrentStep(6);
+          setCurrentStep(5);
           setShowSavingOverlay(false);
           setIsSavingForActivation(false);
         } catch (error) {
@@ -352,21 +353,13 @@ export function OnboardingFlow({
       break;
     case 4:
       currentStepComponent = (
-        <WebsiteSeoStep
-          formData={normalizedFormData}
-          setFormData={setFormData}
-        />
-      );
-      break;
-    case 5:
-      currentStepComponent = (
         <MarketInitializationStep
           formData={normalizedFormData}
           setFormData={setFormData}
         />
       );
       break;
-    case 6:
+    case 5:
       currentStepComponent = (
         <ActivationStep
           onActivate={handleFinish}

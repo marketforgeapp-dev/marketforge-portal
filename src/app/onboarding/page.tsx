@@ -115,7 +115,7 @@ export default async function OnboardingPage() {
   const initialStep =
     fullWorkspace.status === "PENDING_ACTIVATION" &&
     Boolean(fullWorkspace.onboardingCompletedAt)
-      ? 6
+      ? 5
       : 0;
 
   return (

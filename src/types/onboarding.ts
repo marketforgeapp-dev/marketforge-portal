@@ -1,3 +1,5 @@
+import type { WebsiteIntelligenceAssessment } from "@/lib/website-intelligence";
+
 export type CompetitorInput = {
   name: string;
   websiteUrl: string;
@@ -59,6 +61,8 @@ export type OnboardingFormData = {
   googlePlaceId: string | "";
   googleRating: number | "";
   googleReviewCount: number | "";
+  websiteIntelligence?: WebsiteIntelligenceAssessment | null;
+  
   selectedGoogleBusiness?: {
     placeId: string | null;
     name: string | null;

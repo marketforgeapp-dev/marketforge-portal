@@ -1,40 +1,38 @@
+import type { WebsiteIntelligenceAssessment } from "@/lib/website-intelligence";
+
 type Props = {
-  score: number;
+  assessment: WebsiteIntelligenceAssessment;
 };
 
-export function AeoScoreCard({ score }: Props) {
-  const status =
-    score >= 80 ? "Strong" : score >= 60 ? "Developing" : "Needs Attention";
-
+export function AeoScoreCard({ assessment }: Props) {
   return (
     <div className="mf-card rounded-3xl p-5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
-        AI Search Readiness
+        Website Intelligence
       </p>
 
-      <div className="mt-4 flex items-end gap-3">
-        <p className="text-5xl font-bold tracking-tight text-gray-900">
-          {score}
+      <h2 className="mt-2 text-xl font-bold tracking-tight text-gray-900">
+        What MarketForge sees
+      </h2>
+
+      <p className="mt-3 text-sm leading-6 text-gray-600">
+        {assessment.overallSummary}
+      </p>
+
+      <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+          Website reviewed
         </p>
-        <p className="mb-1 text-sm font-medium text-gray-600">/ 100</p>
+
+        <p className="mt-2 break-all text-sm font-medium text-gray-900">
+          {assessment.website}
+        </p>
       </div>
 
-      <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-gray-200">
-        <div
-          className="h-full rounded-full bg-blue-600"
-          style={{ width: `${score}%` }}
-        />
-      </div>
-
-      <p className="mt-4 text-sm text-gray-700">
-        Current status:{" "}
-        <span className="font-semibold text-gray-900">{status}</span>
-      </p>
-
-      <p className="mt-2 text-sm leading-6 text-gray-600">
-        MarketForge estimates how prepared your business is to appear in
-        answer-engine and AI-assisted local search results based on FAQ
-        coverage, service-page depth, and answer-ready content signals.
+      <p className="mt-4 text-xs leading-5 text-gray-500">
+        MarketForge bases this assessment on what is currently observable on
+        your live website. Improvements are reflected only after they are
+        published and observed in a future website review.
       </p>
     </div>
   );

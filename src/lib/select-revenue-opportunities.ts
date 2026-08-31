@@ -355,17 +355,17 @@ function buildVisibleRecommendationSet(
   return rankedSelection.filter((opportunity) => opportunity.finalSurface !== "suppress");
 }
 
-function isAeoOpportunity(opportunity: {
+function isLegacyAeoOpportunity(opportunity: {
+  familyKey: string;
   recommendedCampaignType: string;
   opportunityType: string;
   actionFraming: string;
 }): boolean {
   return (
-    opportunity.recommendedCampaignType === "SEO_CONTENT" ||
-    opportunity.recommendedCampaignType === "AEO_FAQ" ||
+    opportunity.familyKey === "ai-search-visibility" ||
     opportunity.opportunityType === "AI_SEARCH_VISIBILITY" ||
-    opportunity.actionFraming === "AEO_CONTENT" ||
-    opportunity.actionFraming === "LOCAL_VISIBILITY"
+    opportunity.recommendedCampaignType === "AEO_FAQ" ||
+    opportunity.actionFraming === "AEO_CONTENT"
   );
 }
 
@@ -434,10 +434,6 @@ function canUseDemandShape(params: {
 }): boolean {
   const shape = params.candidate.demandShape;
   const currentCount = params.demandShapeCounts.get(shape) ?? 0;
-
-  if (shape === "visibility") {
-    return currentCount < 1;
-  }
 
   if (shape === "high-value-narrow") {
     return currentCount < 2;
@@ -623,9 +619,37 @@ export function selectRevenueOpportunities(params: {
   rankedSelection: SelectedOpportunity[];
 } {
   const { opportunities, campaigns, availableJobsEstimate, competitors } = params;
+  const legacyAeoOpportunities =
+    opportunities.filter(
+      isLegacyAeoOpportunity
+    );
+
+  if (legacyAeoOpportunities.length > 0) {
+    console.warn(
+      "[revenue-opportunity-selection] LEGACY AEO FILTERED",
+      {
+        count:
+          legacyAeoOpportunities.length,
+
+        opportunityKeys:
+          legacyAeoOpportunities.map(
+            (opportunity) =>
+              opportunity.opportunityKey
+          ),
+      }
+    );
+  }
+
+  const revenueOpportunities =
+    opportunities.filter(
+      (opportunity) =>
+        !isLegacyAeoOpportunity(
+          opportunity
+        )
+    );
 
     const rankedSelection = sortSelectedOpportunities(
-    opportunities.map((opportunity) => {
+    revenueOpportunities.map((opportunity) => {
       const linkedCampaign = findLinkedCampaign(opportunity, campaigns);
       const completedIsStale = linkedCampaign
         ? isCompletedCampaignStale(linkedCampaign)

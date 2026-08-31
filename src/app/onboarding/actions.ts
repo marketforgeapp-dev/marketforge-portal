@@ -450,6 +450,13 @@ export async function saveOnboarding(input: unknown) {
     hasServicePages,
     servicePageUrls,
     aeoReadinessScore,
+
+    ...(values.websiteIntelligence
+      ? {
+          websiteIntelligenceJson: values.websiteIntelligence,
+          lastWebsiteIntelligenceRefreshAt: now,
+        }
+      : {}),
   };
 
       const businessProfile = await prisma.businessProfile.upsert({

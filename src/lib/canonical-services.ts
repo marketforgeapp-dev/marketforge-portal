@@ -40,25 +40,6 @@ export function getProfileIndustry(profile: Pick<
   });
 }
 
-export function hasStrongAeoBaseline(
-  profile: Pick<
-    BusinessProfile,
-    | "hasFaqContent"
-    | "hasServicePages"
-    | "hasGoogleBusinessPage"
-    | "aeoReadinessScore"
-    | "servicePageUrls"
-  >
-): boolean {
-  return Boolean(
-    profile.hasFaqContent &&
-      profile.hasServicePages &&
-      profile.hasGoogleBusinessPage &&
-      (profile.aeoReadinessScore ?? 0) >= 90 &&
-      (profile.servicePageUrls?.length ?? 0) >= 4
-  );
-}
-
 export function buildCanonicalServices(profile: BusinessProfile): CanonicalService[] {
   const industry = getProfileIndustry(profile);
 

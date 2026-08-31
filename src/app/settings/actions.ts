@@ -621,12 +621,23 @@ const selectedGoogleBusiness = normalizeSelectedGoogleBusiness(
         ? new Date()
         : null,
 
-hasFaqContent: values.hasFaqContent,
-hasBlog: values.hasBlog,
-hasGoogleBusinessPage: values.hasGoogleBusinessPage,
-hasServicePages: values.hasServicePages,
-servicePageUrls: values.servicePageUrls,
-aeoReadinessScore,
+    hasFaqContent:
+      existingProfile?.hasFaqContent ?? values.hasFaqContent,
+
+    hasBlog:
+      existingProfile?.hasBlog ?? values.hasBlog,
+
+    hasGoogleBusinessPage:
+      existingProfile?.hasGoogleBusinessPage ?? values.hasGoogleBusinessPage,
+
+    hasServicePages:
+      existingProfile?.hasServicePages ?? values.hasServicePages,
+
+    servicePageUrls:
+      existingProfile?.servicePageUrls ?? values.servicePageUrls,
+
+    aeoReadinessScore:
+      existingProfile?.aeoReadinessScore ?? aeoReadinessScore,
   };
 
 const existingServicePricing = existingServicePricingFromProfile(
@@ -716,31 +727,6 @@ if (!existingProfile) {
 
   if (!servicePricingEqual(existingServicePricing, values.servicePricing)) {
     decisionImpactReasons.push("service_pricing");
-  }
-
-  if (existingProfile.hasFaqContent !== values.hasFaqContent) {
-    decisionImpactReasons.push("has_faq_content");
-  }
-
-  if (existingProfile.hasBlog !== values.hasBlog) {
-    decisionImpactReasons.push("has_blog");
-  }
-
-  if (existingProfile.hasGoogleBusinessPage !== values.hasGoogleBusinessPage) {
-    decisionImpactReasons.push("has_google_business_page");
-  }
-
-  if (existingProfile.hasServicePages !== values.hasServicePages) {
-    decisionImpactReasons.push("has_service_pages");
-  }
-
-  if (
-    !arraysEqualIgnoreOrder(
-      existingProfile.servicePageUrls ?? [],
-      values.servicePageUrls
-    )
-  ) {
-    decisionImpactReasons.push("service_page_urls");
   }
 
   if (

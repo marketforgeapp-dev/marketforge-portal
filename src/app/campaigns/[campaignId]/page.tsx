@@ -148,8 +148,13 @@ export default async function CampaignDetailPage({ params }: Props) {
     brief?.market ===
     "COMMERCIAL";
 
+  const isWebsiteIntelligence =
+    brief?.market ===
+    "WEBSITE_INTELLIGENCE";
+
   const actionBudget =
-    isCommercial
+    isCommercial ||
+    isWebsiteIntelligence
       ? 0
       : getRecommendedActionBudget({
     revenueLow: brief?.estimatedRange?.revenueLow,
@@ -190,6 +195,9 @@ export default async function CampaignDetailPage({ params }: Props) {
           <CampaignStatusActions
             campaignId={campaign.id}
             isCommercial={isCommercial}
+            isWebsiteIntelligence={
+              isWebsiteIntelligence
+            }
             status={campaign.status}
             campaignName={campaign.name}
             estimatedBookedJobs={campaign.estimatedBookedJobs}
@@ -231,13 +239,13 @@ export default async function CampaignDetailPage({ params }: Props) {
             industryLabel={profile?.industryLabel ?? null}
           />
 
-                    {isCommercial ? (
+          {isCommercial ? (
             <CommercialCampaignBriefPanel
               status={campaign.status}
               campaignName={campaign.name}
               briefJson={campaign.briefJson}
             />
-          ) : (
+          ) : isWebsiteIntelligence ? null : (
             <CampaignBriefPanel
               campaignId={campaign.id}
               status={campaign.status}
@@ -247,7 +255,9 @@ export default async function CampaignDetailPage({ params }: Props) {
               audience={campaign.audience}
               briefJson={campaign.briefJson}
               logoUrl={profile?.logoUrl ?? null}
-              industryLabel={profile?.industryLabel ?? null}
+              industryLabel={
+                profile?.industryLabel ?? null
+              }
             />
           )}
         </main>

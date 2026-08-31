@@ -31,11 +31,11 @@ type NlpMarket =
 const RESIDENTIAL_SUGGESTIONS = [
   "What is the best next action for my business right now?",
   "Slow week, help fill the schedule",
-  "Should we focus on AEO / FAQ improvements first?",
   "Promote drain cleaning this week",
   "Promote tree trimming and pruning",
   "We need more riser installs",
   "Promote HVAC system installation with Trane rebates",
+  "Create homeowner content that supports AC replacement demand",
 ];
 
 const COMMERCIAL_SUGGESTIONS = [
@@ -102,7 +102,7 @@ export function NlCampaignPanel() {
   const promptPlaceholder =
     market === "COMMERCIAL"
       ? "Example: I want to win apartment complexes and recurring property-management work."
-      : "Example: Should we push drain cleaning this week, or is improving local FAQ / AEO visibility a better move first?";
+      : "Example: Promote drain cleaning this week and create helpful homeowner content that supports the action.";
 
   function handleMarketChange(
     nextMarket: NlpMarket
@@ -429,7 +429,9 @@ export function NlCampaignPanel() {
 
               <div className="mt-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">
-                  Add these details to your prompt
+                  {readinessIssue.isRoutingNotice
+                    ? "How MarketForge handles this"
+                    : "Add these details to your prompt"}
                 </p>
 
                 <ul className="mt-2 space-y-1.5 text-sm text-amber-950">
@@ -458,35 +460,49 @@ export function NlCampaignPanel() {
                 </ul>
               </div>
 
-              <div className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
-                  Example
-                </p>
+              {!readinessIssue.isRoutingNotice ? (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+                    Example
+                  </p>
 
-                <p className="mt-1 text-sm leading-6 text-gray-700">
-                  {
-                    readinessIssue.examplePrompt
-                  }
-                </p>
+                  <p className="mt-1 text-sm leading-6 text-gray-700">
+                    {readinessIssue.examplePrompt}
+                  </p>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPrompt(
-                      readinessIssue.examplePrompt
-                    );
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrompt(
+                        readinessIssue.examplePrompt
+                      );
 
-                    setReadinessIssue(
-                      null
-                    );
+                      setReadinessIssue(
+                        null
+                      );
 
-                    setError(null);
-                  }}
-                  className="mt-3 text-sm font-semibold text-blue-700 hover:text-blue-800"
-                >
-                  Use this example as my prompt
-                </button>
-              </div>
+                      setError(null);
+                    }}
+                    className="mt-3 text-sm font-semibold text-blue-700 hover:text-blue-800"
+                  >
+                    Use this example as my prompt
+                  </button>
+                </div>
+              ) : null}
+              {readinessIssue.redirectHref &&
+                readinessIssue.redirectLabel ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(
+                        readinessIssue.redirectHref!
+                      )
+                    }
+                    className="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    {readinessIssue.redirectLabel}
+                  </button>
+                ) : null}
             </div>
           ) : null}
 

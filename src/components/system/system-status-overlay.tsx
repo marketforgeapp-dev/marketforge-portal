@@ -3,9 +3,16 @@
 type Props = {
   mode: "generating" | "refreshing";
   visible: boolean;
+  title?: string;
+  description?: string;
 };
 
-export function SystemStatusOverlay({ mode, visible }: Props) {
+export function SystemStatusOverlay({
+  mode,
+  visible,
+  title,
+  description,
+}: Props) {
   if (!visible) return null;
 
   const content =
@@ -21,6 +28,11 @@ export function SystemStatusOverlay({ mode, visible }: Props) {
             "Updating recommendations, actions, and reports with your latest changes.",
         };
 
+  const resolvedContent = {
+    title: title ?? content.title,
+    description: description ?? content.description,
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white px-6 py-6 text-center shadow-xl">
@@ -29,11 +41,11 @@ export function SystemStatusOverlay({ mode, visible }: Props) {
         </p>
 
         <h2 className="mt-3 text-lg font-bold text-gray-900">
-          {content.title}
+          {resolvedContent.title}
         </h2>
 
         <p className="mt-2 text-sm text-gray-600">
-          {content.description}
+          {resolvedContent.description}
         </p>
 
         <div className="mt-5 flex justify-center">

@@ -7,6 +7,7 @@ import { SettingsForm } from "@/components/settings/settings-form";
 import type { OnboardingFormData } from "@/types/onboarding";
 import { currentUser } from "@clerk/nextjs/server";
 import { getGooglePlaceSummary } from "@/lib/google-place-metrics";
+import { parseWebsiteIntelligenceAssessment } from "@/lib/website-intelligence";
 
 function toFormNumber(value: number | null | undefined): number | "" {
   return typeof value === "number" ? value : "";
@@ -146,6 +147,9 @@ export default async function SettingsPage({
     googleRating: toFormNumber(profile.googleRating),
     googleReviewCount: toFormNumber(profile.googleReviewCount),
     servicePageUrls: profile.servicePageUrls ?? [],
+    websiteIntelligence: parseWebsiteIntelligenceAssessment(
+      profile.websiteIntelligenceJson
+    ),
 
     busySeason: toFormString(profile.busySeason),
     slowSeason: toFormString(profile.slowSeason),
